@@ -1,0 +1,290 @@
+# Nexdo — Design System ("Warm Signal")
+
+Inspired by the meetgen reference: a warm cream canvas, near-black charcoal chrome, and one
+confident orange accent. This replaces the current purple/white system everywhere in the app
+(`FocusView`, `TasksView`, `ChatView`, `SettingsView`, `BottomNavigation`, all modals).
+
+The vibe: calm and analog-feeling, not "SaaS purple." Cream reads paper-like and trustworthy;
+charcoal gives weight to structure and navigation; orange is reserved for the one thing that
+matters on a screen — the AI, the primary action, the thing that's urgent.
+
+---
+
+## 1. Color Tokens
+
+### Core palette (from the reference)
+
+| Token | Hex | Role |
+|---|---|---|
+| `--cream-50` | `#F7F4E8` | Lightest surface — cards floating on the cream canvas, input fields |
+| `--cream-100` | `#EFEBDA` | Base cream canvas — page background on light screens |
+| `--cream-200` | `#E2DDC6` | Recessed/inactive surface — unselected calendar cells, disabled rows, hatched "empty" states |
+| `--cream-300` | `#CFC9AC` | Borders and dividers on cream surfaces |
+| `--charcoal-900` | `#1E1C19` | Darkest chrome — nav bar, dark canvas screens, primary text on cream |
+| `--charcoal-800` | `#28251F` | Elevated dark surface — cards floating on the charcoal canvas |
+| `--charcoal-600` | `#4A453B` | Secondary text on charcoal, muted icons |
+| `--charcoal-400` | `#8B8574` | Muted text / placeholders on both surfaces |
+| `--orange-500` | `#E2622E` | **Primary accent** — CTAs, active states, the AI's "signature" color, high-urgency signal |
+| `--orange-600` | `#C74F20` | Accent hover/pressed |
+| `--orange-100` | `#F7E1D2` | Accent tint — soft backgrounds behind orange badges/icons |
+
+### Supporting palette (added for this app's needs — used sparingly)
+
+The reference only needed one semantic color (orange = urgent/primary). This app needs to
+distinguish 3 urgency levels and 4 categories, so a few quiet supporting hues are added.
+They're desaturated to sit comfortably next to the warm cream/charcoal base rather than
+looking like a bolted-on Material palette.
+
+| Token | Hex | Role |
+|---|---|---|
+| `--amber-500` | `#C8912C` | Medium urgency |
+| `--amber-100` | `#F3E7CC` | Medium urgency tint |
+| `--olive-500` | `#71824A` | Low urgency / success (completed, "on track") |
+| `--olive-100` | `#E4E8D3` | Low urgency tint |
+| `--dust-blue-500` | `#5F7A93` | Category: Work |
+| `--dust-blue-100` | `#DDE6EC` | Category: Work tint |
+| `--clay-500` | `#A85C3F` | Category: School |
+| `--clay-100` | `#F0DCD1` | Category: School tint |
+| `--sage-500` | `#6E8A6C` | Category: Personal |
+| `--sage-100` | `#E2E9DD` | Category: Personal tint |
+| `--stone-500` | `#7A7566` | Category: Other |
+| `--stone-100` | `#E9E6DA` | Category: Other tint |
+
+Rule of thumb: **orange never means "category" or "medium/low urgency."** It is reserved
+exclusively for primary actions, the AI's presence (chat avatar, "AI Analysis" panels,
+Sparkles icon), and the single highest-priority signal on a screen (the "High" urgency
+badge, the notification dot, the active nav tab). If everything is orange, nothing is.
+
+### Text tokens
+
+| Token | Hex | Use |
+|---|---|---|
+| `--text-on-cream-primary` | `#211E19` | Headings/body on cream surfaces |
+| `--text-on-cream-secondary` | `#6B6656` | Supporting text on cream |
+| `--text-on-charcoal-primary` | `#F5F1E6` | Headings/body on charcoal surfaces |
+| `--text-on-charcoal-secondary` | `#A39D8A` | Supporting text on charcoal |
+
+---
+
+## 2. The Two-Surface System
+
+The reference alternates between a **dark charcoal canvas** and a **warm cream canvas**
+depending on the screen's job. Adopt the same split intentionally rather than picking one
+background for the whole app:
+
+- **Charcoal canvas** — screens that are about orientation, identity, or configuration:
+  onboarding/welcome, **Settings**, and the top status bar/header that appears above content
+  on Today and Tasks (mirrors the reference's persistent dark header with date + notification
+  badge). Cards on this canvas use `--charcoal-800` with `--text-on-charcoal-*` text.
+- **Cream canvas** — screens that are about *doing the work*: the task list, the focus card,
+  task detail, chat transcript, all modals. Cards on this canvas use `--cream-50` with
+  `--text-on-cream-*` text, sitting on a `--cream-100` page background.
+
+Concretely, mapped onto the existing app:
+
+| Screen / Component | Canvas | Notes |
+|---|---|---|
+| `BottomNavigation` | Charcoal | Always-dark bar, like the reference's persistent header. Active tab + center Add button in orange. |
+| `FocusView` (Today) | Charcoal header + cream body | Slim charcoal strip up top for the date/greeting-style eyebrow, then the cream page with the white-cream focus card. |
+| `TasksView` | Charcoal header + cream body | Same pattern; filter chips and cards sit on cream. |
+| `ChatView` | Cream | Message bubbles: AI bubble = `--cream-50` card with a small orange "spark" avatar; user bubble = solid `--charcoal-900` with cream text (a deliberate inversion — makes the AI feel like it lives *in* the paper, the user's voice is the "ink"). |
+| `SettingsView` | Charcoal (full canvas) | Matches the reference's settings screen exactly — dark background, cream section cards at `--charcoal-800`. |
+| `AddTaskModal`, `TaskExtractionReviewModal`, `TaskDetailModal` | Cream | Overlay scrim `rgba(30,28,25,0.5)` (charcoal at 50%, not pure black) over a cream modal card. |
+| Onboarding / empty states | Charcoal, full-bleed | If you ever add a splash/welcome screen, use the reference's exact pattern: charcoal canvas, one centered orange-accented illustration, headline in cream, orange primary button. |
+
+---
+
+## 3. Semantic Color Mapping (replaces the current purple system)
+
+### Urgency levels (score-driven)
+- **High** (score ≥ 75): `--orange-500` fill / `--orange-100` tint background / orange-900-ish
+  dark text on tint (use `--charcoal-900` on `--orange-100` for contrast, not pure orange text)
+- **Medium** (45–74): `--amber-500` / `--amber-100`
+- **Low** (< 45): `--olive-500` / `--olive-100`
+- **Overdue**: a distinct, slightly desaturated red so it doesn't compete with orange-as-CTA:
+  `--overdue-500 #B5432F` / `--overdue-100 #F2DCD5`
+
+### Categories
+- School → `--clay-500` / `--clay-100`
+- Work → `--dust-blue-500` / `--dust-blue-100`
+- Personal → `--sage-500` / `--sage-100`
+- Other → `--stone-500` / `--stone-100`
+
+### Interactive states
+- Primary button: fill `--orange-500`, hover `--orange-600`, text `--cream-50`
+- Secondary button: transparent fill, 1px `--cream-300` (on cream) or `--charcoal-600` (on
+  charcoal) border, text matches canvas primary text
+- Focus ring: 2px `--orange-500` at 40% opacity
+- Disabled: 40% opacity, no color change
+
+---
+
+## 4. Typography
+
+**Typeface: Space Grotesk — this is the *only* font permitted anywhere in the app.** No
+other family, and no CDN-loaded font — every asset ships locally.
+
+Two sets of source files now exist; use them as **primary + fallback**, not both loaded at
+once:
+
+| File | Role |
+|---|---|
+| `SpaceGrotesk-VariableFont_wght.ttf` | **Primary.** One file, `wght` axis spanning 300–700. Use this for the whole app. |
+| `SpaceGrotesk-Light/Regular/Medium/SemiBold/Bold.ttf` | **Fallback only**, for build targets or older WebViews that don't support variable fonts. Not needed on modern iOS/Android/web. |
+
+Bundle whichever set is used locally (e.g. `assets/fonts/`) rather than fetching from Google
+Fonts — this guarantees the exact intended cut renders, with no risk of the browser
+substituting a different foundry's fallback at build time.
+
+```css
+/* Primary: variable font, single @font-face covering the full weight range */
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/assets/fonts/SpaceGrotesk-VariableFont_wght.ttf') format('truetype-variations');
+  font-weight: 300 700; /* range syntax — lets the browser render ANY weight in between natively */
+  font-style: normal;
+  font-display: swap;
+}
+
+body {
+  font-family: 'Space Grotesk', sans-serif; /* plain sans-serif fallback only, never a named substitute family */
+}
+```
+
+```css
+/* Fallback path (only if a target can't load variable fonts): the 5 static files,
+   one @font-face per weight, same as before */
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/assets/fonts/SpaceGrotesk-Light.ttf') format('truetype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+/* ...Regular 400, Medium 500, SemiBold 600, Bold 700, same pattern as above */
+```
+
+**What the variable font changes:**
+- The browser can now render **any** weight from 300 to 700 with true interpolation — no
+  more synthesis penalty for an off-list value like `450`. Technically the constraint that
+  forced exactly 5 discrete steps is gone.
+- **Keep the 5-step system anyway.** The weight hierarchy in this doc (300/400/500/600/700)
+  is a *design decision* about how many levels of emphasis the UI needs, not a workaround for
+  static files. Stick to those 5 values everywhere for consistency — don't start reaching for
+  `550` or `650` just because the axis now allows it; an unbounded weight scale is harder to
+  keep consistent across components than a fixed one.
+- Still no italic axis in this file, so the italics rule stands: **never set `font-style:
+  italic`**. Where the app currently uses italics (e.g. the quoted AI-rationale line in the
+  extraction review modal), use the Light (300) weight plus the existing quotation marks
+  instead of leaning the type.
+
+It's a geometric grotesque with slightly squared letterforms and a technical, confident
+character — it reads as more distinctive than a default system sans, pairs well with the
+warm cream/charcoal palette, and its 5-step weight range gives enough contrast to carry the
+app's existing "loud where it matters, quiet everywhere else" hierarchy without switching
+families for emphasis.
+
+### Weight hierarchy (the logic, not just the numbers)
+
+The app's original hierarchy used one heavy weight (extrabold) for anything that mattered
+and regular/medium for everything else — a binary system. The variable font can technically
+render any weight from 300–700, but this app deliberately keeps that down to 5 explicit
+steps, which sharpens the hierarchy rather than flattening it:
+
+| Weight | Token name | Use |
+|---|---|---|
+| 700 (max) | `--weight-emphatic` | The one or two things on screen that must win first: screen titles ("Your next task"), the focused task's own title, primary CTA buttons ("Mark complete"), the numeral inside Score/day badges, the active nav item. |
+| 600 | `--weight-strong` | Everything else that's still a label of consequence: urgency/category pill text, secondary CTA text, section eyebrows (uppercase micro-labels like "WHAT SHOULD I DO NOW?" and "AI ANALYSIS"), badge words like "Due" that precede a bolded value. |
+| 500 | `--weight-medium` | Default UI chrome: inactive buttons, list item titles that aren't the focused task, form labels. |
+| 400 | `--weight-regular` | Body copy, timestamps, metadata values (durations, plain badge text with no numeral to lift). |
+| 300 | `--weight-light` | Quoted/voice content only — the AI Analysis explanation text, chat message body. Deliberately lighter than everything around it so it reads as commentary, not a directive. |
+
+Rule: **never use two consecutive steps side by side for unrelated content** — if a badge
+needs internal emphasis (e.g. "Score: 92"), split it: the label at 600, the numeral at 700,
+rather than inventing an in-between weight. This is how the reference's date treatment works
+("9 DEC" — bold numeral, quiet unit) and it now generalizes to every number+label pairing in
+the app (score, duration, day-of-month, attendee counts).
+
+### Scale & tracking
+
+- Screen titles (Focus header, Tasks header, Settings header): 26–28px, weight 700,
+  letter-spacing `-0.02em` (tightened, per Space Grotesk's slightly wide default spacing).
+- Card/task titles: 19–21px, weight 700, `-0.02em`.
+- Body text: 13–14px, weight 400, `line-height: 1.5`.
+- AI Analysis / quoted content: 13px, weight 300, `line-height: 1.5`, no letter-spacing
+  adjustment (light weight already reads calmer without tightening).
+- Eyebrow/micro-labels: 11px, weight 600, uppercase, letter-spacing `0.10–0.12em` (loosened,
+  not tightened — uppercase needs the extra air at this weight to stay legible).
+- Badge/pill text: 11–12px, weight 600 for the label portion, 700 for any embedded numeral.
+- Nav labels: 10px, weight 400 inactive, 700 active — weight alone signals selection, no
+  color-plus-background double-signal needed.
+
+### Numerals
+
+Space Grotesk's numerals are monospaced-width by default, which is a genuine advantage for
+this app: score values, durations, and dates won't cause layout shift as digits change.
+Lean into this — always render Score/day/time numerals in the 700 step so that advantage is
+visible, never in 400.
+
+---
+
+## 5. Shape, Spacing, Elevation
+
+- Corner radius: keep the current generous rounding — `16–24px` (`rounded-2xl`/`rounded-3xl`)
+  for cards and modals, full pill (`rounded-full`) for buttons and tab chips. The reference
+  uses slightly tighter radii on calendar cells (`~10px`) — use `rounded-xl` there.
+  Notification dot / small icon containers can go down to `rounded-lg`.
+- Shadows: soft and low-contrast only. On cream: `0 1px 2px rgba(30,28,25,0.06)` resting,
+  `0 4px 16px rgba(30,28,25,0.10)` for elevated modals. On charcoal: shadows barely show —
+  rely on a subtle `1px` lighter border (`--charcoal-700`-ish, e.g. `rgba(255,255,255,0.06)`)
+  to separate cards from the canvas instead of shadow.
+- Borders: hairline `1px`, `--cream-300` on cream, `rgba(255,255,255,0.08)` on charcoal.
+- Spacing scale: unchanged from current app (Tailwind default scale) — this is a reskin, not
+  a layout rebuild.
+
+---
+
+## 6. Component Restyles
+
+**Bottom nav** — charcoal bar, inactive icons `--text-on-charcoal-secondary`, active icon +
+label `--orange-500` with no background chip (cleaner than the current purple-chip treatment —
+let the color alone signal selection, matching the reference's understated active-tab
+underline/fill style). Center Add button: solid `--orange-500` circle, cream plus icon.
+
+**Score / urgency badge** — pill, tint background per urgency level above, bold number,
+small `Sparkles` icon only on the High/AI-driven badges (reserve the sparkle motif for
+AI-generated content specifically, echoing the reference's diamond "meetgen" mark as a
+recurring brand glyph).
+
+**AI Analysis panel** (Focus view, Task detail) — swap the purple gradient for a warm cream
+panel (`--cream-50` on `--cream-100` body, or `--charcoal-800` if that screen is on the
+charcoal canvas) with a **thin orange left border** (4px, `--orange-500`) instead of a full
+tinted background — this reads more "highlighted note" than "purple box" and matches the
+reference's restrained use of color as an accent, not a fill.
+
+**Chat bubbles** — AI: cream card, small orange spark-mark avatar (a diamond/star glyph,
+echoing meetgen's logomark — gives the AI a consistent visual identity across Focus, Chat,
+and any "AI Analysis" panel). User: solid charcoal bubble, cream text — inverts the usual
+"user = accent color" pattern deliberately, so orange stays reserved for AI/priority signal
+only, never for the human's own messages.
+
+**Calendar-style elements** (if a calendar/week view is ever added to Tasks) — follow the
+reference exactly: cream grid, muted `--cream-200` cells for empty/inactive days, orange
+filled cell for "today"/selected, small orange dot-chips for days with tasks due.
+
+**Modals** — cream card, charcoal-tinted scrim, orange primary footer button, plain-text
+secondary/cancel action (no button chrome) — matches the reference's spare footer pattern.
+
+---
+
+## 7. What Not to Do
+
+- Don't use orange for category tags — it will visually compete with the urgency/CTA signal.
+- Don't tint every card background with a color; the reference's discipline is *mostly
+  neutral cream/charcoal, one accent, used sparingly*. Most surfaces should read as
+  cream-on-cream or charcoal-on-charcoal with only text-weight and hairline borders for
+  hierarchy.
+- Don't mix warm cream with a cool white — pick `--cream-50`, never `#FFFFFF`, anywhere in
+  the app, or the palette will feel inconsistent.
+- Don't introduce a second bright/saturated accent alongside orange (no bright blue CTA next
+  to an orange CTA on the same screen).
