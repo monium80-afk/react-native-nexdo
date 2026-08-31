@@ -1,5 +1,6 @@
+import { useAuth } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,6 +20,10 @@ const STICKY_NOTES = [
 export default function Onboarding() {
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
+  const { isLoaded, isSignedIn } = useAuth();
+
+  if (!isLoaded) return null;
+  if (isSignedIn) return <Redirect href="/" />;
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>

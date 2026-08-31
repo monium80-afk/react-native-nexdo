@@ -1,3 +1,5 @@
+import { useSignUp } from "@clerk/expo";
+import { useSSO } from "@clerk/expo/experimental";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
@@ -34,18 +36,40 @@ const PLANNED_TASKS = [
 export default function SignUp() {
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
+  const { signUp, errors, fetchStatus } = useSignUp();
+  const { startSSOFlow } = useSSO();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
 
-  const handleSocialAuth = () => {
-    router.replace("/");
+  const handleSocialAuth = async (provider: "google" | "apple") => {
+    try {
+      const { createdSessionId } = await startSSOFlow({
+        strategy: provider === "google" ? "oauth_google" : "oauth_apple",
+      });
+      if (createdSessionId) router.replace("/");
+    } catch (err) {
+      console.error("Social sign-up error:", JSON.stringify(err, null, 2));
+    }
   };
 
-  const handleSignUp = () => {
-    if (!email) return;
+  const handleSignUp = async () => {
+    if (!email || !password) return;
+    const { error } = await signUp.password({ emailAddress: email, password });
+    if (error) return;
+
+    await signUp.verifications.sendEmailCode();
     setModalVisible(true);
+  };
+
+  const handleVerifyCode = async (code: string) => {
+    const { error } = await signUp.verifications.verifyEmailCode({ code });
+    if (error) return error.longMessage ?? "Invalid code. Try again.";
+
+    if (signUp.status === "complete") {
+      await signUp.finalize({ navigate: () => router.replace("/") });
+    }
   };
 
   return (
@@ -86,8 +110,14 @@ export default function SignUp() {
             </View>
 
             <View className="mt-8 gap-3">
-              <SocialAuthButton provider="google" onPress={handleSocialAuth} />
-              <SocialAuthButton provider="apple" onPress={handleSocialAuth} />
+              <SocialAuthButton
+                provider="google"
+                onPress={() => handleSocialAuth("google")}
+              />
+              <SocialAuthButton
+                provider="apple"
+                onPress={() => handleSocialAuth("apple")}
+              />
             </View>
 
             <Animated.View layout={REVEAL_LAYOUT} className="mt-5 gap-3">
@@ -104,6 +134,11 @@ export default function SignUp() {
                     keyboardType="email-address"
                     autoComplete="email"
                   />
+                  {errors.fields.emailAddress ? (
+                    <Text className="text-sm font-grotesk-medium text-overdue-500">
+                      {errors.fields.emailAddress.message}
+                    </Text>
+                  ) : null}
                   <AuthTextField
                     label="PASSWORD"
                     value={password}
@@ -111,11 +146,19 @@ export default function SignUp() {
                     secureEntry
                     autoComplete="new-password"
                   />
+                  {errors.fields.password ? (
+                    <Text className="text-sm font-grotesk-medium text-overdue-500">
+                      {errors.fields.password.message}
+                    </Text>
+                  ) : null}
+                  <View nativeID="clerk-captcha" />
                   <Pressable
                     onPress={handleSignUp}
+                    disabled={fetchStatus === "fetching"}
                     className="btn btn--primary mt-1"
                     style={({ pressed }) => [
                       pressed ? { transform: [{ scale: 0.99 }] } : undefined,
+                      fetchStatus === "fetching" ? { opacity: 0.6 } : undefined,
                     ]}
                   >
                     <Text className="font-grotesk-bold text-lg text-cream-50">
@@ -168,6 +211,7 @@ export default function SignUp() {
         visible={modalVisible}
         email={email}
         onClose={() => setModalVisible(false)}
+        onVerify={handleVerifyCode}
       />
     </SafeAreaView>
   );
