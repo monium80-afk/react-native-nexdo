@@ -1,4 +1,3 @@
-import { useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
   Keyboard,
@@ -17,32 +16,44 @@ type VerificationModalProps = {
   visible: boolean;
   email: string;
   onClose: () => void;
+  onVerify: (code: string) => Promise<string | void>;
 };
 
 export function VerificationModal({
   visible,
   email,
   onClose,
+  onVerify,
 }: VerificationModalProps) {
   const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [verifying, setVerifying] = useState(false);
   const inputRef = useRef<TextInput>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (!visible) return;
 
     setCode("");
+    setError(null);
     const focusTimeout = setTimeout(() => inputRef.current?.focus(), 250);
     return () => clearTimeout(focusTimeout);
   }, [visible]);
 
-  const handleChange = (text: string) => {
+  const handleChange = async (text: string) => {
     const digitsOnly = text.replace(/[^0-9]/g, "").slice(0, CODE_LENGTH);
     setCode(digitsOnly);
+    setError(null);
 
     if (digitsOnly.length === CODE_LENGTH) {
       Keyboard.dismiss();
-      router.replace("/");
+      setVerifying(true);
+      const errorMessage = await onVerify(digitsOnly);
+      setVerifying(false);
+
+      if (errorMessage) {
+        setError(errorMessage);
+        setCode("");
+      }
     }
   };
 
@@ -78,7 +89,11 @@ export function VerificationModal({
                 <View
                   key={index}
                   className={`h-14 w-11 items-center justify-center rounded-2xl border bg-cream-50 ${
-                    index < code.length ? "border-orange-500" : "border-cream-300"
+                    error
+                      ? "border-overdue-500"
+                      : index < code.length
+                        ? "border-orange-500"
+                        : "border-cream-300"
                   }`}
                 >
                   <Text className="font-grotesk-bold text-xl text-ink-cream">
@@ -88,12 +103,19 @@ export function VerificationModal({
               ))}
             </Pressable>
 
+            {error ? (
+              <Text className="text-center text-sm font-grotesk-medium text-overdue-500">
+                {error}
+              </Text>
+            ) : null}
+
             <TextInput
               ref={inputRef}
               value={code}
               onChangeText={handleChange}
               keyboardType="number-pad"
               maxLength={CODE_LENGTH}
+              editable={!verifying}
               className="absolute h-px w-px opacity-0"
             />
 

@@ -51,7 +51,9 @@
             "./assets/fonts/SpaceGrotesk-Bold.ttf"
           ]
         }
-      ]
+      ],
+      "@clerk/expo",
+      "expo-secure-store"
     ],
     "experiments": {
       "typedRoutes": true,
