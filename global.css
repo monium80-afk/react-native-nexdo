@@ -158,6 +158,10 @@
   border-color: var(--color-charcoal-600);
 }
 
+@utility btn--charcoal-solid {
+  background-color: var(--color-charcoal-900);
+}
+
 /* Badges/pills ------------------------------------------------------
  * Pair with `text-ink-cream font-grotesk-semibold` (or font-grotesk-bold
  * on the numeral, per the weight-pairing rule) — tint backgrounds always
@@ -211,6 +215,19 @@
 
 @utility scrim {
   background-color: rgb(30 28 25 / 0.5);
+}
+
+/* Form fields -------------------------------------------------------- */
+
+@utility field {
+  border-radius: 20px;
+  border-width: 1px;
+  border-color: var(--color-cream-300);
+  background-color: var(--color-cream-50);
+  padding-left: 16px;
+  padding-right: 16px;
+  padding-top: 10px;
+  padding-bottom: 10px;
 }
 
 /* Typography ---------------------------------------------------------
