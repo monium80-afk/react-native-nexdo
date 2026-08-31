@@ -1,9 +1,13 @@
 import { Feather } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GemLogo } from "@/components/GemLogo";
+import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { colors } from "@/constants/theme";
+import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
 
 const STICKY_NOTES = [
   { label: "dentist appt?", style: { top: 0, left: -6 }, rotate: "-7deg" },
@@ -13,13 +17,13 @@ const STICKY_NOTES = [
 ] as const;
 
 export default function Onboarding() {
+  const router = useRouter();
+  const enterStyle = useScreenEnterAnimation();
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
-      <View className="flex-1 px-6 pb-6">
-        <View className="flex-row items-center pt-2">
-          <View className="mr-4 h-2 flex-1 rounded-full bg-cream-200" />
-          <Text className="eyebrow text-ink-cream-muted">0% SETUP</Text>
-        </View>
+      <Animated.View style={enterStyle} className="flex-1 px-6 pb-6">
+        <SetupProgressBar percent={0} />
 
         <View className="flex-1 items-center justify-center gap-7">
           <View
@@ -30,7 +34,7 @@ export default function Onboarding() {
           </View>
 
           <View className="gap-4">
-            <Text className="text-center text-[34px] font-grotesk-bold leading-[1.15] tracking-tight text-ink-cream">
+            <Text className="text-center text-[34px] font-grotesk-bold leading-[1.02] tracking-tight text-ink-cream">
               Stop figuring out what to do next.
             </Text>
             <Text className="px-2 text-center text-[16px] font-grotesk-regular leading-relaxed text-ink-cream-muted">
@@ -88,13 +92,19 @@ export default function Onboarding() {
           </View>
         </View>
 
-        <Pressable className="btn btn--primary flex-row items-center justify-center gap-2">
+        <Pressable
+          onPress={() => router.push("/(auth)/sign-up")}
+          className="btn btn--primary flex-row items-center justify-center gap-2"
+          style={({ pressed }) => [
+            pressed ? { transform: [{ scale: 0.99 }] } : undefined,
+          ]}
+        >
           <Text className="font-grotesk-bold text-lg text-cream-50">
             Get Started
           </Text>
           <Feather name="chevron-right" size={20} color={colors.cream[50]} />
         </Pressable>
-      </View>
+      </Animated.View>
     </SafeAreaView>
   );
 }
