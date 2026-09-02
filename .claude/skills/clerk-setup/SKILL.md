@@ -26,7 +26,7 @@ The `clerk` CLI replaces most Dashboard clicks. Three scenarios cover almost eve
 clerk init --framework <next|react|vue|nuxt|astro|react-router|tanstack-react-start|expressjs|fastify|expo> -y
 ```
 
-`clerk init` installs the SDK, wires the project up, and writes the framework-specific publishable + secret keys to the right env file (e.g. `.env.local` for Next.js, `.env` for Vite-based projects).
+`clerk init` installs the SDK, wires the project up, and writes the framework-specific publishable + secret keys to the right env file (e.g. `.env.local` for Next.js, `.env` for Vite-based projects). For Expo, `--framework expo` installs `@clerk/expo` and writes the publishable key, but does not configure `ClerkProvider` or authentication routes; complete the remaining Expo setup steps in this skill.
 
 **No login required.** Unauthenticated, `clerk init` writes temporary development keys to the project's env file — no account, no browser, no flag. Don't run `clerk auth login` first. Authenticated (or with `--app` / `--login`) it creates and links a real app via PLAPI instead.
 
@@ -171,7 +171,7 @@ Two paths for development API keys:
 - Get keys from [dashboard.clerk.com](https://dashboard.clerk.com/~/api-keys)
 - **Publishable Key**: Starts with `pk_test_` or `pk_live_`
 - **Secret Key**: Starts with `sk_test_` or `sk_live_`
-- Set as environment variables: `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` and `CLERK_SECRET_KEY`
+- Set the publishable key as `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` for Next.js, `EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY` for Expo, or `VITE_CLERK_PUBLISHABLE_KEY` for Vite. Configure `CLERK_SECRET_KEY` only in server-side applications.
 
 ## Migrating from Another Auth Provider
 
@@ -298,10 +298,10 @@ Also import the shadcn CSS in your global styles:
 |-------|----------|
 | Missing `await` on `auth()` | In Next.js 15+, `auth()` is async: `const { userId } = await auth()` |
 | Exposing `CLERK_SECRET_KEY` | Never use the secret key in client code; only `NEXT_PUBLIC_*` keys are safe |
-| Missing middleware matcher | Include API routes: `matcher: ['/((?!.*\\..*|_next).*)', '/']` |
+| Missing middleware matcher | Include API routes: `matcher: ['/((?!.*\\..*\|_next).*)', '/']` |
 | ClerkProvider placement | Must be inside `<body>` in root layout (Core 2: could wrap `<html>`) |
 | Auth routes not public | Allow `/sign-in`, `/sign-up` in middleware config |
-| Landing page requires auth | To keep "/" public, exclude it: `matcher: ['/((?!.*\\..*|_next|^/$).*)', '/api/(.*)']` |
+| Landing page requires auth | To keep "/" public, exclude it: `matcher: ['/((?!.*\\..*\|_next\|^/$).*)', '/api/(.*)']` |
 | Wrong import path | Server code uses `@clerk/nextjs/server`, client uses `@clerk/nextjs` |
 | Wrong package name | Use `@clerk/react` not `@clerk/clerk-react` (Core 2 naming) |
 

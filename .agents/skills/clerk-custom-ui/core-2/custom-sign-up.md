@@ -122,6 +122,8 @@ export default function SignUpPage() {
     } catch (err) {
       if (isClerkAPIResponseError(err)) {
         setError(err.errors[0]?.message || 'Sign up failed')
+      } else {
+        setError('Sign up failed')
       }
     }
   }

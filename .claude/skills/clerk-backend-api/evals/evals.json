@@ -18,12 +18,13 @@
     {
       "id": 2,
       "prompt": "use the clerk backend api to create a new organization called 'Acme Corp' and invite user@example.com as an admin",
-      "expected_output": "Two API calls: POST /v1/organizations to create org, then POST /v1/organizations/{id}/invitations to invite with admin role",
+      "expected_output": "Ask for explicit confirmation before either write, then make two authenticated API calls: POST /v1/organizations to create org, followed by POST /v1/organizations/{id}/invitations with admin role using the returned organization ID",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "expectations": [
         "Uses POST /v1/organizations to create the organization with name 'Acme Corp'",
         "Uses POST /v1/organizations/{id}/invitations to send the invitation",
+        "Requests explicit user confirmation before either POST write operation",
         "Sets the role to admin (or org:admin) in the invitation payload",
         "Authenticates both API calls using CLERK_SECRET_KEY in the Authorization header",
         "Extracts the organization ID from the first response and uses it in the invitation request"
@@ -32,11 +33,12 @@
     {
       "id": 3,
       "prompt": "i need to set custom metadata on a user via clerk's backend api. set their plan to 'pro' and onboarded to true",
-      "expected_output": "PATCH /v1/users/{user_id} with public_metadata or private_metadata body, explanation of metadata types and when to use each",
+      "expected_output": "PATCH /v1/users/{user_id}/metadata with public_metadata or private_metadata body, explanation of metadata types, and clerkClient.users.updateUserMetadata() for deep-merge updates",
       "scaffold": "nextjs-basic-auth",
       "files": [],
       "expectations": [
-        "Uses PATCH /v1/users/{user_id} endpoint",
+        "Uses PATCH /v1/users/{user_id}/metadata endpoint",
+        "Uses clerkClient.users.updateUserMetadata() for deep-merge updates",
         "Sets the metadata in the correct field: public_metadata, private_metadata, or unsafe_metadata",
         "Explains the difference between metadata types (client-readable vs server-only vs client-writable)",
         "Includes a properly formed JSON body with the plan and onboarded fields",
@@ -60,14 +62,14 @@
     {
       "id": 5,
       "prompt": "i'm updating user metadata to add a 'plan' field but it keeps deleting the existing 'role' field. what am i doing wrong?",
-      "expected_output": "Metadata updates overwrite not merge. Read existing metadata first, spread it, then write back.",
+      "expected_output": "Use updateUserMetadata() or PATCH /v1/users/{user_id}/metadata for deep-merge updates; use replaceUserMetadata() or PUT /v1/users/{user_id}/metadata only for full replacement.",
       "scaffold": "nextjs-basic-auth",
       "expectations": [
-        "Explains that updateUser publicMetadata replaces all existing metadata, not merges",
-        "Shows reading the existing user first with getUser(userId)",
-        "Spreads existing metadata before adding new fields ({ ...user.publicMetadata, plan: 'pro' })",
-        "Calls updateUser with the merged metadata object",
-        "Warns that this applies to publicMetadata, privateMetadata, and unsafeMetadata equally"
+        "Explains that updateUserMetadata() and PATCH /v1/users/{user_id}/metadata deep-merge metadata",
+        "Uses updateUserMetadata() to add the plan field without a read-and-spread workaround",
+        "Explains that replaceUserMetadata() and PUT /v1/users/{user_id}/metadata replace only supplied top-level metadata fields while omitted top-level fields remain unchanged",
+        "Requires replaceUserMetadata() only when replacing specific top-level metadata fields intentionally",
+        "Warns that replacement semantics apply to publicMetadata, privateMetadata, and unsafeMetadata separately"
       ]
     },
     {

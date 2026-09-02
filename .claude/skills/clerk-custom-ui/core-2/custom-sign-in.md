@@ -157,6 +157,8 @@ export default function SignInPage() {
     } catch (err) {
       if (isClerkAPIResponseError(err)) {
         setError(err.errors[0]?.message || 'Sign in failed')
+      } else {
+        setError('Sign in failed')
       }
     }
   }
@@ -166,8 +168,17 @@ export default function SignInPage() {
     setError('')
 
     try {
+      const requestedStrategy = signIn.supportedSecondFactors?.[0]?.strategy
+      const factor = signIn.supportedSecondFactors?.find(
+        ({ strategy }) => strategy === requestedStrategy,
+      )
+      if (!factor) {
+        setError('No supported verification method is available')
+        return
+      }
+
       const result = await signIn.attemptSecondFactor({
-        strategy: 'totp',
+        strategy: factor.strategy,
         code: mfaCode,
       })
 
@@ -178,6 +189,8 @@ export default function SignInPage() {
     } catch (err) {
       if (isClerkAPIResponseError(err)) {
         setError(err.errors[0]?.message || 'Verification failed')
+      } else {
+        setError('Verification failed')
       }
     }
   }

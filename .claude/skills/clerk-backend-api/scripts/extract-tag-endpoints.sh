@@ -143,9 +143,8 @@ function flushBlock() {
       summary,
       description,
       refs: blockRefs,
+      blockLines: [...blockLines],
     });
-
-    for (const r of blockRefs) refs.add(r);
   }
 }
 
@@ -182,6 +181,57 @@ if (endpoints.length === 0) {
   process.exit(1);
 }
 
+// Resolve referenced component bodies, including refs nested in other components.
+function resolveRef(ref) {
+  const parts = ref.replace("#/", "").split("/");
+  let searchStart = 0;
+  for (let p = 0; p < parts.length; p++) {
+    const indent = p * 2;
+    const target = " ".repeat(indent) + parts[p] + ":";
+    let found = false;
+    for (let i = searchStart; i < lines.length; i++) {
+      if (lines[i].startsWith(target) && (lines[i] === target || lines[i][target.length] === " ")) {
+        searchStart = i + 1;
+        found = true;
+        break;
+      }
+    }
+    if (!found) return null;
+  }
+
+  const baseIndent = parts.length * 2;
+  const result = [];
+  for (let i = searchStart; i < lines.length; i++) {
+    const line = lines[i];
+    if (line.trim() === "") { result.push(line); continue; }
+    const lineIndent = line.length - line.trimStart().length;
+    if (lineIndent < baseIndent) break;
+    result.push(line);
+  }
+  return result;
+}
+
+function collectDeepRefs(refSet, visited) {
+  for (const ref of [...refSet]) {
+    if (visited.has(ref)) continue;
+    visited.add(ref);
+    const body = resolveRef(ref);
+    if (!body) continue;
+    for (const bl of body) {
+      const refMatch = bl.match(/\$ref:\s*['"]?(#\/[^'"}\s]+)['"]?/);
+      if (refMatch) refSet.add(refMatch[1]);
+    }
+  }
+  const remaining = [...refSet].filter(ref => !visited.has(ref));
+  if (remaining.length > 0) collectDeepRefs(refSet, visited);
+}
+
+for (const ep of endpoints) {
+  const endpointRefs = new Set(ep.refs);
+  collectDeepRefs(endpointRefs, new Set());
+  for (const ref of endpointRefs) refs.add(ref);
+}
+
 console.log(`## Endpoints for "${tag}" (${endpoints.length} total)\n`);
 for (const ep of endpoints) {
   console.log(`### \`${ep.method}\` \`${ep.path}\``);
@@ -189,9 +239,9 @@ for (const ep of endpoints) {
   if (ep.summary) console.log(`- **summary**: ${ep.summary}`);
   if (ep.description && ep.description !== ep.summary)
     console.log(`- **description**: ${ep.description}`);
-  if (ep.refs.length > 0) {
-    console.log(`- **refs**: ${ep.refs.map(r => "\`" + r.split("/").pop() + "\`").join(", ")}`);
-  }
+  console.log("\n```yaml");
+  for (const line of ep.blockLines) console.log(line);
+  console.log("```");
   console.log();
 }
 
@@ -203,6 +253,15 @@ if (refs.size > 0) {
     const name = r.split("/").pop();
     const category = r.split("/").slice(0, -1).join("/").replace("#/", "");
     console.log(`- \`${name}\` (${category})`);
+    const body = resolveRef(r);
+    if (body) {
+      console.log("\n```yaml");
+      for (const line of body) console.log(line);
+      console.log("```");
+    } else {
+      console.log("\n_(could not resolve)_");
+    }
+    console.log();
   }
 }
 SCRIPT

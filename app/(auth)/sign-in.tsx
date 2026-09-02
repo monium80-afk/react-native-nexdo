@@ -53,7 +53,12 @@ export default function SignIn() {
     if (error) return error.longMessage ?? "Invalid code. Try again.";
 
     if (signIn.status === "complete") {
-      await signIn.finalize({ navigate: () => router.replace("/") });
+      const { error: finalizeError } = await signIn.finalize({
+        navigate: () => router.replace("/"),
+      });
+      if (finalizeError) {
+        return finalizeError.longMessage ?? "Invalid code. Try again.";
+      }
     }
   };
 

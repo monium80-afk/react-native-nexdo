@@ -88,11 +88,12 @@ Rerun the same command on the host before acting on it.
 
 `clerk link` stores a mapping from your repo to a Clerk application in the CLI config file (run `clerk doctor --verbose` to see the resolved path; override with `CLERK_CONFIG_DIR`). The key is the normalized git remote URL (e.g., `github.com/org/repo`), which means the link is shared across all clones and worktrees of the same repo automatically.
 
-When you run a command without `--app`/`--instance`:
+Target resolution depends on the command:
 
-1. The CLI resolves the current repo's profile (normalized git remote → git common dir → current working directory).
-2. If linked, it uses the stored app ID and instance IDs.
-3. If not linked, it errors with guidance to run `clerk link`.
+1. Explicit `--secret-key` / `CLERK_SECRET_KEY` takes precedence for Backend API commands; it uses that local `sk_` key directly, including `sk_live_` keys that can mutate their associated instance.
+2. For accountless commands such as `users`, `api`, and instance configuration, if no explicit key is provided, the CLI falls back to the local `sk_` key from `.env`, `.env.local`, or keyless state.
+3. Commands that require an account or linked project resolve the linked profile (or an explicit `--app`/`--instance`) and fail with guidance to run `clerk link` when no target is available.
+4. An explicit `--app`/`--instance` overrides linked-profile targeting when the command supports it.
 
 ## `--app` and `--instance` targeting
 

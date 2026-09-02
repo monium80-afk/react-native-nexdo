@@ -40,9 +40,14 @@ function TabIcon({
   }
 }
 
-function AddTabButton({ onPress }: { onPress: () => void }) {
+function AddTabButton({ focused, onPress }: { focused: boolean; onPress: () => void }) {
   return (
-    <Pressable onPress={onPress} className="items-center -mt-[30px]">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      className="items-center -mt-[30px]"
+    >
       <View
         style={Platform.select({
           ios: {
@@ -74,7 +79,12 @@ function StandardTabButton({
   const tintColor = focused ? colors.orange[500] : colors.ink.charcoalMuted;
 
   return (
-    <Pressable onPress={onPress} className="flex-1 items-center gap-1">
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="tab"
+      accessibilityState={{ selected: focused }}
+      className="flex-1 items-center gap-1"
+    >
       <View>
         <TabIcon routeName={routeName} color={tintColor} size={24} />
         {routeName === "tasks" && (
@@ -123,7 +133,7 @@ export function TabBar({ state, navigation }: BottomTabBarProps) {
         };
 
         if (routeName === "add") {
-          return <AddTabButton key={route.key} onPress={onPress} />;
+          return <AddTabButton key={route.key} focused={focused} onPress={onPress} />;
         }
 
         return (

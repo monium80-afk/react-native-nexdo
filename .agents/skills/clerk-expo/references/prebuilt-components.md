@@ -16,11 +16,11 @@ Import from `@clerk/expo/native`:
 
 | Component | Renders | Props |
 |-----------|---------|-------|
-| `AuthView` | Sign-in/sign-up UI, inline (fills parent) | `mode?: 'signInOrUp' \| 'signIn' \| 'signUp'` (default `signInOrUp`), `isDismissible?: boolean` (default true), `onDismiss?: () => void` |
+| `AuthView` | Sign-in/sign-up UI, inline (fills parent) | `mode?: 'signInOrUp' \| 'signIn' \| 'signUp'` (default `signInOrUp`), `isDismissible?: boolean` (default true), `onDismiss?: () => void`, `logo?: ImageSourcePropType`, `logoMaxHeight?: number`, `onHostBack?: () => void` |
 | `UserButton` | Avatar button that opens the native user profile | — |
 | `UserProfileView` | Profile/account management, inline | `isDismissible?`, `onDismiss?`, `style?` |
 
-These are the only public props. Do not invent event handlers (`onAuthEvent`, `onSignIn`, etc.) — react to auth state with `useAuth()` / `useUser()` instead. Verify props against `node_modules/@clerk/expo/dist/native/*.d.ts` for the installed version.
+These are the documented AuthView props, not an exhaustive list. `logo` supplies a custom logo, `logoMaxHeight` constrains its height, and `onHostBack` handles native header back actions when AuthView fills a navigation route. Do not invent event handlers (`onAuthEvent`, `onSignIn`, etc.) — react to auth state with `useAuth()` / `useUser()` instead. Verify props against `node_modules/@clerk/expo/dist/native/*.d.ts` for the installed version.
 
 ## Canonical screen
 

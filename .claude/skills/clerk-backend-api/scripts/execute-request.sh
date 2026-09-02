@@ -11,15 +11,26 @@
 
 set -euo pipefail
 
-# Walk up from $PWD to find .env/.env.local (mirrors Clerk CLI behavior).
-# Stops at the first directory that provides CLERK_SECRET_KEY.
+# Walk up from $PWD to find .env/.env.local without executing their contents.
+# Load variables from both files with .env.local taking precedence, process each variable only once.
 _dir="$PWD"
 while true; do
-  for _envfile in "$_dir/.env" "$_dir/.env.local"; do
+  for _envfile in "$_dir/.env.local" "$_dir/.env"; do
     if [[ -f "$_envfile" ]]; then
-      set -a
-      source "$_envfile"
-      set +a
+      while IFS= read -r _line || [[ -n "$_line" ]]; do
+        if [[ "$_line" =~ ^[[:space:]]*(export[[:space:]]+)?(CLERK_SECRET_KEY|CLERK_BAPI_SCOPES)[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$ ]]; then
+          _name="${BASH_REMATCH[2]}"
+          _value="${BASH_REMATCH[3]}"
+          if [[ "$_value" =~ ^\"(.*)\"$ || "$_value" =~ ^\'(.*)\'$ ]]; then
+            _value="${BASH_REMATCH[1]}"
+          fi
+          # Only set the variable if not already present in process environment
+          if [[ -z "${!_name:-}" ]]; then
+            printf -v "$_name" '%s' "$_value"
+            export "$_name"
+          fi
+        fi
+      done < "$_envfile"
     fi
   done
   [[ -n "${CLERK_SECRET_KEY:-}" ]] && break
@@ -27,7 +38,7 @@ while true; do
   [[ "$_parent" == "$_dir" ]] && break
   _dir="$_parent"
 done
-unset _dir _parent _envfile
+unset _dir _parent _envfile _line _name _value
 
 # Parse --admin flag
 ADMIN=false

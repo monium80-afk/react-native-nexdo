@@ -1,5 +1,6 @@
 import { useClerk, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
+import { useState } from "react";
 import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -8,6 +9,20 @@ import { colors } from "@/constants/theme";
 export default function Settings() {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const [isSigningOut, setIsSigningOut] = useState(false);
+  const [signOutError, setSignOutError] = useState<string | null>(null);
+
+  const handleSignOut = async () => {
+    setIsSigningOut(true);
+    setSignOutError(null);
+    try {
+      await signOut();
+    } catch {
+      setSignOutError("Couldn't sign out. Try again.");
+    } finally {
+      setIsSigningOut(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }}>
@@ -29,14 +44,22 @@ export default function Settings() {
         </View>
 
         <Pressable
-          onPress={() => signOut()}
+          onPress={handleSignOut}
+          disabled={isSigningOut}
           className="card card--charcoal flex-row items-center gap-3 p-4"
+          style={isSigningOut ? { opacity: 0.6 } : undefined}
         >
           <Feather name="log-out" size={18} color={colors.overdue[500]} />
           <Text className="font-grotesk-semibold text-base text-overdue-500">
-            Sign out
+            {isSigningOut ? "Signing out…" : "Sign out"}
           </Text>
         </Pressable>
+
+        {signOutError ? (
+          <Text className="text-sm font-grotesk-medium text-overdue-500">
+            {signOutError}
+          </Text>
+        ) : null}
       </View>
     </SafeAreaView>
   );

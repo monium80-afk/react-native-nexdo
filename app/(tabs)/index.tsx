@@ -1,5 +1,6 @@
 import { useUser } from "@clerk/expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import { useMemo, useState, type ReactNode } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
@@ -49,6 +50,7 @@ function MetaPill({
 }
 
 export default function Next() {
+  const router = useRouter();
   const { user } = useUser();
   const enterStyle = useScreenEnterAnimation();
   const [taskIndex, setTaskIndex] = useState(0);
@@ -74,9 +76,18 @@ export default function Next() {
   };
 
   const handleSendNote = () => {
-    if (!note.trim()) return;
+    const trimmedNote = note.trim();
+    if (!trimmedNote) return;
+    router.push({
+      pathname: "/(tabs)/tasks",
+      params: { taskId: task.id, note: trimmedNote },
+    });
     setNote("");
   };
+
+  const handleStartTask = () => router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id } });
+  const handlePlanTask = () => router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id, mode: "plan" } });
+  const handleAnalyzeTask = () => router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } });
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
@@ -159,6 +170,7 @@ export default function Next() {
           </View>
 
           <Pressable
+            onPress={handleStartTask}
             className="btn btn--primary flex-row gap-2"
             style={({ pressed }) => (pressed ? { opacity: 0.9 } : undefined)}
           >
@@ -167,11 +179,11 @@ export default function Next() {
           </Pressable>
 
           <View className="flex-row gap-3">
-            <Pressable className="btn btn--secondary-cream flex-1 flex-row gap-2">
+            <Pressable onPress={handlePlanTask} className="btn btn--secondary-cream flex-1 flex-row gap-2">
               <Feather name="compass" size={16} color={colors.ink.cream} />
               <Text className="font-grotesk-semibold text-base text-ink-cream">Plan</Text>
             </Pressable>
-            <Pressable className="btn btn--secondary-cream flex-1 flex-row gap-2">
+            <Pressable onPress={handleAnalyzeTask} className="btn btn--secondary-cream flex-1 flex-row gap-2">
               <Feather name="bar-chart-2" size={16} color={colors.ink.cream} />
               <Text className="font-grotesk-semibold text-base text-ink-cream">Analyze</Text>
             </Pressable>
