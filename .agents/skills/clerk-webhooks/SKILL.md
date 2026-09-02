@@ -28,7 +28,7 @@ Do NOT rely on webhook delivery as part of a synchronous flow such as onboarding
 
 ## Verify Every Webhook
 
-Use `verifyWebhook(req)` from the framework-specific package (`@clerk/nextjs/webhooks`, `@clerk/express/webhooks`, etc.). It reads `CLERK_WEBHOOK_SIGNING_SECRET` automatically and throws on bad signatures. Use patched SDK releases: `@clerk/nextjs` 6.23.3+, `@clerk/express` 1.7.4+, or `@clerk/backend` 2.4.0+. Do not recommend earlier versions for signature verification. Skipping verification, even for notification-only handlers, exposes the endpoint to spoofed events.
+Use `verifyWebhook(req)` from the framework-specific package (`@clerk/nextjs/webhooks`, `@clerk/express/webhooks`, etc.). It reads `CLERK_WEBHOOK_SIGNING_SECRET` automatically and throws on bad signatures. Use patched SDK releases: `@clerk/nextjs` 6.23.3+, `@clerk/express` 1.7.4+, `@clerk/backend` 2.4.0+, `@clerk/astro` 2.10.2+, `@clerk/fastify` 2.4.4+, `@clerk/nuxt` 1.7.5+, `@clerk/react-router` 1.6.4+, `@clerk/remix` 4.8.5+, or `@clerk/tanstack-react-start` 0.18.3+. Do not recommend earlier versions for signature verification. Skipping verification, even for notification-only handlers, exposes the endpoint to spoofed events.
 
 ## Make the Webhook Route Public
 
@@ -64,41 +64,51 @@ export async function POST(req: NextRequest) {
   }
 
   const deliveryId = req.headers.get('svix-id')
-  if (!deliveryId || !(await db.webhookDeliveries.createIfAbsent({ id: deliveryId }))) {
-    return new Response('OK', { status: 200 })
-  }
+  if (!deliveryId) return new Response('Missing delivery ID', { status: 400 })
+  const delivery = await db.webhookDeliveries.createIfAbsent({ id: deliveryId, status: 'pending' })
+  if (delivery.status === 'completed') return new Response('OK', { status: 200 })
 
-  if (evt.type === 'user.created') {
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
-    const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
-    await db.users.createIfAbsent({ data: { clerkId: id, email, name } })
-  }
+  try {
+    if (evt.type === 'user.created') {
+      const { id, email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+      const email = email_addresses.find(({ id }) => id === primary_email_address_id)?.email_address
+      if (!email) return new Response('Missing primary email', { status: 400 })
+      const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
+      await db.users.createIfAbsent({ data: { clerkId: id, email, name } })
+    }
 
-  if (evt.type === 'user.updated') {
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
-    const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
-    await db.users.update({ where: { clerkId: id }, data: { email, name } })
-  }
+    if (evt.type === 'user.updated') {
+      const { id, email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+      const email = email_addresses.find(({ id }) => id === primary_email_address_id)?.email_address
+      if (!email) return new Response('Missing primary email', { status: 400 })
+      const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
+      await db.users.update({ where: { clerkId: id }, data: { email, name } })
+    }
 
-  if (evt.type === 'user.deleted') {
-    const { id } = evt.data
-    await db.users.delete({ where: { clerkId: id } })
-  }
+    if (evt.type === 'user.deleted') {
+      const { id } = evt.data
+      await db.users.delete({ where: { clerkId: id } })
+    }
 
-  if (evt.type === 'organizationMembership.created') {
-    const { organization, public_user_data, role } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
-    await db.teamMembers.create({ data: { orgId, userId, role } })
-  }
+    if (evt.type === 'organizationMembership.created') {
+      const { organization, public_user_data, role } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
+      await db.teamMembers.create({ data: { orgId, userId, role } })
+    }
 
-  if (evt.type === 'organizationMembership.deleted') {
-    const { organization, public_user_data } = evt.data
-    const orgId = organization.id
-    const userId = public_user_data.user_id
-    await db.teamMembers.delete({ where: { orgId_userId: { orgId, userId } } })
+    if (evt.type === 'organizationMembership.deleted') {
+      const { organization, public_user_data } = evt.data
+      const orgId = organization.id
+      const userId = public_user_data.user_id
+      await db.teamMembers.delete({ where: { orgId_userId: { orgId, userId } } })
+    }
+
+    await db.webhookDeliveries.markCompleted({ id: deliveryId })
+  } catch (err) {
+    console.error('Webhook processing failed:', err)
+    await db.webhookDeliveries.markFailed({ id: deliveryId })
+    return new Response('Webhook processing failed', { status: 500 })
   }
 
   return new Response('OK', { status: 200 })
@@ -126,28 +136,38 @@ export async function POST(req: NextRequest) {
   }
 
   const deliveryId = req.headers.get('svix-id')
-  if (!deliveryId || !(await db.webhookDeliveries.createIfAbsent({ id: deliveryId }))) {
-    return new Response('OK', { status: 200 })
-  }
+  if (!deliveryId) return new Response('Missing delivery ID', { status: 400 })
+  const delivery = await db.webhookDeliveries.createIfAbsent({ id: deliveryId, status: 'pending' })
+  if (delivery.status === 'completed') return new Response('OK', { status: 200 })
 
-  // Step 2: Listen for user.created event
-  if (evt.type === 'user.created') {
-    // Step 3: Extract user email and name from webhook payload
-    const { id, email_addresses, first_name, last_name } = evt.data
-    const email = email_addresses[0]?.email_address
-    const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
+  try {
+    // Step 2: Listen for user.created event
+    if (evt.type === 'user.created') {
+      // Step 3: Resolve the primary email by its identifier.
+      const { email_addresses, primary_email_address_id, first_name, last_name } = evt.data
+      const email = email_addresses.find(({ id }) => id === primary_email_address_id)?.email_address
+      const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
 
-    // Step 4: Queue unique outbox jobs; workers send with provider idempotency keys.
-    await db.outbox.enqueueUnique({
-      key: `${deliveryId}:welcome-email`,
-      type: 'welcome-email',
-      payload: { from: 'noreply@yourdomain.com', to: email, subject: 'Welcome!', html: `<p>Hi ${name}, welcome to our app!</p>` },
-    })
-    await db.outbox.enqueueUnique({
-      key: `${deliveryId}:slack-notification`,
-      type: 'slack-notification',
-      payload: { text: `New user signed up: ${name} (${email})` },
-    })
+      // Step 4: Queue unique outbox jobs; workers send with provider idempotency keys.
+      if (email) {
+        await db.outbox.enqueueUnique({
+          key: `${deliveryId}:welcome-email`,
+          type: 'welcome-email',
+          payload: { from: 'noreply@yourdomain.com', to: email, subject: 'Welcome!', html: `<p>Hi ${name}, welcome to our app!</p>` },
+        })
+      }
+      await db.outbox.enqueueUnique({
+        key: `${deliveryId}:slack-notification`,
+        type: 'slack-notification',
+        payload: { text: `New user signed up: ${name}${email ? ` (${email})` : ''}` },
+      })
+    }
+
+    await db.webhookDeliveries.markCompleted({ id: deliveryId })
+  } catch (err) {
+    console.error('Webhook processing failed:', err)
+    await db.webhookDeliveries.markFailed({ id: deliveryId })
+    return new Response('Webhook processing failed', { status: 500 })
   }
 
   // Always return 200 to acknowledge receipt

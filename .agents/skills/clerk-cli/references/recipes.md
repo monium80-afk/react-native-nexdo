@@ -40,12 +40,11 @@ clerk users open user_abc123 --print     # print the URL instead of opening
 # Create a user (preferred; curated flags)
 clerk users create \
   --email alice@example.com \
-  --password 'SuperSecret123!' \
   --first-name Alice \
   --last-name Doe \
   --dry-run
-# After explicit user confirmation, run the same command without --dry-run.
-clerk users create --email alice@example.com --password 'SuperSecret123!' --first-name Alice --last-name Doe
+# After explicit user confirmation, run without --dry-run and enter the password at the CLI's hidden prompt.
+clerk users create --email alice@example.com --first-name Alice --last-name Doe
 
 # Equivalent raw BAPI call. Use only when curated flags don't cover a field.
 clerk api /users -d '{
@@ -379,24 +378,45 @@ jq -n '{email_address:["c@d.co"]}' | clerk api /users
 
 ```sh
 # Collect every page before making any mutation, then snapshot the complete ID set.
+temp_dir=$(mktemp -d) || exit 1
+trap 'rm -rf "$temp_dir"' EXIT
 offset=0
-: > /tmp/user-ids.txt
+user_ids="$temp_dir/user-ids.txt"
+: > "$user_ids" || exit 1
 while :; do
-  page="/tmp/users-${offset}.json"
-  clerk users list --json --limit 250 --offset "$offset" > "$page"
-  jq -r '.data[] | .id' "$page" >> /tmp/user-ids.txt
-  [ "$(jq -r '.hasMore' "$page")" = "true" ] || break
+  page="$temp_dir/users-${offset}.json"
+  if ! clerk users list --json --limit 250 --offset "$offset" > "$page"; then
+    exit 1
+  fi
+  page_ids="$temp_dir/users-${offset}.ids"
+  if ! jq -r '.data[] | .id' "$page" > "$page_ids"; then
+    exit 1
+  fi
+  if ! cat "$page_ids" >> "$user_ids"; then
+    exit 1
+  fi
+  if ! has_more=$(jq -r '.hasMore' "$page"); then
+    exit 1
+  fi
+  [ "$has_more" = "true" ] || break
   offset=$((offset + 250))
 done
 
 # Preview the full mutation set.
 while IFS= read -r id; do
-  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}' --dry-run
-done < /tmp/user-ids.txt
-# After reviewing all previews and receiving explicit confirmation, mutate the snapshot only.
+  if ! clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}' --dry-run; then
+    exit 1
+  fi
+done < "$user_ids"
+# After reviewing all previews, require an explicit confirmation before mutating the snapshot.
+printf 'Type YES to apply these migrations: '
+IFS= read -r confirmation || exit 1
+[ "$confirmation" = "YES" ] || { printf '%s\n' 'Migration aborted.'; exit 1; }
 while IFS= read -r id; do
-  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}'
-done < /tmp/user-ids.txt
+  if ! clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}'; then
+    exit 1
+  fi
+done < "$user_ids"
 ```
 
 ### Target multiple instances
