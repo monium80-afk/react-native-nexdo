@@ -3,13 +3,13 @@ import { useSSO } from "@clerk/expo/experimental";
 import { useRouter } from "expo-router";
 import { useState } from "react";
 import {
-  KeyboardAvoidingView,
-  Platform,
-  Pressable,
-  ScrollView,
-  StyleSheet,
-  Text,
-  View,
+    KeyboardAvoidingView,
+    Platform,
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    View,
 } from "react-native";
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -59,7 +59,8 @@ export default function SignUp() {
     const { error } = await signUp.password({ emailAddress: email, password });
     if (error) return;
 
-    await signUp.verifications.sendEmailCode();
+    const { error: verificationError } = await signUp.verifications.sendEmailCode();
+    if (verificationError) return;
     setModalVisible(true);
   };
 
@@ -68,7 +69,12 @@ export default function SignUp() {
     if (error) return error.longMessage ?? "Invalid code. Try again.";
 
     if (signUp.status === "complete") {
-      await signUp.finalize({ navigate: () => router.replace("/") });
+      const { error: finalizeError } = await signUp.finalize({
+        navigate: () => router.replace("/"),
+      });
+      if (finalizeError) {
+        return finalizeError.longMessage ?? "Invalid code. Try again.";
+      }
     }
   };
 

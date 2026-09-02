@@ -77,25 +77,27 @@ Otherwise fall back to a package runner, in this order (matches the CLI's own `p
 
 | Project package manager   | Invocation                       |
 | ------------------------- | -------------------------------- |
-| bun (`bun.lock*`)         | `bunx clerk@latest`     |
-| npm (`package-lock.json`) | `npx -y clerk@latest`   |
-| pnpm (`pnpm-lock.yaml`)   | `pnpm dlx clerk@latest` |
-| yarn >= 2 (`yarn.lock`)   | `yarn dlx clerk@latest` |
+| bun (`bun.lock*`)         | `bunx clerk@3.3.0`     |
+| npm (`package-lock.json`) | `npx -y clerk@3.3.0`   |
+| pnpm (`pnpm-lock.yaml`)   | `pnpm dlx clerk@3.3.0` |
+| yarn >= 2 (`yarn.lock`)   | `yarn dlx clerk@3.3.0` |
 
 Yarn Classic (v1) has no `dlx`; treat those projects as "no preferred runner" and fall back to the first runner from the list above that's on PATH.
 
-The published npm package is **`clerk`**, not `@clerk/cli`. Never teach `npm install -g clerk` as the primary path. If the global CLI is stale or behaves differently from this skill, either upgrade the global install or fall back to the `latest` runner form above.
+The published npm package is **`clerk`**, not `@clerk/cli`. Never teach `npm install -g clerk` as the primary path. If the global CLI is stale or behaves differently from this skill, either upgrade the global install or fall back to the pinned runner form above.
 
-## Prerequisites (run at session start)
+## Prerequisites
 
-Before running any other Clerk command in a session, verify the CLI is authenticated, linked, and healthy:
+For commands that require an account or linked project, verify the CLI is authenticated, linked, and healthy before running them:
 
 ```sh
 clerk --version               # confirm the binary is on PATH
 clerk doctor --json           # structured health check; exit 1 if anything failed
 ```
 
-**Always run `clerk doctor --json` first.** It catches the common setup failures (not logged in, project not linked, missing keys, stale CLI version) up front, so later commands don't fail with confusing errors. In agent mode it also includes a `Host execution` check that warns when Clerk's host-side config / credential directories are not writable, which is the canonical signal that the current invocation is likely sandboxed.
+Run `clerk doctor --json` first and enforce its failures for account- or project-dependent commands such as `auth`, `link`, `apps`, `impersonate`, billing, and project-linked configuration. Accountless commands such as `clerk init`, `users`, `api`, and instance configuration may run without a successful doctor result; inspect and surface doctor failures non-blockingly for those commands instead of stopping execution.
+
+`clerk doctor --json` catches common setup failures (not logged in, project not linked, missing keys, stale CLI version). In agent mode it also includes a `Host execution` check that warns when Clerk's host-side config / credential directories are not writable, which is the canonical signal that the current invocation is likely sandboxed.
 
 Each result has `name`, `status` (`pass`/`warn`/`fail`), `message`, optional `detail`, optional `remedy` (how to fix it), and optional `fix` (label for auto-fixable issues). Parse that and act on it, or surface it to the user. If `Host execution` warns, rerun the command on the host before trusting any auth/link/env/API failures from the same sandboxed run. Rerun `clerk doctor --json` whenever a later command starts misbehaving.
 
@@ -152,9 +154,10 @@ clerk api /users/user_abc123 -X DELETE
 clerk api /users --file payload.json
 cat payload.json | clerk api /users
 
-# Always preview mutations first
+# Always preview mutations first; a preview is not approval
 clerk api /users/user_abc123 -X DELETE --dry-run
-clerk api /users/user_abc123 -X DELETE --yes      # skip confirmation once you've verified
+# Ask the user for explicit confirmation immediately before executing:
+clerk api /users/user_abc123 -X DELETE
 
 # Target a specific app/instance
 clerk api /users --app app_abc123 --instance prod
@@ -174,7 +177,7 @@ In human mode, `clerk api` with no arguments opens an interactive request builde
 
 For instance config, prefer the dedicated `clerk config ...` commands over raw Platform API `/config` paths. They handle dry-run, diffing, and confirmation more cleanly than the raw endpoint form.
 
-**Always `--dry-run` a mutation before running it for real.** Then re-run without `--dry-run` (add `--yes` if you're sure). In agent mode, interactive confirmation is bypassed, so `--dry-run` is the only safety net for destructive calls.
+**Always `--dry-run` a mutation before running it for real.** After reviewing the preview, obtain explicit user confirmation immediately before the real command. `--yes`, agent mode, and a dry-run preview are not human approval; use `--yes` only when the command requires it after confirmation.
 
 **JSON bodies must be valid JSON.** The CLI validates and rejects malformed payloads.
 

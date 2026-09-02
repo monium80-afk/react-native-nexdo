@@ -47,8 +47,12 @@ export function VerificationModal({
     if (digitsOnly.length === CODE_LENGTH) {
       Keyboard.dismiss();
       setVerifying(true);
-      const errorMessage = await onVerify(digitsOnly);
-      setVerifying(false);
+      let errorMessage: string | void;
+      try {
+        errorMessage = await onVerify(digitsOnly);
+      } finally {
+        setVerifying(false);
+      }
 
       if (errorMessage) {
         setError(errorMessage);

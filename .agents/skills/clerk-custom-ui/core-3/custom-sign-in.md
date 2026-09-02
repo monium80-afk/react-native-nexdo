@@ -22,7 +22,7 @@ const { signIn, errors, fetchStatus } = useSignIn()
 
 ```typescript
 const { error } = await signIn.password({
-  identifier: 'user@example.com',
+  emailAddress: 'user@example.com',
   password: 'securePassword123',
 })
 ```
