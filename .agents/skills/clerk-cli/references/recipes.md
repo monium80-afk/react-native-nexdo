@@ -44,8 +44,8 @@ clerk users create \
   --first-name Alice \
   --last-name Doe \
   --dry-run
-# After explicit user confirmation, run without --dry-run and password (use the interactive password wizard).
-clerk users create --email alice@example.com --first-name Alice --last-name Doe
+# After explicit user confirmation, run the same command without --dry-run.
+clerk users create --email alice@example.com --password 'SuperSecret123!' --first-name Alice --last-name Doe
 
 # Equivalent raw BAPI call. Use only when curated flags don't cover a field.
 clerk api /users -d '{
@@ -199,8 +199,10 @@ clerk imp user_abc123 --print
 # Resolve by exact email instead of user ID
 clerk imp alice@example.com --print
 
-# Short-lived token with explicit confirmation
-clerk imp user_abc123 --expires-in 900 --yes
+# Short-lived token, no confirmation prompt
+clerk imp user_abc123 --expires-in 900 --dry-run
+# After explicit confirmation, run without --dry-run.
+clerk imp user_abc123 --expires-in 900
 
 # Revoke a pending actor token (the id is printed at creation - capture it then)
 clerk imp revoke act_abc123
@@ -376,37 +378,25 @@ jq -n '{email_address:["c@d.co"]}' | clerk api /users
 ### Loop safely
 
 ```sh
-# Create an isolated temporary directory for user IDs and paginated results.
-tmpdir=$(mktemp -d) || { echo "Failed to create temporary directory"; exit 1; }
-trap "rm -rf $tmpdir" EXIT
-
 # Collect every page before making any mutation, then snapshot the complete ID set.
 offset=0
-> "$tmpdir/user-ids.txt"
+: > /tmp/user-ids.txt
 while :; do
-  page="$tmpdir/users-${offset}.json"
-  clerk users list --json --limit 250 --offset "$offset" > "$page" || { echo "Failed to fetch page at offset $offset"; exit 1; }
-  jq -e '.data' "$page" >/dev/null || { echo "Invalid JSON at offset $offset"; exit 1; }
-  jq -r '.data[] | .id' "$page" >> "$tmpdir/user-ids.txt" || { echo "Failed to parse IDs at offset $offset"; exit 1; }
-  hasMore=$(jq -r '.hasMore' "$page") || { echo "Failed to read .hasMore at offset $offset"; exit 1; }
-  [ "$hasMore" = "true" ] || break
+  page="/tmp/users-${offset}.json"
+  clerk users list --json --limit 250 --offset "$offset" > "$page"
+  jq -r '.data[] | .id' "$page" >> /tmp/user-ids.txt
+  [ "$(jq -r '.hasMore' "$page")" = "true" ] || break
   offset=$((offset + 250))
 done
 
 # Preview the full mutation set.
 while IFS= read -r id; do
-  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}' --dry-run || { echo "Preview failed for user $id"; exit 1; }
-done < "$tmpdir/user-ids.txt"
-
+  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}' --dry-run
+done < /tmp/user-ids.txt
 # After reviewing all previews and receiving explicit confirmation, mutate the snapshot only.
-read -p "Review complete. Proceed with mutation? (yes/no): " _confirm
-if [[ "$_confirm" != "yes" ]]; then
-  echo "Mutation cancelled."
-  exit 0
-fi
 while IFS= read -r id; do
-  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}' || { echo "Mutation failed for user $id"; exit 1; }
-done < "$tmpdir/user-ids.txt"
+  clerk api /users/$id -X PATCH -d '{"public_metadata":{"migrated":true}}'
+done < /tmp/user-ids.txt
 ```
 
 ### Target multiple instances

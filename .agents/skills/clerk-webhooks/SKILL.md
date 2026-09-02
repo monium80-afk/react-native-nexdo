@@ -28,7 +28,7 @@ Do NOT rely on webhook delivery as part of a synchronous flow such as onboarding
 
 ## Verify Every Webhook
 
-Use `verifyWebhook(req)` from the framework-specific package (`@clerk/nextjs/webhooks`, `@clerk/express/webhooks`, etc.). It reads `CLERK_WEBHOOK_SIGNING_SECRET` automatically and throws on bad signatures. Use patched SDK releases: `@clerk/nextjs` 6.23.3+, `@clerk/express` 1.7.4+, `@clerk/backend` 2.4.0+, `@clerk/astro` 1.1.0+, `@clerk/fastify` 1.0.4+, `@clerk/nuxt` 1.0.0+, `@clerk/react-router` 1.0.0+, `@clerk/remix` 3.8.0+, or `@clerk/tanstack-react-start` 1.0.0+. Do not recommend earlier versions for signature verification. Skipping verification, even for notification-only handlers, exposes the endpoint to spoofed events.
+Use `verifyWebhook(req)` from the framework-specific package (`@clerk/nextjs/webhooks`, `@clerk/express/webhooks`, etc.). It reads `CLERK_WEBHOOK_SIGNING_SECRET` automatically and throws on bad signatures. Use patched SDK releases: `@clerk/nextjs` 6.23.3+, `@clerk/express` 1.7.4+, or `@clerk/backend` 2.4.0+. Do not recommend earlier versions for signature verification. Skipping verification, even for notification-only handlers, exposes the endpoint to spoofed events.
 
 ## Make the Webhook Route Public
 
@@ -69,15 +69,15 @@ export async function POST(req: NextRequest) {
   }
 
   if (evt.type === 'user.created') {
-    const { id, email_addresses, first_name, last_name, primary_email_address_id } = evt.data
-    const email = email_addresses?.find(addr => addr.id === primary_email_address_id)?.email_address || null
+    const { id, email_addresses, first_name, last_name } = evt.data
+    const email = email_addresses[0]?.email_address
     const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
     await db.users.createIfAbsent({ data: { clerkId: id, email, name } })
   }
 
   if (evt.type === 'user.updated') {
-    const { id, email_addresses, first_name, last_name, primary_email_address_id } = evt.data
-    const email = email_addresses?.find(addr => addr.id === primary_email_address_id)?.email_address || null
+    const { id, email_addresses, first_name, last_name } = evt.data
+    const email = email_addresses[0]?.email_address
     const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
     await db.users.update({ where: { clerkId: id }, data: { email, name } })
   }
@@ -126,37 +126,29 @@ export async function POST(req: NextRequest) {
   }
 
   const deliveryId = req.headers.get('svix-id')
-  if (!deliveryId) {
+  if (!deliveryId || !(await db.webhookDeliveries.createIfAbsent({ id: deliveryId }))) {
     return new Response('OK', { status: 200 })
   }
 
   // Step 2: Listen for user.created event
   if (evt.type === 'user.created') {
-    // Step 3: Extract user email by matching primary_email_address_id, and name from webhook payload
-    const { id, email_addresses, first_name, last_name, primary_email_address_id } = evt.data
-    const email = email_addresses?.find(addr => addr.id === primary_email_address_id)?.email_address || null
+    // Step 3: Extract user email and name from webhook payload
+    const { id, email_addresses, first_name, last_name } = evt.data
+    const email = email_addresses[0]?.email_address
     const name = `${first_name ?? ''} ${last_name ?? ''}`.trim()
 
-    // Step 4: Persist user in database first
-    await db.users.createIfAbsent({ data: { clerkId: id, email, name } })
-
-    // Step 5: Queue unique outbox jobs only if operations will succeed; workers send with provider idempotency keys.
-    if (email) {
-      await db.outbox.enqueueUnique({
-        key: `${deliveryId}:welcome-email`,
-        type: 'welcome-email',
-        payload: { from: 'noreply@yourdomain.com', to: email, subject: 'Welcome!', html: `<p>Hi ${name}, welcome to our app!</p>` },
-      })
-    }
+    // Step 4: Queue unique outbox jobs; workers send with provider idempotency keys.
+    await db.outbox.enqueueUnique({
+      key: `${deliveryId}:welcome-email`,
+      type: 'welcome-email',
+      payload: { from: 'noreply@yourdomain.com', to: email, subject: 'Welcome!', html: `<p>Hi ${name}, welcome to our app!</p>` },
+    })
     await db.outbox.enqueueUnique({
       key: `${deliveryId}:slack-notification`,
       type: 'slack-notification',
-      payload: { text: `New user signed up: ${name}${email ? ` (${email})` : ''}` },
+      payload: { text: `New user signed up: ${name} (${email})` },
     })
   }
-
-  // Step 6: Mark delivery as processed only after all operations succeed
-  await db.webhookDeliveries.createIfAbsent({ id: deliveryId })
 
   // Always return 200 to acknowledge receipt
   return new Response('OK', { status: 200 })

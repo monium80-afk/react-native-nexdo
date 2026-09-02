@@ -20,8 +20,8 @@ while true; do
       while IFS= read -r _line || [[ -n "$_line" ]]; do
         if [[ "$_line" =~ ^[[:space:]]*(export[[:space:]]+)?(CLERK_SECRET_KEY|CLERK_BAPI_SCOPES)[[:space:]]*=[[:space:]]*(.*)[[:space:]]*$ ]]; then
           _name="${BASH_REMATCH[2]}"
-          _value="${BASH_REMATCH[3]}"
-          if [[ "$_value" =~ ^\"(.*)\"$ || "$_value" =~ ^\'(.*)\'$ ]]; then
+          _value="${BASH_REMATCH[3]%$'\r'}"
+          if [[ "$_value" =~ ^\"(.*)\"[[:space:]]*$ || "$_value" =~ ^\'(.*)\'[[:space:]]*$ ]]; then
             _value="${BASH_REMATCH[1]}"
           fi
           # Only set the variable if not already present in process environment

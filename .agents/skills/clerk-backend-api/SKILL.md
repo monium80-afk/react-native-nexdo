@@ -14,9 +14,9 @@ User Prompt: $ARGUMENTS
 
 Before ANY POST / PATCH / PUT / DELETE, you MUST do ALL of the following in your response:
 
-1. **Check CLERK_SECRET_KEY** — verify it is set:
+1. **Check CLERK_SECRET_KEY** — verify it is set, without printing any part of it:
    ```bash
-   echo $CLERK_SECRET_KEY | head -c 10
+   [ -n "$CLERK_SECRET_KEY" ] && echo "CLERK_SECRET_KEY is set" || echo "CLERK_SECRET_KEY is NOT set"
    ```
    If empty, stop and ask the user. Do not proceed without a valid key.
 
@@ -213,8 +213,8 @@ Returns: OrganizationInvitation object
 
 Template for GET requests:
 ```bash
-# If QUERY_STRING contains ?_clerk_api_version=..., omit the Clerk-API-Version header
-if [[ "$QUERY_STRING" == *"_clerk_api_version"* ]]; then
+# If QUERY_STRING contains the __clerk_api_version param, omit the Clerk-API-Version header
+if [[ "$QUERY_STRING" =~ (^|&)__clerk_api_version(=|$) ]]; then
   curl -s "https://api.clerk.com/v1${PATH}${QUERY_STRING}" \
     -H "Authorization: Bearer $CLERK_SECRET_KEY"
 else
