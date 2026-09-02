@@ -4,13 +4,14 @@ import { colors } from "@/constants/theme";
 
 type GemLogoProps = {
   size?: number;
+  onDark?: boolean;
 };
 
 const SQUARE = 48;
 const CORNER_RADIUS = 14;
 const CENTER = 50;
 
-export function GemLogo({ size = 40 }: GemLogoProps) {
+export function GemLogo({ size = 40, onDark = false }: GemLogoProps) {
   const half = SQUARE / 2;
 
   return (
@@ -32,7 +33,7 @@ export function GemLogo({ size = 40 }: GemLogoProps) {
         y={0}
         width={CENTER}
         height={100}
-        fill={colors.charcoal[900]}
+        fill={onDark ? "#FFFFFF" : colors.charcoal[900]}
         clipPath="url(#gemClip)"
       />
       <Rect
