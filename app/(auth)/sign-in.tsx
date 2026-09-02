@@ -19,6 +19,7 @@ import { SocialAuthButton } from "@/components/SocialAuthButton";
 import { VerificationModal } from "@/components/VerificationModal";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { posthog } from "@/lib/posthog";
 
 const REVEAL_LAYOUT = LinearTransition.duration(250);
 
@@ -32,13 +33,21 @@ export default function SignIn() {
   const [modalVisible, setModalVisible] = useState(false);
 
   const handleSocialAuth = async (provider: "google" | "apple") => {
+    posthog.capture('sign_in_social_tapped', { provider })
     try {
       const { createdSessionId } = await startSSOFlow({
         strategy: provider === "google" ? "oauth_google" : "oauth_apple",
       });
-      if (createdSessionId) router.replace("/");
+      if (createdSessionId) {
+        posthog.capture('sign_in_completed', { method: 'social', provider })
+        router.replace("/");
+      }
     } catch (err) {
       console.error("Social sign-in error:", JSON.stringify(err, null, 2));
+      posthog.captureException(err instanceof Error ? err : new Error(String(err)), {
+        context: 'sign_in_social',
+        provider,
+      })
     }
   };
 
@@ -54,7 +63,10 @@ export default function SignIn() {
 
     if (signIn.status === "complete") {
       const { error: finalizeError } = await signIn.finalize({
-        navigate: () => router.replace("/"),
+        navigate: () => {
+          posthog.capture('sign_in_completed', { method: 'email' })
+          router.replace("/")
+        },
       });
       if (finalizeError) {
         return finalizeError.longMessage ?? "Invalid code. Try again.";

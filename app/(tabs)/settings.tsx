@@ -5,6 +5,7 @@ import { Pressable, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/theme";
+import { posthog } from "@/lib/posthog";
 
 export default function Settings() {
   const { user } = useUser();
@@ -16,6 +17,8 @@ export default function Settings() {
     setIsSigningOut(true);
     setSignOutError(null);
     try {
+      posthog.capture('user_signed_out')
+      posthog.reset()
       await signOut();
     } catch {
       setSignOutError("Couldn't sign out. Try again.");

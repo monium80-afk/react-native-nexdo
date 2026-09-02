@@ -50,6 +50,8 @@ export function VerificationModal({
       let errorMessage: string | void;
       try {
         errorMessage = await onVerify(digitsOnly);
+      } catch {
+        errorMessage = "Something went wrong. Try again.";
       } finally {
         setVerifying(false);
       }

@@ -20,6 +20,7 @@ import { SocialAuthButton } from "@/components/SocialAuthButton";
 import { VerificationModal } from "@/components/VerificationModal";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { posthog } from "@/lib/posthog";
 
 const REVEAL_LAYOUT = LinearTransition.duration(250);
 
@@ -42,25 +43,40 @@ export default function SignUp() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
+  const [sendCodeError, setSendCodeError] = useState<string | null>(null);
 
   const handleSocialAuth = async (provider: "google" | "apple") => {
+    posthog.capture('sign_up_social_tapped', { provider })
     try {
       const { createdSessionId } = await startSSOFlow({
         strategy: provider === "google" ? "oauth_google" : "oauth_apple",
       });
-      if (createdSessionId) router.replace("/");
+      if (createdSessionId) {
+        posthog.capture('sign_up_completed', { method: 'social', provider })
+        router.replace("/");
+      }
     } catch (err) {
       console.error("Social sign-up error:", JSON.stringify(err, null, 2));
+      posthog.captureException(err instanceof Error ? err : new Error(String(err)), {
+        context: 'sign_up_social',
+        provider,
+      })
     }
   };
 
   const handleSignUp = async () => {
     if (!email || !password) return;
+    setSendCodeError(null);
     const { error } = await signUp.password({ emailAddress: email, password });
     if (error) return;
 
     const { error: verificationError } = await signUp.verifications.sendEmailCode();
-    if (verificationError) return;
+    if (verificationError) {
+      setSendCodeError(
+        verificationError.longMessage ?? "Couldn't send the verification code. Try again.",
+      );
+      return;
+    }
     setModalVisible(true);
   };
 
@@ -70,7 +86,10 @@ export default function SignUp() {
 
     if (signUp.status === "complete") {
       const { error: finalizeError } = await signUp.finalize({
-        navigate: () => router.replace("/"),
+        navigate: () => {
+          posthog.capture('sign_up_completed', { method: 'email' })
+          router.replace("/")
+        },
       });
       if (finalizeError) {
         return finalizeError.longMessage ?? "Invalid code. Try again.";
@@ -158,6 +177,11 @@ export default function SignUp() {
                     </Text>
                   ) : null}
                   <View nativeID="clerk-captcha" />
+                  {sendCodeError ? (
+                    <Text className="text-sm font-grotesk-medium text-overdue-500">
+                      {sendCodeError}
+                    </Text>
+                  ) : null}
                   <Pressable
                     onPress={handleSignUp}
                     disabled={fetchStatus === "fetching"}

@@ -9,6 +9,7 @@ import { GemLogo } from "@/components/GemLogo";
 import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { posthog } from "@/lib/posthog";
 
 const STICKY_NOTES = [
   { label: "dentist appt?", style: { top: 0, left: -6 }, rotate: "-7deg" },
@@ -24,6 +25,11 @@ export default function Onboarding() {
 
   if (!isLoaded) return null;
   if (isSignedIn) return <Redirect href="/" />;
+
+  const handleGetStarted = () => {
+    posthog.capture('onboarding_get_started_tapped')
+    router.push('/(auth)/sign-up')
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
@@ -98,7 +104,7 @@ export default function Onboarding() {
         </View>
 
         <Pressable
-          onPress={() => router.push("/(auth)/sign-up")}
+          onPress={handleGetStarted}
           className="btn btn--primary flex-row items-center justify-center gap-2"
           style={({ pressed }) => [
             pressed ? { transform: [{ scale: 0.99 }] } : undefined,

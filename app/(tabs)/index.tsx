@@ -11,6 +11,7 @@ import { colors } from "@/constants/theme";
 import { nextTasks } from "@/data/nextTasks";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
 import { formatDuration } from "@/lib/formatDuration";
+import { posthog } from "@/lib/posthog";
 import type { TaskCategory } from "@/types/task";
 
 const CATEGORY_META: Record<TaskCategory, { label: string; badgeClass: string; dotColor: string }> = {
@@ -72,12 +73,22 @@ export default function Next() {
   }, []);
 
   const handleChooseSomethingElse = () => {
+    posthog.capture('task_skipped', {
+      task_id: task.id,
+      task_category: task.category,
+      priority_score: task.priorityScore,
+    })
     setTaskIndex((index) => (index + 1) % nextTasks.length);
   };
 
   const handleSendNote = () => {
     const trimmedNote = note.trim();
     if (!trimmedNote) return;
+    posthog.capture('task_note_sent', {
+      task_id: task.id,
+      task_category: task.category,
+      note_length: trimmedNote.length,
+    })
     router.push({
       pathname: "/(tabs)/tasks",
       params: { taskId: task.id, note: trimmedNote },
@@ -85,9 +96,30 @@ export default function Next() {
     setNote("");
   };
 
-  const handleStartTask = () => router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id } });
-  const handlePlanTask = () => router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id, mode: "plan" } });
-  const handleAnalyzeTask = () => router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } });
+  const handleStartTask = () => {
+    posthog.capture('task_started', {
+      task_id: task.id,
+      task_category: task.category,
+      priority_score: task.priorityScore,
+    })
+    router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id } })
+  }
+  const handlePlanTask = () => {
+    posthog.capture('task_plan_opened', {
+      task_id: task.id,
+      task_category: task.category,
+      priority_score: task.priorityScore,
+    })
+    router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id, mode: "plan" } })
+  }
+  const handleAnalyzeTask = () => {
+    posthog.capture('task_analyze_opened', {
+      task_id: task.id,
+      task_category: task.category,
+      priority_score: task.priorityScore,
+    })
+    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } })
+  }
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
