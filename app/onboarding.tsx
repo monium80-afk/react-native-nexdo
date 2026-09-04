@@ -71,7 +71,7 @@ export default function Onboarding() {
             ))}
 
             <View
-              className="card--charcoal gap-2 rounded-3xl p-5"
+              className="card--charcoal gap-2 rounded-2xl p-5"
               style={styles.cardGlow}
             >
               <View className="badge bg-orange-500">
