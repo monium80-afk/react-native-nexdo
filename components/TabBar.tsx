@@ -1,4 +1,4 @@
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { Tabs } from "expo-router";
 import type { ComponentProps } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
@@ -16,7 +16,7 @@ const TAB_LABELS: Record<TabRouteName, string> = {
   index: "Next",
   tasks: "Tasks",
   add: "Add",
-  "ai-chat": "AI Chat",
+  "ai-chat": "Inbox",
   settings: "Settings",
 };
 
@@ -37,7 +37,7 @@ function TabIcon({
     case "add":
       return <Feather name="plus" size={size} color={color} />;
     case "ai-chat":
-      return <MaterialCommunityIcons name="robot-outline" size={size} color={color} />;
+      return <Feather name="inbox" size={size} color={color} />;
     case "settings":
       return <Feather name="settings" size={size} color={color} />;
   }
