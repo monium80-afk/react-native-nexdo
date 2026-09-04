@@ -30,11 +30,18 @@ export function VerificationModal({
   const [verifying, setVerifying] = useState(false);
   const inputRef = useRef<TextInput>(null);
 
+  const [prevVisible, setPrevVisible] = useState(visible);
+  if (visible !== prevVisible) {
+    setPrevVisible(visible);
+    if (visible) {
+      setCode("");
+      setError(null);
+    }
+  }
+
   useEffect(() => {
     if (!visible) return;
 
-    setCode("");
-    setError(null);
     const focusTimeout = setTimeout(() => inputRef.current?.focus(), 250);
     return () => clearTimeout(focusTimeout);
   }, [visible]);
@@ -74,7 +81,7 @@ export function VerificationModal({
         <KeyboardAvoidingView
           behavior={Platform.OS === "ios" ? "padding" : undefined}
         >
-          <View className="card--cream-elevated gap-5 rounded-t-3xl p-6 pb-10">
+          <View className="card--cream-elevated gap-5 rounded-t-2xl p-6 pb-10">
             <View className="items-center gap-2">
               <Text className="text-card-title text-center text-ink-cream">
                 Check your email

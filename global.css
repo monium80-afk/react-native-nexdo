@@ -93,7 +93,7 @@
 /* Surface cards -------------------------------------------------- */
 
 @utility card {
-  border-radius: 24px;
+  border-radius: 16px;
   border-width: 1px;
 }
 
@@ -112,6 +112,18 @@
 @utility card--charcoal {
   background-color: var(--color-charcoal-800);
   border-color: rgb(255 255 255 / 0.08);
+}
+
+@utility card--cream-muted {
+  background-color: var(--color-cream-200);
+  border-color: var(--color-cream-300);
+  box-shadow: var(--shadow-card);
+}
+
+@utility card--overdue {
+  background-color: var(--color-cream-50);
+  border-color: var(--color-overdue-500);
+  box-shadow: var(--shadow-card);
 }
 
 /* Hairline dividers/borders, standalone (outside a card) --------- */
@@ -172,7 +184,7 @@
   flex-direction: row;
   align-items: center;
   align-self: flex-start;
-  border-radius: 9999px;
+  border-radius: 12px;
   padding-left: 10px;
   padding-right: 10px;
   padding-top: 4px;
@@ -220,7 +232,7 @@
 /* Form fields -------------------------------------------------------- */
 
 @utility field {
-  border-radius: 20px;
+  border-radius: 14px;
   border-width: 1px;
   border-color: var(--color-cream-300);
   background-color: var(--color-cream-50);

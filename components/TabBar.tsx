@@ -1,11 +1,14 @@
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
-import type { BottomTabBarProps } from "@react-navigation/bottom-tabs";
+import { Tabs } from "expo-router";
+import type { ComponentProps } from "react";
 import { Platform, Pressable, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/theme";
+import { useTaskStore } from "@/store/useTaskStore";
 
-const TASK_BADGE_COUNT = 42;
+// Derived from Tabs itself so this always matches whatever prop shape expo-router expects.
+type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
 
 type TabRouteName = "index" | "tasks" | "add" | "ai-chat" | "settings";
 
@@ -77,6 +80,9 @@ function StandardTabButton({
   onPress: () => void;
 }) {
   const tintColor = focused ? colors.orange[500] : colors.ink.charcoalMuted;
+  const pendingTaskCount = useTaskStore((state) =>
+    state.tasks.filter((task) => task.status === "pending").length,
+  );
 
   return (
     <Pressable
@@ -90,7 +96,7 @@ function StandardTabButton({
         {routeName === "tasks" && (
           <View className="absolute -right-3 -top-2 min-w-[18px] items-center rounded-full bg-orange-500 px-1">
             <Text className="font-grotesk-bold text-[10px] text-ink-charcoal">
-              {TASK_BADGE_COUNT}
+              {pendingTaskCount}
             </Text>
           </View>
         )}
@@ -108,7 +114,7 @@ function StandardTabButton({
   );
 }
 
-export function TabBar({ state, navigation }: BottomTabBarProps) {
+export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
   return (

@@ -1,53 +1,24 @@
 import { useUser } from "@clerk/expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GemLogo } from "@/components/GemLogo";
+import { MetaPill } from "@/components/MetaPill";
+import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { nextTasks } from "@/data/nextTasks";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
 import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
-import type { TaskCategory } from "@/types/task";
-
-const CATEGORY_META: Record<TaskCategory, { label: string; badgeClass: string; dotColor: string }> = {
-  work: { label: "Work", badgeClass: "badge--work", dotColor: colors.category.work[500] },
-  school: { label: "School", badgeClass: "badge--school", dotColor: colors.category.school[500] },
-  personal: { label: "Personal", badgeClass: "badge--personal", dotColor: colors.category.personal[500] },
-  other: { label: "Other", badgeClass: "badge--other", dotColor: colors.category.other[500] },
-};
 
 function getGreeting(hour: number) {
   if (hour < 12) return "Good morning";
   if (hour < 18) return "Good afternoon";
   return "Good evening";
-}
-
-function MetaPill({
-  icon,
-  label,
-  surface = "raised",
-}: {
-  icon?: ReactNode;
-  label: string;
-  surface?: "raised" | "recessed";
-}) {
-  return (
-    <View
-      className={
-        surface === "raised"
-          ? "flex-row items-center gap-1.5 rounded-full border border-cream-300 bg-cream-100 px-3 py-1.5"
-          : "flex-row items-center gap-1.5 rounded-full border border-cream-300 bg-cream-50 px-3 py-1.5"
-      }
-    >
-      {icon}
-      <Text className="font-grotesk-medium text-xs text-ink-cream">{label}</Text>
-    </View>
-  );
 }
 
 export default function Next() {
@@ -228,7 +199,7 @@ export default function Next() {
             <Text className="eyebrow text-ink-cream">TELL NEXDO MORE ABOUT THIS TASK...</Text>
           </View>
 
-          <View className="flex-row items-end gap-2 rounded-3xl border border-cream-300 bg-cream-100 px-5 py-3">
+          <View className="flex-row items-end gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3">
             <TextInput
               value={note}
               onChangeText={setNote}
