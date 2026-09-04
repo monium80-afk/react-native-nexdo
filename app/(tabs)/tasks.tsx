@@ -36,8 +36,13 @@ const SORT_OPTIONS: { label: string; value: TaskSortOption }[] = [
 
 function compareBySort(a: Task, b: Task, sort: TaskSortOption): number {
   switch (sort) {
-    case "dueDate":
+    case "dueDate": {
+      // Tasks with no deadline always sink below dated ones, whatever the direction.
+      if (!a.dueDate && !b.dueDate) return 0;
+      if (!a.dueDate) return 1;
+      if (!b.dueDate) return -1;
       return new Date(a.dueDate).getTime() - new Date(b.dueDate).getTime();
+    }
     case "priority":
       return b.priorityScore - a.priorityScore;
     case "alphabetical":

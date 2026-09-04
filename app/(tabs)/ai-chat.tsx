@@ -4,14 +4,14 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-na
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GemLogo } from "@/components/GemLogo";
-import { InboxInput, type AttachmentKind } from "@/components/InboxInput";
+import { InboxInput } from "@/components/InboxInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
 import { colors } from "@/constants/theme";
 import { ATTACHMENT_REPLIES, INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
 import { posthog } from "@/lib/posthog";
 import { useChatStore } from "@/store/useChatStore";
 import { useTaskStore } from "@/store/useTaskStore";
-import type { ChatMessage } from "@/types/chat";
+import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -89,15 +89,15 @@ function InboxChatScreen() {
 
   const hasUserReplied = messages.some((message) => message.role === "user");
 
-  const handleSend = (text: string, reply?: string) => {
+  const handleSend = (text: string, reply?: string, attachment?: ChatAttachment) => {
     if (!text.trim()) return;
-    sendMessage(text, reply);
+    sendMessage(text, reply, attachment);
     setDraft("");
   };
 
-  const handleAttachment = (kind: AttachmentKind, label: string) => {
-    posthog.capture("inbox_attachment_captured", { kind });
-    sendMessage(label, ATTACHMENT_REPLIES[kind]);
+  const handleAttachment = (attachment: ChatAttachment) => {
+    posthog.capture("inbox_attachment_captured", { kind: attachment.kind });
+    sendMessage(attachment.label, ATTACHMENT_REPLIES[attachment.kind], attachment);
   };
 
   return (

@@ -6,10 +6,12 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/theme";
 import { posthog } from "@/lib/posthog";
+import { useChatStore } from "@/store/useChatStore";
 
 export default function Settings() {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const handleChatSignOut = useChatStore((state) => state.handleSignOut);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -19,6 +21,7 @@ export default function Settings() {
     try {
       posthog.capture('user_signed_out')
       posthog.reset()
+      await handleChatSignOut();
       await signOut();
     } catch {
       setSignOutError("Couldn't sign out. Try again.");

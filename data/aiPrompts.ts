@@ -21,7 +21,7 @@ export const INBOX_STARTER_SUGGESTIONS: SuggestionPrompt[] = [
     id: "boost-report",
     emoji: "🔥",
     label: "Move quarterly report to top priority",
-    reply: 'Done. "Finish quarterly report" is now your top priority and will surface first in Now.',
+    reply: 'I noted that "Finish quarterly report" should be prioritized. Priority changes are not connected yet, so check Tasks to adjust it manually.',
   },
   {
     id: "reschedule-overdue",

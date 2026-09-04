@@ -32,6 +32,10 @@ export function getDueInfo(task: Task, now: Date = new Date()): DueInfo {
     return { label: "Completed", tone: "muted", pillLabel: "Completed" };
   }
 
+  if (!task.dueDate) {
+    return { label: "No deadline", tone: "muted", pillLabel: "No deadline" };
+  }
+
   const due = new Date(task.dueDate);
   const dayDiff = Math.round((startOfDay(due).getTime() - startOfDay(now).getTime()) / DAY_MS);
   const time = formatTime(due);
