@@ -52,7 +52,21 @@
       "expo-secure-store",
       "expo-image",
       "expo-status-bar",
-      "expo-web-browser"
+      "expo-web-browser",
+      "expo-document-picker",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Nexdo to access your photos so you can attach them to tasks.",
+          "cameraPermission": "Allow Nexdo to use your camera so you can capture photos for tasks."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow Nexdo to access your microphone to record voice notes for your inbox."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
