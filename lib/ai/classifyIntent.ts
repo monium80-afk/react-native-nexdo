@@ -21,6 +21,7 @@ const SKIP_PATTERN = /\b(skip|not now|something else|show another|can'?t do this
 const CONSTRAINT_PATTERN = /\b(only have|can'?t finish|don'?t have|no time|not enough time)\b/i;
 const WHAT_NEXT_PATTERN = /\bwhat (should i do|next|now)\b|\bwhat'?s next\b/i;
 const NEW_TASK_HINT_PATTERN = /\b(need to|have to|remind me|gotta|must)\b/i;
+const OVERDUE_WORKFLOW_PATTERN = /\b(reschedule everything overdue|break down my top task|catch me up on overdue)\b/i;
 
 function askWhich(candidates: Task[]): StructuredAction {
   const titles = candidates.map((task) => task.title).join(", ");
@@ -73,8 +74,15 @@ export function classifyIntent(input: ClassifyIntentInput): StructuredAction {
     if (ref.status === "ambiguous") return askWhich(ref.candidates);
   }
 
-  if (CONSTRAINT_PATTERN.test(text) && currentTaskId) {
-    return { type: "ADD_TASK_CONTEXT", taskId: currentTaskId, note: text, confirmationTier: "safe" };
+  if (OVERDUE_WORKFLOW_PATTERN.test(text)) {
+    return { type: "QUERY", answer: `I'll help with "${text.trim()}" without changing a task yet.`, confirmationTier: "safe" };
+  }
+
+  if (CONSTRAINT_PATTERN.test(text)) {
+    const contextTaskId = currentTaskId ?? rankTasksForNext(tasks, now)[0]?.id;
+    if (contextTaskId) {
+      return { type: "ADD_TASK_CONTEXT", taskId: contextTaskId, note: text, confirmationTier: "safe" };
+    }
   }
 
   if (WHAT_NEXT_PATTERN.test(text)) {

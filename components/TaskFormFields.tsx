@@ -49,14 +49,18 @@ export function computeDeadlineDate(value: DeadlineValue): Date | undefined {
     }
     case "friday": {
       const date = new Date(now);
-      date.setDate(date.getDate() + ((5 - date.getDay() + 7) % 7));
+      const daysUntilFriday = (5 - date.getDay() + 7) % 7;
+      date.setDate(date.getDate() + daysUntilFriday);
       date.setHours(18, 0, 0, 0);
+      if (daysUntilFriday === 0 && date.getTime() <= now.getTime()) date.setDate(date.getDate() + 7);
       return date;
     }
     case "weekend": {
       const date = new Date(now);
-      date.setDate(date.getDate() + ((6 - date.getDay() + 7) % 7));
+      const daysUntilSaturday = (6 - date.getDay() + 7) % 7;
+      date.setDate(date.getDate() + daysUntilSaturday);
       date.setHours(12, 0, 0, 0);
+      if (daysUntilSaturday === 0 && date.getTime() <= now.getTime()) date.setDate(date.getDate() + 7);
       return date;
     }
     case "nextWeek": {

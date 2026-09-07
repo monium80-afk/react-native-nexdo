@@ -8,6 +8,7 @@ import { colors } from "@/constants/theme";
 import { posthog } from "@/lib/posthog";
 import { useChatStore } from "@/store/useChatStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
+import { useTaskStore } from "@/store/useTaskStore";
 import type { PlanningStyle } from "@/types/settings";
 
 const PLANNING_STYLE_OPTIONS: { value: PlanningStyle; label: string; description: string }[] = [
@@ -20,6 +21,7 @@ export default function Settings() {
   const { user } = useUser();
   const { signOut } = useClerk();
   const handleChatSignOut = useChatStore((state) => state.handleSignOut);
+  const handleTaskSignOut = useTaskStore((state) => state.handleSignOut);
   const planningStyle = useSettingsStore((state) => state.planningStyle);
   const setPlanningStyle = useSettingsStore((state) => state.setPlanningStyle);
   const [isSigningOut, setIsSigningOut] = useState(false);
@@ -32,6 +34,7 @@ export default function Settings() {
       posthog.capture('user_signed_out')
       posthog.reset()
       await handleChatSignOut();
+      await handleTaskSignOut();
       await signOut();
     } catch {
       setSignOutError("Couldn't sign out. Try again.");

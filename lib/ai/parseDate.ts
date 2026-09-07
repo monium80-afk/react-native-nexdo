@@ -4,32 +4,32 @@
 export function parseDatePhrase(text: string, now: Date = new Date()): string | undefined {
   const lower = text.toLowerCase();
 
-  const setTime = (date: Date, hour = 18) => {
+  const setTime = (date: Date, hour = 18): string | undefined => {
     date.setHours(hour, 0, 0, 0);
-    return date;
+    return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
   };
 
   if (/\btomorrow\b/.test(lower)) {
     const date = new Date(now);
     date.setDate(date.getDate() + 1);
-    return setTime(date).toISOString();
+    return setTime(date);
   }
 
   if (/\btoday\b|\btonight\b/.test(lower)) {
-    return setTime(new Date(now), /tonight/.test(lower) ? 20 : 18).toISOString();
+    return setTime(new Date(now), /tonight/.test(lower) ? 20 : 18);
   }
 
   if (/\bthis weekend\b/.test(lower)) {
     const date = new Date(now);
     date.setDate(date.getDate() + ((6 - date.getDay() + 7) % 7));
-    return setTime(date, 12).toISOString();
+    return setTime(date, 12);
   }
 
   const inDaysMatch = lower.match(/\bin (\d+) days?\b/);
   if (inDaysMatch) {
     const date = new Date(now);
     date.setDate(date.getDate() + Number.parseInt(inDaysMatch[1], 10));
-    return setTime(date).toISOString();
+    return setTime(date);
   }
 
   const weekdays = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
@@ -38,7 +38,7 @@ export function parseDatePhrase(text: string, now: Date = new Date()): string | 
       const date = new Date(now);
       const diff = (i - date.getDay() + 7) % 7 || 7; // next occurrence, never "today"
       date.setDate(date.getDate() + diff);
-      return setTime(date).toISOString();
+      return setTime(date);
     }
   }
 
@@ -46,7 +46,7 @@ export function parseDatePhrase(text: string, now: Date = new Date()): string | 
   if (nextWeekMatch) {
     const date = new Date(now);
     date.setDate(date.getDate() + 7);
-    return setTime(date).toISOString();
+    return setTime(date);
   }
 
   return undefined;

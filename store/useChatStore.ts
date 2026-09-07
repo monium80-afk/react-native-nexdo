@@ -1,10 +1,12 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import { ATTACHMENT_REPLIES, INBOX_WELCOME_MESSAGE } from "@/data/aiPrompts";
 import { classifyIntent } from "@/lib/ai/classifyIntent";
 import type { StructuredAction } from "@/lib/ai/types";
+import { fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supabaseSync";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
@@ -15,6 +17,14 @@ const NO_PATTERN = /^(no|nope|cancel|never ?mind|don'?t)\b/i;
 
 const pendingReplyTimeouts = new Set<ReturnType<typeof setTimeout>>();
 
+// Same local-first background sync approach as useTaskStore.
+let realtimeChannel: RealtimeChannel | null = null;
+
+function syncUpsert(message: ChatMessage, userId: string | null) {
+  if (!userId) return;
+  upsertMessageRow(message, userId).catch((error) => console.warn("[useChatStore] upsert failed", error));
+}
+
 type PendingAction = { action: StructuredAction; label: string };
 
 type ChatStore = {
@@ -22,8 +32,13 @@ type ChatStore = {
   isAiTyping: boolean;
   recentlyMentionedTaskIds: string[];
   pendingAction: PendingAction | null;
-  sendMessage: (text: string, attachment?: ChatAttachment, contextTaskId?: string) => void;
+  syncUserId: string | null;
+  hydrateFromSupabase: (userId: string) => Promise<void>;
+  subscribeToRealtime: (userId: string) => void;
+  unsubscribeFromRealtime: () => void;
+  sendMessage: (text: string, attachment?: ChatAttachment, contextTaskId?: string) => string;
   seedMessage: (text: string, relatedTaskId?: string) => void;
+  updateMessageAttachment: (messageId: string, attachment: ChatAttachment) => void;
   confirmPendingAction: () => void;
   cancelPendingAction: () => void;
   handleSignOut: () => Promise<void>;
@@ -56,8 +71,10 @@ function confirmationPrompt(action: StructuredAction): string {
 export const useChatStore = create<ChatStore>()(
   persist(
     (set, get) => {
-      const pushMessage = (message: ChatMessage) =>
+      const pushMessage = (message: ChatMessage) => {
         set((state) => ({ messages: [...state.messages, message] }));
+        syncUpsert(message, get().syncUserId);
+      };
 
       const rememberTask = (taskId?: string) => {
         if (!taskId) return;
@@ -101,10 +118,49 @@ export const useChatStore = create<ChatStore>()(
         isAiTyping: false,
         recentlyMentionedTaskIds: [],
         pendingAction: null,
+        syncUserId: null,
+
+        // Supabase becomes the source of truth for a signed-in user, same
+        // as useTaskStore — an empty remote result means this user has no
+        // synced history yet, so the local welcome message stays put.
+        hydrateFromSupabase: async (userId) => {
+          set({ syncUserId: userId });
+          try {
+            const remoteMessages = await fetchMessages(userId);
+            if (remoteMessages.length > 0) set({ messages: remoteMessages });
+          } catch (error) {
+            console.warn("[useChatStore] hydrate failed", error);
+          }
+        },
+
+        subscribeToRealtime: (userId) => {
+          if (realtimeChannel) return;
+          realtimeChannel = subscribeToMessages(userId, (message) => {
+            set((state) => {
+              if (state.messages.some((m) => m.id === message.id)) {
+                return { messages: state.messages.map((m) => (m.id === message.id ? message : m)) };
+              }
+              return { messages: [...state.messages, message] };
+            });
+          });
+        },
+
+        unsubscribeFromRealtime: () => {
+          realtimeChannel?.unsubscribe();
+          realtimeChannel = null;
+        },
+
+        updateMessageAttachment: (messageId, attachment) => {
+          set((state) => ({
+            messages: state.messages.map((m) => (m.id === messageId ? { ...m, attachment } : m)),
+          }));
+          const updated = get().messages.find((m) => m.id === messageId);
+          if (updated) syncUpsert(updated, get().syncUserId);
+        },
 
         sendMessage: (text, attachment, contextTaskId) => {
           const trimmed = text.trim();
-          if (!trimmed && !attachment) return;
+          if (!trimmed && !attachment) return "";
 
           const userMessage: ChatMessage = {
             id: `${Date.now()}-user`,
@@ -115,11 +171,13 @@ export const useChatStore = create<ChatStore>()(
             relatedTaskId: contextTaskId,
           };
           set((state) => ({ messages: [...state.messages, userMessage], isAiTyping: true }));
+          syncUpsert(userMessage, get().syncUserId);
 
           const replyTimeout = setTimeout(() => {
             pendingReplyTimeouts.delete(replyTimeout);
 
             if (attachment) {
+              set({ pendingAction: null });
               respondWith(ATTACHMENT_REPLIES[attachment.kind]);
               return;
             }
@@ -149,6 +207,7 @@ export const useChatStore = create<ChatStore>()(
             handleClassifiedAction(action);
           }, AI_REPLY_DELAY_MS);
           pendingReplyTimeouts.add(replyTimeout);
+          return userMessage.id;
         },
 
         seedMessage: (text, relatedTaskId) => {
@@ -177,7 +236,15 @@ export const useChatStore = create<ChatStore>()(
         handleSignOut: async () => {
           pendingReplyTimeouts.forEach(clearTimeout);
           pendingReplyTimeouts.clear();
-          set({ messages: initialMessages(), isAiTyping: false, recentlyMentionedTaskIds: [], pendingAction: null });
+          realtimeChannel?.unsubscribe();
+          realtimeChannel = null;
+          set({
+            messages: initialMessages(),
+            isAiTyping: false,
+            recentlyMentionedTaskIds: [],
+            pendingAction: null,
+            syncUserId: null,
+          });
           await AsyncStorage.removeItem("nexdo-chat");
         },
       };

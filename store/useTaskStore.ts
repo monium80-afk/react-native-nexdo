@@ -1,15 +1,33 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
+import { tasks as initialTasks } from "@/data/tasks";
 import { analyzeTaskComplexity } from "@/lib/ai/analyzeComplexity";
 import { applyContextToTask } from "@/lib/ai/applyContext";
 import { generatePlan } from "@/lib/ai/generatePlan";
 import type { StructuredAction } from "@/lib/ai/types";
 import { PRIORITY_LEVEL_IMPORTANCE, createSkipRecord, recalcTask } from "@/lib/scoring";
+import { deleteTaskRow, fetchTasks, subscribeToTasks, upsertTaskRow } from "@/lib/supabaseSync";
 import { recalcAll } from "@/lib/taskPipeline";
-import { tasks as initialTasks } from "@/data/tasks";
 import type { Subtask, Task, TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
+
+// Local-first background sync: mutations below stay synchronous against
+// local state (UI/lib/ai never awaits anything), and additionally mirror
+// the change to Supabase fire-and-forget. Failures are logged, not surfaced
+// to the user — acceptable for a v1 teaching app.
+let realtimeChannel: RealtimeChannel | null = null;
+
+function syncUpsert(task: Task, userId: string | null) {
+  if (!userId) return;
+  upsertTaskRow(task, userId).catch((error) => console.warn("[useTaskStore] upsert failed", error));
+}
+
+function syncDelete(taskId: string, userId: string | null) {
+  if (!userId) return;
+  deleteTaskRow(taskId).catch((error) => console.warn("[useTaskStore] delete failed", error));
+}
 
 export type NewTaskInput = {
   title: string;
@@ -80,8 +98,44 @@ function remainingMinutes(subtasks: Subtask[]): number {
   return subtasks.filter((subtask) => subtask.status !== "completed").reduce((sum, s) => sum + s.estimatedMinutes, 0);
 }
 
+function normalizePersistedTasks(tasks: Task[]): Task[] {
+  return tasks.map((task) => {
+    const orderedSubtasks = task.subtasks?.slice().sort((a, b) => a.order - b.order);
+    const currentIndex = orderedSubtasks?.findIndex(
+      (subtask) => subtask.id === task.currentStepId && subtask.status !== "completed",
+    ) ?? -1;
+    const nextIndex = currentIndex >= 0
+      ? currentIndex
+      : (orderedSubtasks?.findIndex((subtask) => subtask.status !== "completed") ?? -1);
+    const subtasks = orderedSubtasks?.map((subtask, index) => ({
+        ...subtask,
+        status:
+          subtask.status === "completed"
+            ? ("completed" as const)
+            : index === nextIndex
+              ? ("current" as const)
+              : ("pending" as const),
+      }));
+    const currentStepId = subtasks?.find((subtask) => subtask.status === "current")?.id;
+
+    return {
+      ...task,
+      aiContext: {
+        notes: Array.isArray(task.aiContext?.notes) ? task.aiContext.notes : [],
+      },
+      subtasks,
+      currentStepId,
+    };
+  });
+}
+
 type TaskStore = {
   tasks: Task[];
+  syncUserId: string | null;
+  hydrateFromSupabase: (userId: string) => Promise<void>;
+  subscribeToRealtime: (userId: string) => void;
+  unsubscribeFromRealtime: () => void;
+  handleSignOut: () => Promise<void>;
   addTask: (input: NewTaskInput) => string;
   updateTask: (
     id: string,
@@ -102,11 +156,58 @@ export const useTaskStore = create<TaskStore>()(
   persist(
     (set, get) => ({
       tasks: recalcAll(initialTasks),
+      syncUserId: null,
+
+      // Supabase becomes the source of truth for a signed-in user: on
+      // success, remote tasks replace local state entirely (an empty
+      // result means this user has no synced tasks yet — the local seed
+      // data was never a real synced task, so it's fine for it to drop
+      // away once a real account takes over).
+      hydrateFromSupabase: async (userId) => {
+        set({ syncUserId: userId });
+        try {
+          const remoteTasks = await fetchTasks(userId);
+          set({ tasks: recalcAll(normalizePersistedTasks(remoteTasks)) });
+        } catch (error) {
+          console.warn("[useTaskStore] hydrate failed", error);
+        }
+      },
+
+      subscribeToRealtime: (userId) => {
+        if (realtimeChannel) return;
+        realtimeChannel = subscribeToTasks(userId, (task, event) => {
+          set((state) => {
+            if (event === "DELETE") {
+              return { tasks: state.tasks.filter((t) => t.id !== task.id) };
+            }
+            const existing = state.tasks.find((t) => t.id === task.id);
+            // Last-write-wins, and skips echoes of our own just-applied write.
+            if (existing && existing.updatedAt >= task.updatedAt) return {};
+            const merged = existing
+              ? state.tasks.map((t) => (t.id === task.id ? task : t))
+              : [task, ...state.tasks];
+            return { tasks: recalcAll(merged) };
+          });
+        });
+      },
+
+      unsubscribeFromRealtime: () => {
+        realtimeChannel?.unsubscribe();
+        realtimeChannel = null;
+      },
+
+      handleSignOut: async () => {
+        realtimeChannel?.unsubscribe();
+        realtimeChannel = null;
+        set({ tasks: recalcAll(initialTasks), syncUserId: null });
+        await AsyncStorage.removeItem("nexdo-tasks");
+      },
 
       addTask: (input) => {
         const now = new Date();
         const task = buildTask(input, now);
         set((state) => ({ tasks: recalcAll([task, ...state.tasks], now) }));
+        syncUpsert(get().tasks.find((t) => t.id === task.id)!, get().syncUserId);
         return task.id;
       },
 
@@ -120,10 +221,13 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === id);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }));
+        syncDelete(id, get().syncUserId);
       },
 
       toggleTaskStatus: (id) => {
@@ -145,6 +249,8 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === id);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       reopenTask: (id) => {
@@ -153,21 +259,49 @@ export const useTaskStore = create<TaskStore>()(
           tasks: recalcAll(
             state.tasks.map((task) =>
               task.id === id
-                ? { ...task, status: "pending", completedAt: undefined, updatedAt: now.toISOString() }
+                ? (() => {
+                    const reopenedSubtasks = task.subtasks?.length
+                      ? task.subtasks
+                          .slice()
+                          .sort((a, b) => a.order - b.order)
+                          .map((subtask, index) => ({
+                            ...subtask,
+                            status: index === 0 ? ("current" as const) : ("pending" as const),
+                          }))
+                      : undefined;
+                    const restoredMinutes = reopenedSubtasks?.length
+                      ? remainingMinutes(reopenedSubtasks)
+                      : Math.max(task.estimatedMinutes, 1);
+                    return {
+                      ...task,
+                      status: "pending",
+                      subtasks: reopenedSubtasks,
+                      currentStepId: reopenedSubtasks?.[0]?.id,
+                      estimatedMinutes: restoredMinutes,
+                      completedAt: undefined,
+                      updatedAt: now.toISOString(),
+                    };
+                  })()
                 : task,
             ),
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === id);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       completeStep: (taskId, stepId) => {
         const now = new Date();
         const task = get().tasks.find((t) => t.id === taskId);
         if (!task?.subtasks) return;
+        const target = task.subtasks.find((subtask) => subtask.id === stepId);
+        if (task.status !== "pending" || target?.status !== "current") return;
 
         const updatedSubtasks: Subtask[] = task.subtasks.map((subtask) =>
-          subtask.id === stepId ? { ...subtask, status: "completed" as const } : subtask,
+          subtask.id === stepId || subtask.status === "current"
+            ? { ...subtask, status: subtask.id === stepId ? ("completed" as const) : ("pending" as const) }
+            : subtask,
         );
         const nextPending = updatedSubtasks
           .filter((subtask) => subtask.status === "pending")
@@ -195,6 +329,8 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       addContext: (taskId, note) => {
@@ -223,6 +359,8 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       skipTask: (taskId, reason) => {
@@ -237,6 +375,8 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       regeneratePlan: (taskId) => {
@@ -266,6 +406,8 @@ export const useTaskStore = create<TaskStore>()(
             now,
           ),
         }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
       },
 
       applyStructuredAction: (action) => {
@@ -289,7 +431,11 @@ export const useTaskStore = create<TaskStore>()(
           case "UPDATE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().updateTask(action.taskId, action.changes);
-            return { message: `Updated "${task?.title ?? "task"}".`, taskId: action.taskId };
+            const updatedTask = get().tasks.find((t) => t.id === action.taskId);
+            return {
+              message: `Updated "${action.changes.title ?? updatedTask?.title ?? task?.title ?? "task"}".`,
+              taskId: action.taskId,
+            };
           }
           case "COMPLETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
@@ -329,6 +475,14 @@ export const useTaskStore = create<TaskStore>()(
     {
       name: "nexdo-tasks",
       storage: createJSONStorage(() => AsyncStorage),
+      merge: (persisted, current) => {
+        const persistedState = persisted as Partial<TaskStore>;
+        return {
+          ...current,
+          ...persistedState,
+          tasks: normalizePersistedTasks(persistedState.tasks ?? current.tasks),
+        };
+      },
     },
   ),
 );

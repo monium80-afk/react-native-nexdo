@@ -1,5 +1,6 @@
 import { analyzeTaskComplexity } from "@/lib/ai/analyzeComplexity";
 import { generatePlan } from "@/lib/ai/generatePlan";
+import { recalcTask } from "@/lib/scoring";
 import type { Task, TaskCategory } from "@/types/task";
 
 // Dates are generated relative to "now" (not hardcoded) so the list always
@@ -29,9 +30,6 @@ type SeedInput = {
   notes?: string;
 };
 
-// priorityScore/suitabilityScore are placeholders overwritten by
-// recalcAll() the moment useTaskStore initializes — importance/complexity
-// are the only scoring inputs that actually matter here.
 function buildTask(input: SeedInput): Task {
   const complexity = analyzeTaskComplexity({
     title: input.title,
@@ -47,7 +45,7 @@ function buildTask(input: SeedInput): Task {
         })
       : undefined;
 
-  return {
+  return recalcTask({
     id: input.id,
     title: input.title,
     category: input.category,
@@ -65,7 +63,7 @@ function buildTask(input: SeedInput): Task {
     complexity,
     aiContext: { notes: [] },
     completedAt: input.status === "completed" ? input.createdAt : undefined,
-  };
+  }, new Date());
 }
 
 export const tasks: Task[] = [

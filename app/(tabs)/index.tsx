@@ -11,21 +11,13 @@ import { GemLogo } from "@/components/GemLogo";
 import { MetaPill } from "@/components/MetaPill";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useNextTask } from "@/hooks/useNextTask";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
-import { generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
-import { getDueInfo } from "@/lib/taskMeta";
 import { posthog } from "@/lib/posthog";
-import { rankTasksForNext } from "@/lib/scoring";
+import { getDueInfo } from "@/lib/taskMeta";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
-
-const SKIP_REASONS: { label: string; value: string }[] = [
-  { label: "Not enough time", value: "Not enough time right now." },
-  { label: "Too difficult right now", value: "Too difficult to focus on right now." },
-  { label: "Can't do it here", value: "Can't do this task in my current location." },
-  { label: "Need something easier", value: "I need something easier right now." },
-];
 
 function getGreeting(hour: number) {
   if (hour < 12) return "Good morning";
@@ -37,16 +29,12 @@ export default function Next() {
   const router = useRouter();
   const { user } = useUser();
   const enterStyle = useScreenEnterAnimation();
-  const tasks = useTaskStore((state) => state.tasks);
-  const skipTask = useTaskStore((state) => state.skipTask);
   const addContext = useTaskStore((state) => state.addContext);
   const planningStyle = useSettingsStore((state) => state.planningStyle);
+  const { task, advice, handleSkip, skipReasons } = useNextTask(planningStyle);
 
   const [note, setNote] = useState("");
   const [skipSheetOpen, setSkipSheetOpen] = useState(false);
-
-  const ranked = useMemo(() => rankTasksForNext(tasks), [tasks]);
-  const task = ranked[0];
 
   const { greeting, dateLabel } = useMemo(() => {
     const now = new Date();
@@ -60,23 +48,8 @@ export default function Next() {
     };
   }, []);
 
-  const advice = useMemo(
-    () => (task ? generateAdvice(task, planningStyle) : ""),
-    [task, planningStyle],
-  );
   const dueLabel = task ? getDueInfo(task).label : "";
   const category = task ? CATEGORY_META[task.category] : null;
-
-  const handleSkip = (reason: string) => {
-    if (!task) return;
-    posthog.capture("task_skipped", {
-      task_id: task.id,
-      task_category: task.category,
-      priority_score: task.priorityScore,
-      reason,
-    });
-    skipTask(task.id, reason);
-  };
 
   const handleSendNote = () => {
     const trimmedNote = note.trim();
@@ -270,7 +243,7 @@ export default function Next() {
       <FilterSheet
         visible={skipSheetOpen}
         title="WHY SKIP THIS?"
-        options={SKIP_REASONS}
+        options={skipReasons}
         selected=""
         onSelect={handleSkip}
         onClose={() => setSkipSheetOpen(false)}
