@@ -1,16 +1,17 @@
 import { Feather } from "@expo/vector-icons";
+import {
+    RecordingPresets,
+    requestRecordingPermissionsAsync,
+    setAudioModeAsync,
+    useAudioRecorder,
+    useAudioRecorderState,
+} from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import {
-  RecordingPresets,
-  requestRecordingPermissionsAsync,
-  setAudioModeAsync,
-  useAudioRecorder,
-  useAudioRecorderState,
-} from "expo-audio";
 import { Alert, Pressable, Text, TextInput, View } from "react-native";
 
 import { colors } from "@/constants/theme";
+import type { ChatAttachment } from "@/types/chat";
 
 export type AttachmentKind = "photo" | "voice" | "document";
 
@@ -18,7 +19,7 @@ type InboxInputProps = {
   value: string;
   onChangeText: (text: string) => void;
   onSend: () => void;
-  onAttachment: (kind: AttachmentKind, label: string) => void;
+  onAttachment: (attachment: ChatAttachment) => void;
 };
 
 function formatDurationLabel(totalSeconds: number) {
@@ -39,7 +40,15 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
     if (isRecording) {
       const seconds = Math.max(1, Math.round(recorderState.durationMillis / 1000));
       await audioRecorder.stop();
-      onAttachment("voice", `Voice note (${formatDurationLabel(seconds)})`);
+      if (audioRecorder.uri) {
+        onAttachment({
+          kind: "voice",
+          label: `Voice note (${formatDurationLabel(seconds)})`,
+          uri: audioRecorder.uri,
+          durationSeconds: seconds,
+          mimeType: "audio/m4a",
+        });
+      }
       return;
     }
 
@@ -69,22 +78,46 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
 
     const result = await ImagePicker.launchCameraAsync({ mediaTypes: ["images"], quality: 0.6 });
     if (result.canceled) return;
-    onAttachment("photo", "Photo attached");
+    const asset = result.assets[0];
+    onAttachment({
+      kind: "photo",
+      label: "Photo attached",
+      uri: asset.uri,
+      mimeType: asset.mimeType,
+      width: asset.width,
+      height: asset.height,
+    });
   };
 
   const handleAttachPress = async () => {
     const result = await DocumentPicker.getDocumentAsync({ multiple: false });
     if (result.canceled) return;
-    onAttachment("document", result.assets[0].name);
+    const asset = result.assets[0];
+    onAttachment({
+      kind: "document",
+      label: asset.name,
+      uri: asset.uri,
+      mimeType: asset.mimeType,
+      name: asset.name,
+      size: asset.size,
+    });
   };
 
   return (
     <View className="flex-row items-end gap-1 rounded-full border border-cream-300 bg-cream-50 py-1.5 pl-2.5 pr-1.5">
-      <Pressable onPress={handleMicPress} hitSlop={8} className="h-9 w-9 items-center justify-center">
+      <Pressable
+        onPress={handleMicPress}
+        accessibilityRole="button"
+        accessibilityLabel={isRecording ? "Stop recording" : "Record voice note"}
+        hitSlop={8}
+        className="h-9 w-9 items-center justify-center"
+      >
         <Feather name="mic" size={19} color={isRecording ? colors.overdue[500] : colors.ink.creamMuted} />
       </Pressable>
       <Pressable
         onPress={handleCameraPress}
+        accessibilityRole="button"
+        accessibilityLabel="Take a photo"
         disabled={isRecording}
         hitSlop={8}
         style={{ opacity: isRecording ? 0.35 : 1 }}
@@ -94,6 +127,8 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
       </Pressable>
       <Pressable
         onPress={handleAttachPress}
+        accessibilityRole="button"
+        accessibilityLabel="Attach a document"
         disabled={isRecording}
         hitSlop={8}
         style={{ opacity: isRecording ? 0.35 : 1 }}
@@ -123,6 +158,8 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
 
       <Pressable
         onPress={isRecording ? handleMicPress : onSend}
+        accessibilityRole="button"
+        accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
         disabled={!isRecording && !canSend}
         hitSlop={4}
         className="h-11 w-11 items-center justify-center rounded-full"

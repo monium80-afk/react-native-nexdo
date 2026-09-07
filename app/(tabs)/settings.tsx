@@ -6,10 +6,22 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { colors } from "@/constants/theme";
 import { posthog } from "@/lib/posthog";
+import { useChatStore } from "@/store/useChatStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
+import type { PlanningStyle } from "@/types/settings";
+
+const PLANNING_STYLE_OPTIONS: { value: PlanningStyle; label: string; description: string }[] = [
+  { value: "minimal", label: "Minimal", description: "Just the next action." },
+  { value: "balanced", label: "Balanced", description: "Advice plus a few steps." },
+  { value: "detailed", label: "Detailed", description: "Full strategy and breakdown." },
+];
 
 export default function Settings() {
   const { user } = useUser();
   const { signOut } = useClerk();
+  const handleChatSignOut = useChatStore((state) => state.handleSignOut);
+  const planningStyle = useSettingsStore((state) => state.planningStyle);
+  const setPlanningStyle = useSettingsStore((state) => state.setPlanningStyle);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
 
@@ -19,6 +31,7 @@ export default function Settings() {
     try {
       posthog.capture('user_signed_out')
       posthog.reset()
+      await handleChatSignOut();
       await signOut();
     } catch {
       setSignOutError("Couldn't sign out. Try again.");
@@ -43,6 +56,45 @@ export default function Settings() {
             <Text className="font-grotesk-regular text-sm text-ink-charcoal-muted">
               {user?.primaryEmailAddress?.emailAddress ?? ""}
             </Text>
+          </View>
+        </View>
+
+        <View className="card card--charcoal gap-3 p-4">
+          <Text className="font-grotesk-semibold text-base text-ink-charcoal">Planning style</Text>
+          <Text className="font-grotesk-regular text-sm text-ink-charcoal-muted">
+            Controls how much detail Nexdo gives you on the Next page.
+          </Text>
+          <View className="gap-2">
+            {PLANNING_STYLE_OPTIONS.map((option) => {
+              const selected = planningStyle === option.value;
+              return (
+                <Pressable
+                  key={option.value}
+                  onPress={() => setPlanningStyle(option.value)}
+                  className={
+                    selected
+                      ? "flex-row items-center justify-between rounded-2xl border border-orange-500 bg-orange-500/10 px-4 py-3"
+                      : "flex-row items-center justify-between rounded-2xl border border-charcoal-600 px-4 py-3"
+                  }
+                >
+                  <View>
+                    <Text
+                      className={
+                        selected
+                          ? "font-grotesk-semibold text-sm text-orange-500"
+                          : "font-grotesk-semibold text-sm text-ink-charcoal"
+                      }
+                    >
+                      {option.label}
+                    </Text>
+                    <Text className="font-grotesk-regular text-xs text-ink-charcoal-muted">
+                      {option.description}
+                    </Text>
+                  </View>
+                  {selected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 
