@@ -24,10 +24,13 @@ export function generatePlan(input: {
   if (input.complexity === "simple") return undefined;
 
   const labels = CATEGORY_TEMPLATES[input.category];
+  const durations = SPLIT_RATIOS.map((ratio) => Math.round(input.estimatedMinutes * ratio));
+  durations[durations.length - 1] += input.estimatedMinutes - durations.reduce((sum, duration) => sum + duration, 0);
+
   return labels.map((label, index) => ({
     id: createSubtaskId(),
     label,
-    estimatedMinutes: Math.max(5, Math.round(input.estimatedMinutes * SPLIT_RATIOS[index])),
+    estimatedMinutes: durations[index],
     order: index,
     status: index === 0 ? "current" : "pending",
   }));

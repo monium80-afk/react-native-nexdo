@@ -8,7 +8,9 @@ import type { Task } from "@/types/task";
 // stale relative to a task edit or a settings change.
 export function generateAdvice(task: Task, planningStyle: PlanningStyle, now: Date = new Date()): string {
   const currentSubtask = task.subtasks?.find((subtask) => subtask.status === "current");
-  const remainingCount = task.subtasks?.filter((subtask) => subtask.status !== "completed").length ?? 0;
+  const remainingCount = task.subtasks?.filter(
+    (subtask) => subtask.status !== "completed" && subtask.id !== currentSubtask?.id,
+  ).length ?? 0;
 
   const headline = currentSubtask
     ? `Do this now: ${currentSubtask.label} (~${formatDuration(currentSubtask.estimatedMinutes)}).`

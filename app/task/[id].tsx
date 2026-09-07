@@ -6,15 +6,15 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GemLogo } from "@/components/GemLogo";
 import {
-  CATEGORY_ROWS,
-  CategoryOption,
-  computeDeadlineDate,
-  DEADLINE_OPTIONS,
-  DeadlineChip,
-  DURATION_OPTIONS,
-  DurationChip,
-  SectionHeader,
-  type DeadlineValue,
+    CATEGORY_ROWS,
+    CategoryOption,
+    computeDeadlineDate,
+    DEADLINE_OPTIONS,
+    DeadlineChip,
+    DURATION_OPTIONS,
+    DurationChip,
+    SectionHeader,
+    type DeadlineValue,
 } from "@/components/TaskFormFields";
 import { colors } from "@/constants/theme";
 import { generateAdvice } from "@/lib/ai/generateAdvice";
@@ -202,7 +202,7 @@ export default function TaskDetail() {
                     return (
                       <Pressable
                         key={subtask.id}
-                        onPress={() => !done && completeStep(task.id, subtask.id)}
+                        onPress={() => task.status === "pending" && subtask.status === "current" && completeStep(task.id, subtask.id)}
                         className="flex-row items-center gap-3 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
                         style={current ? { borderColor: colors.orange[500] } : undefined}
                       >

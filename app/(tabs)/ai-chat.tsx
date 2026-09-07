@@ -1,3 +1,4 @@
+import { useUser } from "@clerk/expo";
 import { useLocalSearchParams } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
@@ -10,6 +11,7 @@ import { colors } from "@/constants/theme";
 import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
 import { generateAdvice } from "@/lib/ai/generateAdvice";
 import { posthog } from "@/lib/posthog";
+import { uploadAttachment } from "@/lib/supabaseStorage";
 import { useChatStore } from "@/store/useChatStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
@@ -66,10 +68,12 @@ function TypingBubble() {
 }
 
 function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: string }) {
+  const { user } = useUser();
   const messages = useChatStore((state) => state.messages);
   const isAiTyping = useChatStore((state) => state.isAiTyping);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const seedMessage = useChatStore((state) => state.seedMessage);
+  const updateMessageAttachment = useChatStore((state) => state.updateMessageAttachment);
   const pendingAction = useChatStore((state) => state.pendingAction);
   const confirmPendingAction = useChatStore((state) => state.confirmPendingAction);
   const cancelPendingAction = useChatStore((state) => state.cancelPendingAction);
@@ -102,9 +106,25 @@ function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: str
     setDraft("");
   };
 
-  const handleAttachment = (attachment: ChatAttachment) => {
+  const handleAttachment = async (attachment: ChatAttachment) => {
     posthog.capture("inbox_attachment_captured", { kind: attachment.kind });
-    sendMessage(attachment.label, attachment, contextTaskId);
+    const messageId = sendMessage(attachment.label, attachment, contextTaskId);
+
+    // Local file:// uris don't survive a reinstall or another device — push
+    // the file to Supabase Storage in the background and swap the message's
+    // attachment over to the storage path once it lands.
+    if (!user || !messageId) return;
+    try {
+      const path = await uploadAttachment(
+        attachment.uri,
+        user.id,
+        attachment.name ?? `${attachment.kind}-${Date.now()}`,
+        attachment.mimeType,
+      );
+      updateMessageAttachment(messageId, { ...attachment, uri: path });
+    } catch (error) {
+      console.warn("[ai-chat] attachment upload failed", error);
+    }
   };
 
   return (

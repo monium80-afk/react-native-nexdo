@@ -16,16 +16,17 @@ function toMinutes(amount: number, unit: string): number {
 
 // Reorders the remaining subtasks smallest-first so the current step fits
 // inside the stated capacity window.
-function reorderForCapacity(subtasks: Subtask[]): Subtask[] {
+function reorderForCapacity(subtasks: Subtask[], capacityMinutes: number): Subtask[] {
   const completed = subtasks.filter((subtask) => subtask.status === "completed");
   const remaining = [...subtasks.filter((subtask) => subtask.status !== "completed")].sort(
     (a, b) => a.estimatedMinutes - b.estimatedMinutes,
   );
 
+  const currentIndex = remaining.findIndex((subtask) => subtask.estimatedMinutes <= capacityMinutes);
   const reorderedRemaining = remaining.map((subtask, index) => ({
     ...subtask,
     order: completed.length + index,
-    status: index === 0 ? ("current" as const) : ("pending" as const),
+    status: index === currentIndex ? ("current" as const) : ("pending" as const),
   }));
 
   return [...completed, ...reorderedRemaining].sort((a, b) => a.order - b.order);
@@ -39,8 +40,8 @@ export function applyContextToTask(task: Task, note: string, now: Date = new Dat
   if (capacityMatch && task.subtasks && task.subtasks.length > 0) {
     const capacityMinutes = toMinutes(Number.parseInt(capacityMatch[1], 10), capacityMatch[2]);
     return {
-      updatedSubtasks: reorderForCapacity(task.subtasks),
-      updatedEstimatedMinutes: Math.min(task.estimatedMinutes, capacityMinutes),
+      updatedSubtasks: reorderForCapacity(task.subtasks, capacityMinutes),
+      updatedEstimatedMinutes: task.estimatedMinutes,
       noteToStore: note,
     };
   }
