@@ -5,63 +5,24 @@ export type SuggestionPrompt = {
   id: string;
   emoji: string;
   label: string;
-  reply: string;
 };
 
 // Grounded in the actual mock task list (data/tasks.ts) rather than generic
 // placeholders, so tapping one demonstrates a real capability of the app.
+// Tapping a chip sends its label as real text through the intent pipeline —
+// see lib/ai/classifyIntent.ts — rather than echoing a canned reply.
 export const INBOX_STARTER_SUGGESTIONS: SuggestionPrompt[] = [
-  {
-    id: "capacity-20",
-    emoji: "⚡",
-    label: "I only have 20 minutes right now",
-    reply: "Got it — I'm narrowing your queue to tasks that fit in 20 minutes or less. Check Now for the pick.",
-  },
-  {
-    id: "boost-report",
-    emoji: "🔥",
-    label: "Move quarterly report to top priority",
-    reply: 'I noted that "Finish quarterly report" should be prioritized. Priority changes are not connected yet, so check Tasks to adjust it manually.',
-  },
-  {
-    id: "reschedule-overdue",
-    emoji: "📮",
-    label: "Reschedule everything overdue",
-    reply: "I've pushed your overdue tasks to the next open slot in your schedule. Review them anytime in Tasks.",
-  },
-  {
-    id: "brain-dump",
-    emoji: "🎙️",
-    label: "Brain dump my week",
-    reply: "I'm listening — keep typing or tap the mic. I'll split everything into individual tasks for you.",
-  },
+  { id: "capacity-20", emoji: "⚡", label: "I only have 20 minutes right now" },
+  { id: "whats-next", emoji: "🔥", label: "What should I do next?" },
+  { id: "reschedule-overdue", emoji: "📮", label: "Reschedule everything overdue" },
+  { id: "brain-dump", emoji: "🎙️", label: "I need to finish my history essay by Friday and call the dentist tomorrow" },
 ];
 
 export const INBOX_QUICK_ACTIONS: SuggestionPrompt[] = [
-  {
-    id: "whats-next",
-    emoji: "⚡",
-    label: "What next?",
-    reply: 'Your best next move is "Finish quarterly report" — due today and scores highest right now.',
-  },
-  {
-    id: "breakdown-top",
-    emoji: "📋",
-    label: "Break down top task",
-    reply: 'Breaking "Finish quarterly report" into steps: outline sections, draft the numbers, then a final review pass.',
-  },
-  {
-    id: "quick-win",
-    emoji: "⏱️",
-    label: "Got 20 minutes?",
-    reply: '"Email professor about extension" only takes about 10 minutes — an easy win right now.',
-  },
-  {
-    id: "overdue-catchup",
-    emoji: "🚨",
-    label: "Catch me up on overdue",
-    reply: 'You have 2 tasks overdue: "Submit tax documents" and "Renew car insurance." Want me to reschedule them?',
-  },
+  { id: "whats-next", emoji: "⚡", label: "What next?" },
+  { id: "breakdown-top", emoji: "📋", label: "Break down my top task" },
+  { id: "quick-win", emoji: "⏱️", label: "I only have 10 minutes" },
+  { id: "overdue-catchup", emoji: "🚨", label: "Catch me up on overdue" },
 ];
 
 // Real parsing (transcription/OCR) happens server-side per AGENTS.md — these are the

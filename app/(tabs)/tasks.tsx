@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useLocalSearchParams, useRouter } from "expo-router";
+import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -61,19 +61,7 @@ function sortTasks(list: Task[], sort: TaskSortOption): Task[] {
   });
 }
 
-function TaskDetailPlaceholder({ taskId, note, mode }: { taskId?: string; note?: string; mode?: string }) {
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
-      <View className="flex-1 items-center justify-center gap-2 px-6">
-        <Text className="text-title text-ink-cream">{mode === "plan" ? "Plan Task" : "Tasks"}</Text>
-        {taskId ? <Text className="text-body text-ink-cream-muted">Task: {taskId}</Text> : null}
-        {note ? <Text className="text-body text-ink-cream-muted">Note: {note}</Text> : null}
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function TasksListScreen() {
+export default function TasksListScreen() {
   const router = useRouter();
   const tasks = useTaskStore((state) => state.tasks);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
@@ -117,7 +105,7 @@ function TasksListScreen() {
   const sortLabel = SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Recently added";
 
   const handleOpenTask = (taskId: string) => {
-    router.push({ pathname: "/(tabs)/tasks", params: { taskId } });
+    router.push({ pathname: "/task/[id]", params: { id: taskId } });
   };
 
   return (
@@ -280,18 +268,4 @@ function TasksListScreen() {
       />
     </SafeAreaView>
   );
-}
-
-export default function Tasks() {
-  const { taskId, note, mode } = useLocalSearchParams<{
-    taskId?: string;
-    note?: string;
-    mode?: string;
-  }>();
-
-  if (taskId || mode) {
-    return <TaskDetailPlaceholder taskId={taskId} note={note} mode={mode} />;
-  }
-
-  return <TasksListScreen />;
 }

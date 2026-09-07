@@ -18,4 +18,5 @@ export type ChatMessage = {
   text: string;
   createdAt: string; // ISO 8601
   attachment?: ChatAttachment;
+  relatedTaskId?: string; // links a bubble to the task it acted on
 };

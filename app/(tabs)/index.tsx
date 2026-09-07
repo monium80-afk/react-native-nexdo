@@ -6,14 +6,26 @@ import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { FilterSheet } from "@/components/FilterSheet";
 import { GemLogo } from "@/components/GemLogo";
 import { MetaPill } from "@/components/MetaPill";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
-import { nextTasks } from "@/data/nextTasks";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
+import { getDueInfo } from "@/lib/taskMeta";
 import { posthog } from "@/lib/posthog";
+import { rankTasksForNext } from "@/lib/scoring";
+import { useSettingsStore } from "@/store/useSettingsStore";
+import { useTaskStore } from "@/store/useTaskStore";
+
+const SKIP_REASONS: { label: string; value: string }[] = [
+  { label: "Not enough time", value: "Not enough time right now." },
+  { label: "Too difficult right now", value: "Too difficult to focus on right now." },
+  { label: "Can't do it here", value: "Can't do this task in my current location." },
+  { label: "Need something easier", value: "I need something easier right now." },
+];
 
 function getGreeting(hour: number) {
   if (hour < 12) return "Good morning";
@@ -25,11 +37,16 @@ export default function Next() {
   const router = useRouter();
   const { user } = useUser();
   const enterStyle = useScreenEnterAnimation();
-  const [taskIndex, setTaskIndex] = useState(0);
-  const [note, setNote] = useState("");
+  const tasks = useTaskStore((state) => state.tasks);
+  const skipTask = useTaskStore((state) => state.skipTask);
+  const addContext = useTaskStore((state) => state.addContext);
+  const planningStyle = useSettingsStore((state) => state.planningStyle);
 
-  const task = nextTasks[taskIndex];
-  const category = CATEGORY_META[task.category];
+  const [note, setNote] = useState("");
+  const [skipSheetOpen, setSkipSheetOpen] = useState(false);
+
+  const ranked = useMemo(() => rankTasksForNext(tasks), [tasks]);
+  const task = ranked[0];
 
   const { greeting, dateLabel } = useMemo(() => {
     const now = new Date();
@@ -43,53 +60,80 @@ export default function Next() {
     };
   }, []);
 
-  const handleChooseSomethingElse = () => {
-    posthog.capture('task_skipped', {
+  const advice = useMemo(
+    () => (task ? generateAdvice(task, planningStyle) : ""),
+    [task, planningStyle],
+  );
+  const dueLabel = task ? getDueInfo(task).label : "";
+  const category = task ? CATEGORY_META[task.category] : null;
+
+  const handleSkip = (reason: string) => {
+    if (!task) return;
+    posthog.capture("task_skipped", {
       task_id: task.id,
       task_category: task.category,
       priority_score: task.priorityScore,
-    })
-    setTaskIndex((index) => (index + 1) % nextTasks.length);
+      reason,
+    });
+    skipTask(task.id, reason);
   };
 
   const handleSendNote = () => {
     const trimmedNote = note.trim();
-    if (!trimmedNote) return;
-    posthog.capture('task_note_sent', {
+    if (!trimmedNote || !task) return;
+    posthog.capture("task_note_sent", {
       task_id: task.id,
       task_category: task.category,
       note_length: trimmedNote.length,
-    })
-    router.push({
-      pathname: "/(tabs)/tasks",
-      params: { taskId: task.id, note: trimmedNote },
     });
+    addContext(task.id, trimmedNote);
     setNote("");
   };
 
   const handleStartTask = () => {
-    posthog.capture('task_started', {
+    if (!task) return;
+    posthog.capture("task_started", {
       task_id: task.id,
       task_category: task.category,
       priority_score: task.priorityScore,
-    })
-    router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id } })
-  }
+    });
+    router.push({ pathname: "/task/[id]", params: { id: task.id } });
+  };
   const handlePlanTask = () => {
-    posthog.capture('task_plan_opened', {
+    if (!task) return;
+    posthog.capture("task_plan_opened", {
       task_id: task.id,
       task_category: task.category,
       priority_score: task.priorityScore,
-    })
-    router.push({ pathname: "/(tabs)/tasks", params: { taskId: task.id, mode: "plan" } })
-  }
+    });
+    router.push({ pathname: "/task/[id]", params: { id: task.id } });
+  };
   const handleAnalyzeTask = () => {
-    posthog.capture('task_analyze_opened', {
+    if (!task) return;
+    posthog.capture("task_analyze_opened", {
       task_id: task.id,
       task_category: task.category,
       priority_score: task.priorityScore,
-    })
-    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } })
+    });
+    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } });
+  };
+
+  if (!task || !category) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
+        <View className="flex-1 items-center justify-center gap-3 bg-cream-100 px-6">
+          <Ionicons name="checkmark-done-circle" size={40} color={colors.orange[500]} />
+          <Text className="text-card-title text-ink-cream">All caught up</Text>
+          <Text className="text-body text-center text-ink-cream-muted">
+            You&apos;ve completed everything on your list. Add a new task to keep going.
+          </Text>
+          <Pressable onPress={() => router.push("/(tabs)/add")} className="btn btn--primary mt-2 flex-row gap-2 px-6">
+            <Feather name="plus" size={16} color={colors.cream[50]} />
+            <Text className="font-grotesk-bold text-base text-cream-50">Add a task</Text>
+          </Pressable>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
@@ -137,7 +181,7 @@ export default function Next() {
           <View className="flex-row flex-wrap gap-2">
             <MetaPill
               icon={<Feather name="calendar" size={13} color={colors.ink.creamMuted} />}
-              label={task.dueLabel}
+              label={dueLabel}
             />
             <MetaPill
               icon={<Feather name="clock" size={13} color={colors.ink.creamMuted} />}
@@ -161,15 +205,7 @@ export default function Next() {
               <Text className="eyebrow text-ink-cream">WHY THIS?</Text>
             </View>
 
-            <Text className="text-body text-ink-cream">{task.whyThis.reasoning}</Text>
-
-            <View className="flex-row gap-3 rounded-2xl border border-cream-300 bg-cream-50 p-4">
-              <Feather name="target" size={16} color={colors.orange[500]} />
-              <Text className="flex-1 text-body text-ink-cream">
-                <Text className="font-grotesk-bold text-orange-500">Key Focus: </Text>
-                {task.whyThis.keyFocus}
-              </Text>
-            </View>
+            <Text className="text-body text-ink-cream">{advice}</Text>
           </View>
 
           <Pressable
@@ -220,7 +256,7 @@ export default function Next() {
         </View>
 
         <Pressable
-          onPress={handleChooseSomethingElse}
+          onPress={() => setSkipSheetOpen(true)}
           className="btn btn--secondary-cream mx-auto flex-row gap-2 px-6"
         >
           <Text className="font-grotesk-semibold text-base text-ink-cream">
@@ -230,6 +266,15 @@ export default function Next() {
         </Pressable>
         </View>
       </ScrollView>
+
+      <FilterSheet
+        visible={skipSheetOpen}
+        title="WHY SKIP THIS?"
+        options={SKIP_REASONS}
+        selected=""
+        onSelect={handleSkip}
+        onClose={() => setSkipSheetOpen(false)}
+      />
     </SafeAreaView>
   );
 }

@@ -1,5 +1,5 @@
 import { useLocalSearchParams } from "expo-router";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -7,9 +7,11 @@ import { GemLogo } from "@/components/GemLogo";
 import { InboxInput } from "@/components/InboxInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
 import { colors } from "@/constants/theme";
-import { ATTACHMENT_REPLIES, INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import { generateAdvice } from "@/lib/ai/generateAdvice";
 import { posthog } from "@/lib/posthog";
 import { useChatStore } from "@/store/useChatStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
@@ -63,41 +65,46 @@ function TypingBubble() {
   );
 }
 
-function TaskDetailPlaceholder({ taskId, mode }: { taskId?: string; mode?: string }) {
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
-      <View className="flex-1 items-center justify-center gap-2 px-6">
-        <Text className="text-title text-ink-cream">
-          {mode === "analyze" ? "Analyzing Task" : "AI Chat"}
-        </Text>
-        {taskId ? <Text className="text-body text-ink-cream-muted">Task: {taskId}</Text> : null}
-      </View>
-    </SafeAreaView>
-  );
-}
-
-function InboxChatScreen() {
+function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: string }) {
   const messages = useChatStore((state) => state.messages);
   const isAiTyping = useChatStore((state) => state.isAiTyping);
   const sendMessage = useChatStore((state) => state.sendMessage);
-  const pendingCount = useTaskStore(
-    (state) => state.tasks.filter((task) => task.status === "pending").length,
-  );
+  const seedMessage = useChatStore((state) => state.seedMessage);
+  const pendingAction = useChatStore((state) => state.pendingAction);
+  const confirmPendingAction = useChatStore((state) => state.confirmPendingAction);
+  const cancelPendingAction = useChatStore((state) => state.cancelPendingAction);
+  const tasks = useTaskStore((state) => state.tasks);
+  const planningStyle = useSettingsStore((state) => state.planningStyle);
+
+  const pendingCount = tasks.filter((task) => task.status === "pending").length;
+  const contextTask = contextTaskId ? tasks.find((task) => task.id === contextTaskId) : undefined;
 
   const [draft, setDraft] = useState("");
+  const analysisSeededFor = useRef<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
   const hasUserReplied = messages.some((message) => message.role === "user");
 
-  const handleSend = (text: string, reply?: string, attachment?: ChatAttachment) => {
+  useEffect(() => {
+    if (contextTask && analysisSeededFor.current !== contextTask.id) {
+      analysisSeededFor.current = contextTask.id;
+      const advice = generateAdvice(contextTask, planningStyle);
+      seedMessage(
+        `Here's my read on "${contextTask.title}" — it's a ${contextTask.complexity} task. ${advice}`,
+        contextTask.id,
+      );
+    }
+  }, [contextTask, planningStyle, seedMessage]);
+
+  const handleSend = (text: string, attachment?: ChatAttachment) => {
     if (!text.trim()) return;
-    sendMessage(text, reply, attachment);
+    sendMessage(text, attachment, contextTaskId);
     setDraft("");
   };
 
   const handleAttachment = (attachment: ChatAttachment) => {
     posthog.capture("inbox_attachment_captured", { kind: attachment.kind });
-    sendMessage(attachment.label, ATTACHMENT_REPLIES[attachment.kind], attachment);
+    sendMessage(attachment.label, attachment, contextTaskId);
   };
 
   return (
@@ -107,10 +114,17 @@ function InboxChatScreen() {
           <GemLogo size={22} />
         </View>
         <View className="flex-1">
-          <Text className="text-card-title text-ink-cream">Nexdo Inbox</Text>
+          <Text className="text-card-title text-ink-cream">
+            {contextTask ? contextTask.title : "Nexdo Inbox"}
+          </Text>
           <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
-            <Text className="font-grotesk-bold text-ink-cream">{pendingCount}</Text> active tasks in
-            queue
+            {contextTask ? (
+              "Ask me to analyze, adjust, or update this task."
+            ) : (
+              <>
+                <Text className="font-grotesk-bold text-ink-cream">{pendingCount}</Text> active tasks in queue
+              </>
+            )}
           </Text>
         </View>
       </View>
@@ -132,7 +146,14 @@ function InboxChatScreen() {
           ))}
           {isAiTyping ? <TypingBubble /> : null}
 
-          {!hasUserReplied ? (
+          {pendingAction ? (
+            <View className="flex-row gap-2 pr-8">
+              <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingAction} />
+              <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingAction} />
+            </View>
+          ) : null}
+
+          {!hasUserReplied && !contextTask ? (
             <View className="gap-2.5 pr-8">
               {INBOX_STARTER_SUGGESTIONS.map((suggestion) => (
                 <SuggestionChip
@@ -140,7 +161,7 @@ function InboxChatScreen() {
                   emoji={suggestion.emoji}
                   label={suggestion.label}
                   fullWidth
-                  onPress={() => handleSend(suggestion.label, suggestion.reply)}
+                  onPress={() => handleSend(suggestion.label)}
                 />
               ))}
             </View>
@@ -148,20 +169,22 @@ function InboxChatScreen() {
         </ScrollView>
 
         <View className="gap-3 border-t border-cream-300 bg-cream-100 px-6 pb-2 pt-3">
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={{ gap: 8 }}
-          >
-            {INBOX_QUICK_ACTIONS.map((action) => (
-              <SuggestionChip
-                key={action.id}
-                emoji={action.emoji}
-                label={action.label}
-                onPress={() => handleSend(action.label, action.reply)}
-              />
-            ))}
-          </ScrollView>
+          {!contextTask ? (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={{ gap: 8 }}
+            >
+              {INBOX_QUICK_ACTIONS.map((action) => (
+                <SuggestionChip
+                  key={action.id}
+                  emoji={action.emoji}
+                  label={action.label}
+                  onPress={() => handleSend(action.label)}
+                />
+              ))}
+            </ScrollView>
+          ) : null}
 
           <InboxInput
             value={draft}
@@ -177,10 +200,5 @@ function InboxChatScreen() {
 
 export default function AiChat() {
   const { taskId, mode } = useLocalSearchParams<{ taskId?: string; mode?: string }>();
-
-  if (taskId || mode) {
-    return <TaskDetailPlaceholder taskId={taskId} mode={mode} />;
-  }
-
-  return <InboxChatScreen />;
+  return <InboxChatScreen contextTaskId={taskId} mode={mode} />;
 }
