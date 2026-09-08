@@ -11,10 +11,13 @@ import { useTaskStore } from "@/store/useTaskStore";
 export default function TabsLayout() {
   const { isLoaded, isSignedIn, getToken } = useAuth();
   const { user } = useUser();
+  const userId = user?.id;
   const hydrateTasks = useTaskStore((state) => state.hydrateFromSupabase);
   const subscribeTasks = useTaskStore((state) => state.subscribeToRealtime);
+  const unsubscribeTasks = useTaskStore((state) => state.unsubscribeFromRealtime);
   const hydrateChat = useChatStore((state) => state.hydrateFromSupabase);
   const subscribeChat = useChatStore((state) => state.subscribeToRealtime);
+  const unsubscribeChat = useChatStore((state) => state.unsubscribeFromRealtime);
 
   // Identify the user with PostHog when they are signed in (catches both
   // fresh logins and returning sessions that are already authenticated).
@@ -37,11 +40,22 @@ export default function TabsLayout() {
   // Third-Party Auth provider), then pull this user's tasks/chat down and
   // subscribe to live changes for cross-device sync.
   useEffect(() => {
-    if (!user) return;
+    if (!userId) return;
+    let isActive = true;
     setClerkTokenGetter(() => getToken());
-    hydrateTasks(user.id).then(() => subscribeTasks(user.id));
-    hydrateChat(user.id).then(() => subscribeChat(user.id));
-  }, [user, getToken, hydrateTasks, subscribeTasks, hydrateChat, subscribeChat]);
+    hydrateTasks(userId).then(() => {
+      if (isActive) subscribeTasks(userId);
+    });
+    hydrateChat(userId).then(() => {
+      if (isActive) subscribeChat(userId);
+    });
+
+    return () => {
+      isActive = false;
+      unsubscribeTasks();
+      unsubscribeChat();
+    };
+  }, [userId, getToken, hydrateTasks, subscribeTasks, unsubscribeTasks, hydrateChat, subscribeChat, unsubscribeChat]);
 
   if (!isLoaded) return null;
   if (!isSignedIn) return <Redirect href="/onboarding" />;

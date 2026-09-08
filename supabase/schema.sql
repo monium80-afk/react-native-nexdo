@@ -32,6 +32,7 @@ create index if not exists tasks_user_id_idx on public.tasks (user_id);
 
 alter table public.tasks enable row level security;
 
+drop policy if exists "tasks_owner_all" on public.tasks;
 create policy "tasks_owner_all" on public.tasks
   for all
   using (user_id = (auth.jwt() ->> 'sub'))
@@ -54,6 +55,7 @@ create index if not exists chat_messages_user_id_idx on public.chat_messages (us
 
 alter table public.chat_messages enable row level security;
 
+drop policy if exists "chat_messages_owner_all" on public.chat_messages;
 create policy "chat_messages_owner_all" on public.chat_messages
   for all
   using (user_id = (auth.jwt() ->> 'sub'))
@@ -62,7 +64,28 @@ create policy "chat_messages_owner_all" on public.chat_messages
 -- ---------------------------------------------------------------------
 -- Realtime
 -- ---------------------------------------------------------------------
-alter publication supabase_realtime add table public.tasks, public.chat_messages;
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'tasks'
+  ) then
+    alter publication supabase_realtime add table public.tasks;
+  end if;
+  if not exists (
+    select 1
+    from pg_publication_tables
+    where pubname = 'supabase_realtime'
+      and schemaname = 'public'
+      and tablename = 'chat_messages'
+  ) then
+    alter publication supabase_realtime add table public.chat_messages;
+  end if;
+end
+$$;
 
 -- ---------------------------------------------------------------------
 -- Storage: private bucket for chat attachments, one folder per user
@@ -72,18 +95,22 @@ insert into storage.buckets (id, name, public)
 values ('chat-attachments', 'chat-attachments', false)
 on conflict (id) do nothing;
 
+drop policy if exists "chat_attachments_owner_select" on storage.objects;
 create policy "chat_attachments_owner_select" on storage.objects
   for select
   using (bucket_id = 'chat-attachments' and (storage.foldername(name))[1] = (auth.jwt() ->> 'sub'));
 
+drop policy if exists "chat_attachments_owner_insert" on storage.objects;
 create policy "chat_attachments_owner_insert" on storage.objects
   for insert
   with check (bucket_id = 'chat-attachments' and (storage.foldername(name))[1] = (auth.jwt() ->> 'sub'));
 
+drop policy if exists "chat_attachments_owner_update" on storage.objects;
 create policy "chat_attachments_owner_update" on storage.objects
   for update
   using (bucket_id = 'chat-attachments' and (storage.foldername(name))[1] = (auth.jwt() ->> 'sub'));
 
+drop policy if exists "chat_attachments_owner_delete" on storage.objects;
 create policy "chat_attachments_owner_delete" on storage.objects
   for delete
   using (bucket_id = 'chat-attachments' and (storage.foldername(name))[1] = (auth.jwt() ->> 'sub'));

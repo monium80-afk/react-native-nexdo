@@ -3,7 +3,7 @@ import { create } from "zustand";
 import type { TaskCategory } from "@/types/task";
 
 export type TaskStatusFilter = "all" | "pending" | "completed" | "overdue";
-export type TaskSortOption = "recent" | "dueDate" | "priority" | "alphabetical";
+export type TaskSortOption = "recent" | "dueDate" | "priority";
 
 type TaskFilterStore = {
   category: TaskCategory | "all";

@@ -1,9 +1,9 @@
 import { Feather } from "@expo/vector-icons";
-import { Modal, Pressable, Text } from "react-native";
+import { Modal, Pressable, Text, View } from "react-native";
 
 import { colors } from "@/constants/theme";
 
-type FilterOption<T extends string> = { label: string; value: T };
+type FilterOption<T extends string> = { label: string; value: T; count?: number };
 
 type FilterSheetProps<T extends string> = {
   visible: boolean;
@@ -47,7 +47,14 @@ export function FilterSheet<T extends string>({
                 >
                   {option.label}
                 </Text>
-                {isSelected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
+                <View className="flex-row items-center gap-2.5">
+                  {option.count !== undefined ? (
+                    <View className="rounded-xl bg-cream-200 px-2 py-0.5">
+                      <Text className="font-grotesk-bold text-xs text-ink-cream-muted">{option.count}</Text>
+                    </View>
+                  ) : null}
+                  {isSelected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
+                </View>
               </Pressable>
             );
           })}

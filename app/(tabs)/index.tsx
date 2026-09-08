@@ -3,21 +3,22 @@ import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
-import { FilterSheet } from "@/components/FilterSheet";
 import { GemLogo } from "@/components/GemLogo";
-import { MetaPill } from "@/components/MetaPill";
-import { CATEGORY_META } from "@/constants/categories";
+import { SessionTaskCard } from "@/components/SessionTaskCard";
+import { TaskPickerSheet } from "@/components/TaskPickerSheet";
 import { colors } from "@/constants/theme";
-import { useNextTask } from "@/hooks/useNextTask";
-import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
-import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
-import { getDueInfo } from "@/lib/taskMeta";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { formatDuration } from "@/lib/formatDuration";
+import { buildSessionPlan, ENERGY_LEVELS, sumEstimatedMinutes, TIME_OPTIONS, type EnergyLevel } from "@/lib/sessionPlan";
 import { useTaskStore } from "@/store/useTaskStore";
+
+const ENERGY_ICONS: Record<EnergyLevel, keyof typeof Feather.glyphMap> = {
+  ready: "zap",
+  low: "coffee",
+  procrastinating: "frown",
+};
 
 function getGreeting(hour: number) {
   if (hour < 12) return "Good morning";
@@ -28,70 +29,103 @@ function getGreeting(hour: number) {
 export default function Next() {
   const router = useRouter();
   const { user } = useUser();
-  const enterStyle = useScreenEnterAnimation();
-  const addContext = useTaskStore((state) => state.addContext);
-  const planningStyle = useSettingsStore((state) => state.planningStyle);
-  const { task, advice, handleSkip, skipReasons } = useNextTask(planningStyle);
+  const tasks = useTaskStore((state) => state.tasks);
+  const completeStep = useTaskStore((state) => state.completeStep);
+  const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
 
-  const [note, setNote] = useState("");
-  const [skipSheetOpen, setSkipSheetOpen] = useState(false);
+  const [selectedMinutes, setSelectedMinutes] = useState(45);
+  const [customMinutesOpen, setCustomMinutesOpen] = useState(false);
+  const [customMinutesText, setCustomMinutesText] = useState("");
+  const [energy, setEnergy] = useState<EnergyLevel>("ready");
+  const [manualTaskIds, setManualTaskIds] = useState<string[] | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const pendingTasks = useMemo(() => tasks.filter((task) => task.status === "pending"), [tasks]);
+
+  const recommendedTasks = useMemo(
+    () => buildSessionPlan(pendingTasks, selectedMinutes, energy),
+    [pendingTasks, selectedMinutes, energy],
+  );
+
+  const sessionTasks = useMemo(() => {
+    if (manualTaskIds === null) return recommendedTasks;
+    return pendingTasks.filter((task) => manualTaskIds.includes(task.id));
+  }, [manualTaskIds, pendingTasks, recommendedTasks]);
+
+  const totalMinutes = sumEstimatedMinutes(sessionTasks);
 
   const { greeting, dateLabel } = useMemo(() => {
     const now = new Date();
     return {
       greeting: getGreeting(now.getHours()),
-      dateLabel: now.toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      }),
+      dateLabel: now.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" }),
     };
   }, []);
 
-  const dueLabel = task ? getDueInfo(task).label : "";
-  const category = task ? CATEGORY_META[task.category] : null;
-
-  const handleSendNote = () => {
-    const trimmedNote = note.trim();
-    if (!trimmedNote || !task) return;
-    posthog.capture("task_note_sent", {
-      task_id: task.id,
-      task_category: task.category,
-      note_length: trimmedNote.length,
-    });
-    addContext(task.id, trimmedNote);
-    setNote("");
+  const handleSelectMinutes = (minutes: number) => {
+    setSelectedMinutes(minutes);
+    setCustomMinutesOpen(false);
+    setManualTaskIds(null);
   };
 
-  const handleStartTask = () => {
-    if (!task) return;
-    posthog.capture("task_started", {
-      task_id: task.id,
-      task_category: task.category,
-      priority_score: task.priorityScore,
-    });
-    router.push({ pathname: "/task/[id]", params: { id: task.id } });
-  };
-  const handlePlanTask = () => {
-    if (!task) return;
-    posthog.capture("task_plan_opened", {
-      task_id: task.id,
-      task_category: task.category,
-      priority_score: task.priorityScore,
-    });
-    router.push({ pathname: "/task/[id]", params: { id: task.id } });
-  };
-  const handleAnalyzeTask = () => {
-    if (!task) return;
-    posthog.capture("task_analyze_opened", {
-      task_id: task.id,
-      task_category: task.category,
-      priority_score: task.priorityScore,
-    });
-    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId: task.id, mode: "analyze" } });
+  const handleCustomMinutesChange = (text: string) => {
+    setCustomMinutesText(text);
+    const parsed = Number.parseInt(text, 10);
+    if (!Number.isNaN(parsed) && parsed > 0) {
+      setSelectedMinutes(parsed);
+      setManualTaskIds(null);
+    }
   };
 
-  if (!task || !category) {
+  const handleSelectEnergy = (value: EnergyLevel) => {
+    setEnergy(value);
+    setManualTaskIds(null);
+  };
+
+  const handleBreakdownTask = (taskId: string) => {
+    regeneratePlan(taskId);
+  };
+
+  const handleBreakdownSession = () => {
+    sessionTasks.forEach((task) => {
+      if (!task.subtasks || task.subtasks.length === 0) regeneratePlan(task.id);
+    });
+  };
+
+  const handleAdvice = (taskId: string) => {
+    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId, mode: "analyze", minutes: String(selectedMinutes) } });
+  };
+
+  const handleDetails = (taskId: string) => {
+    router.push({ pathname: "/task/[id]", params: { id: taskId } });
+  };
+
+  const handleOpenPicker = () => {
+    setManualTaskIds(sessionTasks.map((task) => task.id));
+    setPickerOpen(true);
+  };
+
+  const handleTogglePickerTask = (taskId: string) => {
+    setManualTaskIds((current) => {
+      const base = current ?? sessionTasks.map((task) => task.id);
+      return base.includes(taskId) ? base.filter((id) => id !== taskId) : [...base, taskId];
+    });
+  };
+
+  const handleStartSession = () => {
+    if (sessionTasks.length === 0) return;
+    posthog.capture("session_started", {
+      available_minutes: selectedMinutes,
+      energy_level: energy,
+      task_count: sessionTasks.length,
+    });
+    router.push({
+      pathname: "/session",
+      params: { taskIds: sessionTasks.map((task) => task.id).join(","), minutes: String(selectedMinutes), energy },
+    });
+  };
+
+  if (pendingTasks.length === 0) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
         <View className="flex-1 items-center justify-center gap-3 bg-cream-100 px-6">
@@ -118,135 +152,190 @@ export default function Next() {
       >
         <View className="gap-2.5 bg-charcoal-900 px-6 pb-4 pt-2">
           <View className="flex-row items-center gap-2">
-            <Text className="font-grotesk-bold text-xs tracking-[0.11em] text-orange-500">
-              NEXDO NEXT
-            </Text>
+            <Text className="font-grotesk-bold text-xs tracking-[0.11em] text-orange-500">NEXDO NEXT</Text>
             <Text className="text-ink-charcoal-muted">•</Text>
-            <Text className="font-grotesk-medium text-xs text-ink-charcoal-muted">
-              {dateLabel}
-            </Text>
+            <Text className="font-grotesk-medium text-xs text-ink-charcoal-muted">{dateLabel}</Text>
           </View>
-
           <View className="flex-row items-center gap-2.5">
             <GemLogo size={26} onDark />
             <Text className="flex-1 font-grotesk-bold text-lg leading-[1.2] tracking-tight text-ink-charcoal">
               {greeting}
-              {user?.firstName ? `, ${user.firstName}` : ""}. Here&apos;s what
-              deserves your attention:
+              {user?.firstName ? `, ${user.firstName}` : ""}. Here&apos;s what deserves your attention:
             </Text>
           </View>
         </View>
 
         <View className="gap-5 p-6 pt-5">
-        <Animated.View style={enterStyle} className="card card--cream-elevated gap-4 p-6">
-          <View className="flex-row items-center justify-between">
-            <Text className="eyebrow text-orange-500">NEXT UP</Text>
-            <View className="badge badge--high flex-row items-center gap-1.5">
-              <GemLogo size={14} />
-              <Text className="font-grotesk-semibold text-xs text-ink-cream">
-                Score <Text className="font-grotesk-bold">{task.priorityScore}</Text>
-              </Text>
+          <View className="card card--cream gap-4 p-5">
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1 flex-row items-center gap-2">
+                <Feather name="clock" size={14} color={colors.ink.cream} />
+                <Text className="eyebrow flex-shrink text-ink-cream">HOW MUCH TIME HAVE YOU GOT?</Text>
+              </View>
+              <View className="shrink-0 rounded-2xl bg-orange-100 px-3 py-1.5">
+                <Text className="font-grotesk-semibold text-xs text-orange-600">
+                  {formatDuration(selectedMinutes)} selected
+                </Text>
+              </View>
+            </View>
+
+            <View className="flex-row flex-wrap gap-2">
+              {TIME_OPTIONS.map((minutes) => {
+                const selected = !customMinutesOpen && selectedMinutes === minutes;
+                return (
+                  <Pressable
+                    key={minutes}
+                    onPress={() => handleSelectMinutes(minutes)}
+                    className={
+                      selected
+                        ? "rounded-2xl border border-orange-500 bg-orange-500 px-4 py-2.5"
+                        : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
+                    }
+                  >
+                    <Text
+                      className={
+                        selected ? "font-grotesk-bold text-sm text-cream-50" : "font-grotesk-medium text-sm text-ink-cream"
+                      }
+                    >
+                      {minutes} min
+                    </Text>
+                  </Pressable>
+                );
+              })}
+              <Pressable
+                onPress={() => setCustomMinutesOpen((open) => !open)}
+                className={
+                  customMinutesOpen
+                    ? "rounded-2xl border border-orange-500 bg-orange-500 px-4 py-2.5"
+                    : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
+                }
+              >
+                <Text
+                  className={
+                    customMinutesOpen ? "font-grotesk-bold text-sm text-cream-50" : "font-grotesk-medium text-sm text-ink-cream"
+                  }
+                >
+                  Custom...
+                </Text>
+              </Pressable>
+            </View>
+
+            {customMinutesOpen ? (
+              <View className="flex-row items-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3">
+                <TextInput
+                  value={customMinutesText}
+                  onChangeText={handleCustomMinutesChange}
+                  placeholder="Minutes, e.g. 50"
+                  placeholderTextColor={colors.ink.creamMuted}
+                  keyboardType="number-pad"
+                  className="flex-1 font-grotesk-regular text-sm text-ink-cream"
+                />
+                <Text className="font-grotesk-medium text-xs text-ink-cream-muted">min</Text>
+              </View>
+            ) : null}
+
+            <Text className="font-grotesk-semibold text-sm text-ink-cream">Energy &amp; focus level:</Text>
+            <View className="flex-row gap-2">
+              {ENERGY_LEVELS.map((level) => {
+                const selected = energy === level.value;
+                return (
+                  <Pressable
+                    key={level.value}
+                    onPress={() => handleSelectEnergy(level.value)}
+                    className={
+                      selected
+                        ? "flex-1 flex-row items-center justify-center gap-1 rounded-2xl bg-charcoal-900 px-1 py-3"
+                        : "flex-1 flex-row items-center justify-center gap-1 rounded-2xl bg-cream-100 px-1 py-3"
+                    }
+                  >
+                    <Feather
+                      name={ENERGY_ICONS[level.value]}
+                      size={13}
+                      color={selected ? colors.ink.charcoal : colors.ink.cream}
+                    />
+                    <Text
+                      numberOfLines={1}
+                      adjustsFontSizeToFit
+                      minimumFontScale={0.8}
+                      className={
+                        selected
+                          ? "font-grotesk-semibold text-xs text-ink-charcoal"
+                          : "font-grotesk-medium text-xs text-ink-cream"
+                      }
+                    >
+                      {level.label}
+                    </Text>
+                  </Pressable>
+                );
+              })}
             </View>
           </View>
 
-          <Text className="text-card-title text-ink-cream">{task.title}</Text>
-
-          <View className="flex-row flex-wrap gap-2">
-            <MetaPill
-              icon={<Feather name="calendar" size={13} color={colors.ink.creamMuted} />}
-              label={dueLabel}
-            />
-            <MetaPill
-              icon={<Feather name="clock" size={13} color={colors.ink.creamMuted} />}
-              label={`~${formatDuration(task.estimatedMinutes)}`}
-            />
-          </View>
-
-          <View className={`badge ${category.badgeClass} flex-row items-center gap-1.5`}>
-            <View
-              className="h-2 w-2 rounded-full"
-              style={{ backgroundColor: category.dotColor }}
-            />
-            <Text className="font-grotesk-semibold text-xs text-ink-cream">
-              {category.label}
-            </Text>
-          </View>
-
-          <View className="gap-3 rounded-2xl bg-cream-200 p-5">
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
-              <Text className="eyebrow text-ink-cream">WHY THIS?</Text>
+          <View className="card card--cream gap-4 p-5">
+            <View className="flex-row items-start justify-between gap-2">
+              <View className="flex-1 gap-1">
+                <View className="flex-row items-center gap-2">
+                  <Feather name="zap" size={14} color={colors.orange[500]} />
+                  <Text className="eyebrow flex-shrink text-ink-cream">
+                    SESSION PLAN <Text className="text-ink-cream-muted">• {sessionTasks.length} tasks</Text>
+                  </Text>
+                </View>
+                <Text className="font-grotesk-regular text-xs text-ink-cream-muted">
+                  Tasks optimized to fit your available time.
+                </Text>
+              </View>
+              <View className="shrink-0 items-end gap-2">
+                <Pressable
+                  onPress={handleBreakdownSession}
+                  className="flex-row items-center gap-1.5 rounded-2xl bg-charcoal-900 px-3 py-1.5"
+                >
+                  <Feather name="list" size={12} color={colors.ink.charcoal} />
+                  <Text className="font-grotesk-semibold text-xs text-ink-charcoal">Break down</Text>
+                </Pressable>
+                <View className="rounded-2xl bg-cream-200 px-3 py-1">
+                  <Text className="font-grotesk-semibold text-xs text-ink-cream">
+                    {formatDuration(totalMinutes)} total
+                  </Text>
+                </View>
+              </View>
             </View>
 
-            <Text className="text-body text-ink-cream">{advice}</Text>
+            <View className="gap-3">
+              {sessionTasks.map((task, index) => (
+                <SessionTaskCard
+                  key={task.id}
+                  task={task}
+                  index={index}
+                  onToggleSubtask={completeStep}
+                  onBreakdown={handleBreakdownTask}
+                  onAdvice={handleAdvice}
+                  onDetails={handleDetails}
+                />
+              ))}
+            </View>
           </View>
 
-          <Pressable
-            onPress={handleStartTask}
-            className="btn btn--primary flex-row gap-2"
-            style={({ pressed }) => (pressed ? { opacity: 0.9 } : undefined)}
-          >
+          <Pressable onPress={handleStartSession} className="btn btn--primary flex-row gap-2">
             <Feather name="play" size={18} color={colors.cream[50]} />
-            <Text className="font-grotesk-bold text-lg text-cream-50">Start</Text>
+            <Text className="font-grotesk-bold text-lg text-cream-50">
+              Start session ({formatDuration(totalMinutes)})
+            </Text>
           </Pressable>
 
-          <View className="flex-row gap-3">
-            <Pressable onPress={handlePlanTask} className="btn btn--secondary-cream flex-1 flex-row gap-2">
-              <Feather name="compass" size={16} color={colors.ink.cream} />
-              <Text className="font-grotesk-semibold text-base text-ink-cream">Plan</Text>
-            </Pressable>
-            <Pressable onPress={handleAnalyzeTask} className="btn btn--secondary-cream flex-1 flex-row gap-2">
-              <Feather name="bar-chart-2" size={16} color={colors.ink.cream} />
-              <Text className="font-grotesk-semibold text-base text-ink-cream">Analyze</Text>
-            </Pressable>
-          </View>
-        </Animated.View>
-
-        <View className="card card--cream gap-4 p-5">
-          <View className="flex-row items-center gap-2">
-            <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
-            <Text className="eyebrow text-ink-cream">TELL NEXDO MORE ABOUT THIS TASK...</Text>
-          </View>
-
-          <View className="flex-row items-end gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-5 py-3">
-            <TextInput
-              value={note}
-              onChangeText={setNote}
-              placeholder="e.g. I only have 45 minutes tonight."
-              placeholderTextColor={colors.ink.creamMuted}
-              multiline
-              style={{ textAlignVertical: "top", maxHeight: 140 }}
-              className="flex-1 font-grotesk-regular text-sm text-ink-cream"
-            />
-            <Pressable onPress={handleSendNote} hitSlop={8} disabled={!note.trim()}>
-              <Feather
-                name="send"
-                size={18}
-                color={note.trim() ? colors.orange[500] : colors.ink.creamMuted}
-              />
-            </Pressable>
-          </View>
-        </View>
-
-        <Pressable
-          onPress={() => setSkipSheetOpen(true)}
-          className="btn btn--secondary-cream mx-auto flex-row gap-2 px-6"
-        >
-          <Text className="font-grotesk-semibold text-base text-ink-cream">
-            Choose something else
-          </Text>
-          <Feather name="chevron-right" size={18} color={colors.ink.cream} />
-        </Pressable>
+          <Pressable onPress={handleOpenPicker} className="mx-auto flex-row items-center gap-1.5">
+            <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">Swap or pick different tasks</Text>
+            <Feather name="chevron-right" size={16} color={colors.ink.creamMuted} />
+          </Pressable>
         </View>
       </ScrollView>
 
-      <FilterSheet
-        visible={skipSheetOpen}
-        title="WHY SKIP THIS?"
-        options={skipReasons}
-        selected=""
-        onSelect={handleSkip}
-        onClose={() => setSkipSheetOpen(false)}
+      <TaskPickerSheet
+        visible={pickerOpen}
+        tasks={pendingTasks}
+        selectedIds={manualTaskIds ?? sessionTasks.map((task) => task.id)}
+        onToggle={handleTogglePickerTask}
+        onUseRecommended={() => setManualTaskIds(null)}
+        onClose={() => setPickerOpen(false)}
       />
     </SafeAreaView>
   );
