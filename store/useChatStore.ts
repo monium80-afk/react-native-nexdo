@@ -10,12 +10,15 @@ import { fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supa
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
-const AI_REPLY_DELAY_MS = 700;
 const RECENT_TASK_LIMIT = 5;
+const HISTORY_TURNS = 6;
 const YES_PATTERN = /^(yes|yep|yeah|sure|do it|confirm|ok|okay|go ahead)\b/i;
 const NO_PATTERN = /^(no|nope|cancel|never ?mind|don'?t)\b/i;
 
-const pendingReplyTimeouts = new Set<ReturnType<typeof setTimeout>>();
+// Invalidates any in-flight classifyIntent() call so its response is
+// dropped if the user signs out (or the store resets) before it resolves —
+// the async request has no way to know the chat underneath it changed.
+let requestGeneration = 0;
 
 // Same local-first background sync approach as useTaskStore.
 let realtimeChannel: RealtimeChannel | null = null;
@@ -23,6 +26,10 @@ let realtimeChannel: RealtimeChannel | null = null;
 function syncUpsert(message: ChatMessage, userId: string | null) {
   if (!userId) return;
   upsertMessageRow(message, userId).catch((error) => console.warn("[useChatStore] upsert failed", error));
+}
+
+function createMessageId(role: "user" | "ai" | "seed"): string {
+  return `message-${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 type PendingAction = { action: StructuredAction; label: string };
@@ -88,7 +95,7 @@ export const useChatStore = create<ChatStore>()(
 
       const respondWith = (text: string, relatedTaskId?: string) => {
         pushMessage({
-          id: `${Date.now()}-ai`,
+          id: createMessageId("ai"),
           role: "ai",
           text,
           createdAt: new Date().toISOString(),
@@ -140,7 +147,10 @@ export const useChatStore = create<ChatStore>()(
               if (state.messages.some((m) => m.id === message.id)) {
                 return { messages: state.messages.map((m) => (m.id === message.id ? message : m)) };
               }
-              return { messages: [...state.messages, message] };
+              const insertAt = state.messages.findIndex((m) => m.createdAt > message.createdAt);
+              const messages = [...state.messages];
+              messages.splice(insertAt === -1 ? messages.length : insertAt, 0, message);
+              return { messages };
             });
           });
         },
@@ -163,19 +173,20 @@ export const useChatStore = create<ChatStore>()(
           if (!trimmed && !attachment) return "";
 
           const userMessage: ChatMessage = {
-            id: `${Date.now()}-user`,
+            id: createMessageId("user"),
             role: "user",
             text: trimmed || attachment?.label || "",
             createdAt: new Date().toISOString(),
             attachment,
             relatedTaskId: contextTaskId,
           };
+          const historyBeforeThisMessage = get().messages;
           set((state) => ({ messages: [...state.messages, userMessage], isAiTyping: true }));
           syncUpsert(userMessage, get().syncUserId);
 
-          const replyTimeout = setTimeout(() => {
-            pendingReplyTimeouts.delete(replyTimeout);
+          const generation = ++requestGeneration;
 
+          (async () => {
             if (attachment) {
               set({ pendingAction: null });
               respondWith(ATTACHMENT_REPLIES[attachment.kind]);
@@ -197,22 +208,30 @@ export const useChatStore = create<ChatStore>()(
               set({ pendingAction: null });
             }
 
-            const action = classifyIntent({
+            const history = historyBeforeThisMessage.slice(-HISTORY_TURNS).map((message) => ({
+              role: message.role,
+              text: message.text,
+            }));
+
+            const action = await classifyIntent({
               text: trimmed,
               now: new Date(),
               currentTaskId: contextTaskId,
               recentTaskIds: get().recentlyMentionedTaskIds,
               tasks: useTaskStore.getState().tasks,
+              history,
             });
+
+            if (generation !== requestGeneration) return; // signed out / reset mid-request
             handleClassifiedAction(action);
-          }, AI_REPLY_DELAY_MS);
-          pendingReplyTimeouts.add(replyTimeout);
+          })();
+
           return userMessage.id;
         },
 
         seedMessage: (text, relatedTaskId) => {
           pushMessage({
-            id: `${Date.now()}-seed`,
+            id: createMessageId("seed"),
             role: "ai",
             text,
             createdAt: new Date().toISOString(),
@@ -234,8 +253,7 @@ export const useChatStore = create<ChatStore>()(
         },
 
         handleSignOut: async () => {
-          pendingReplyTimeouts.forEach(clearTimeout);
-          pendingReplyTimeouts.clear();
+          requestGeneration += 1;
           realtimeChannel?.unsubscribe();
           realtimeChannel = null;
           set({

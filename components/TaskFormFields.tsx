@@ -138,8 +138,8 @@ export function DurationChip({ label, selected, onPress }: { label: string; sele
       onPress={onPress}
       className={
         selected
-          ? "rounded-full border border-orange-500 bg-orange-500 px-4 py-2.5"
-          : "rounded-full border border-cream-300 bg-cream-50 px-4 py-2.5"
+          ? "rounded-2xl border border-orange-500 bg-orange-500 px-4 py-2.5"
+          : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
       }
     >
       <Text
@@ -159,8 +159,8 @@ export function DeadlineChip({ label, selected, onPress }: { label: string; sele
       onPress={onPress}
       className={
         selected
-          ? "rounded-full border border-charcoal-900 bg-charcoal-900 px-4 py-2.5"
-          : "rounded-full border border-cream-300 bg-cream-50 px-4 py-2.5"
+          ? "rounded-2xl border border-charcoal-900 bg-charcoal-900 px-4 py-2.5"
+          : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
       }
     >
       <Text

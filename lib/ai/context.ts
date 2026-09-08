@@ -1,5 +1,36 @@
 import type { Task } from "@/types/task";
 
+// Trims a Task down to the fields the AI prompts actually need — keeps the
+// request payload small and gives the model a stable, documented shape
+// instead of the full internal Task type (scores, sync bookkeeping, etc).
+export type TaskContext = {
+  id: string;
+  title: string;
+  category: Task["category"];
+  status: Task["status"];
+  dueDate?: string;
+  estimatedMinutes: number;
+  priorityScore: number;
+  complexity: Task["complexity"];
+  notes?: string;
+  contextNotes: string[];
+};
+
+export function taskToContext(task: Task): TaskContext {
+  return {
+    id: task.id,
+    title: task.title,
+    category: task.category,
+    status: task.status,
+    dueDate: task.dueDate,
+    estimatedMinutes: task.estimatedMinutes,
+    priorityScore: task.priorityScore,
+    complexity: task.complexity,
+    notes: task.notes,
+    contextNotes: task.aiContext.notes,
+  };
+}
+
 // Context-budgeting: pick a small, relevant slice of the task list to reason
 // over instead of ever handing "the whole database" to the classifier.
 export function selectRelevantTasks(

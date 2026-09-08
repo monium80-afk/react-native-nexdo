@@ -146,6 +146,7 @@ type TaskStore = {
   completeTask: (id: string) => void;
   reopenTask: (id: string) => void;
   completeStep: (taskId: string, stepId: string) => void;
+  addSubtask: (taskId: string, label: string) => void;
   addContext: (taskId: string, note: string) => void;
   skipTask: (taskId: string, reason: string) => void;
   regeneratePlan: (taskId: string) => void;
@@ -182,7 +183,7 @@ export const useTaskStore = create<TaskStore>()(
             }
             const existing = state.tasks.find((t) => t.id === task.id);
             // Last-write-wins, and skips echoes of our own just-applied write.
-            if (existing && existing.updatedAt >= task.updatedAt) return {};
+            if (existing && Date.parse(existing.updatedAt) >= Date.parse(task.updatedAt)) return {};
             const merged = existing
               ? state.tasks.map((t) => (t.id === task.id ? task : t))
               : [task, ...state.tasks];
@@ -322,6 +323,43 @@ export const useTaskStore = create<TaskStore>()(
                     estimatedMinutes: allDone ? 0 : remainingMinutes(finalSubtasks),
                     status: allDone ? "completed" : t.status,
                     completedAt: allDone ? now.toISOString() : t.completedAt,
+                    updatedAt: now.toISOString(),
+                  }
+                : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
+      addSubtask: (taskId, label) => {
+        const trimmed = label.trim();
+        if (!trimmed) return;
+        const now = new Date();
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task) return;
+
+        const existing = task.subtasks ?? [];
+        const newSubtask: Subtask = {
+          id: `subtask-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`,
+          label: trimmed,
+          estimatedMinutes: 10,
+          order: existing.length,
+          status: existing.some((subtask) => subtask.status === "current") ? "pending" : "current",
+        };
+        const subtasks = [...existing, newSubtask];
+
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks,
+                    currentStepId: subtasks.find((s) => s.status === "current")?.id,
+                    estimatedMinutes: remainingMinutes(subtasks),
                     updatedAt: now.toISOString(),
                   }
                 : t,
@@ -475,6 +513,7 @@ export const useTaskStore = create<TaskStore>()(
     {
       name: "nexdo-tasks",
       storage: createJSONStorage(() => AsyncStorage),
+      partialize: (state) => ({ tasks: state.tasks }),
       merge: (persisted, current) => {
         const persistedState = persisted as Partial<TaskStore>;
         return {

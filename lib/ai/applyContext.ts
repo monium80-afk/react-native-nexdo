@@ -22,7 +22,8 @@ function reorderForCapacity(subtasks: Subtask[], capacityMinutes: number): Subta
     (a, b) => a.estimatedMinutes - b.estimatedMinutes,
   );
 
-  const currentIndex = remaining.findIndex((subtask) => subtask.estimatedMinutes <= capacityMinutes);
+  const fittingIndex = remaining.findIndex((subtask) => subtask.estimatedMinutes <= capacityMinutes);
+  const currentIndex = fittingIndex === -1 && remaining.length > 0 ? 0 : fittingIndex;
   const reorderedRemaining = remaining.map((subtask, index) => ({
     ...subtask,
     order: completed.length + index,

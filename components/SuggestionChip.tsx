@@ -14,8 +14,8 @@ export function SuggestionChip({ emoji, label, onPress, fullWidth = false }: Sug
       onPress={onPress}
       className={
         fullWidth
-          ? "flex-row items-center gap-2.5 self-stretch rounded-full border border-cream-300 bg-cream-50 px-5 py-3.5"
-          : "flex-row items-center gap-2 rounded-full border border-cream-300 bg-cream-50 px-4 py-2.5"
+          ? "flex-row items-center gap-2.5 self-stretch rounded-2xl border border-cream-300 bg-cream-50 px-5 py-3.5"
+          : "flex-row items-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
       }
     >
       <Text className={fullWidth ? "text-base" : "text-sm"}>{emoji}</Text>

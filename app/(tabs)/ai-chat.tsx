@@ -67,7 +67,7 @@ function TypingBubble() {
   );
 }
 
-function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: string }) {
+function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: string; mode?: string; availableMinutes?: number }) {
   const { user } = useUser();
   const messages = useChatStore((state) => state.messages);
   const isAiTyping = useChatStore((state) => state.isAiTyping);
@@ -90,15 +90,20 @@ function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: str
   const hasUserReplied = messages.some((message) => message.role === "user");
 
   useEffect(() => {
-    if (contextTask && analysisSeededFor.current !== contextTask.id) {
-      analysisSeededFor.current = contextTask.id;
-      const advice = generateAdvice(contextTask, planningStyle);
+    if (!contextTask || analysisSeededFor.current === contextTask.id) return;
+    analysisSeededFor.current = contextTask.id;
+    let cancelled = false;
+    generateAdvice(contextTask, planningStyle, availableMinutes).then((advice) => {
+      if (cancelled) return;
       seedMessage(
         `Here's my read on "${contextTask.title}" — it's a ${contextTask.complexity} task. ${advice}`,
         contextTask.id,
       );
-    }
-  }, [contextTask, planningStyle, seedMessage]);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [contextTask, planningStyle, availableMinutes, seedMessage]);
 
   const handleSend = (text: string, attachment?: ChatAttachment) => {
     if (!text.trim()) return;
@@ -219,6 +224,7 @@ function InboxChatScreen({ contextTaskId }: { contextTaskId?: string; mode?: str
 }
 
 export default function AiChat() {
-  const { taskId, mode } = useLocalSearchParams<{ taskId?: string; mode?: string }>();
-  return <InboxChatScreen contextTaskId={taskId} mode={mode} />;
+  const { taskId, mode, minutes } = useLocalSearchParams<{ taskId?: string; mode?: string; minutes?: string }>();
+  const availableMinutes = minutes ? Number.parseInt(minutes, 10) : undefined;
+  return <InboxChatScreen contextTaskId={taskId} mode={mode} availableMinutes={availableMinutes} />;
 }

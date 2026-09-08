@@ -1,9 +1,12 @@
+import type { InboxActionType, InboxResponseBody } from "@/app/api/inbox+api";
+import { selectRelevantTasks, taskToContext } from "@/lib/ai/context";
 import { extractTasks } from "@/lib/ai/extractTasks";
 import { parseDatePhrase } from "@/lib/ai/parseDate";
 import { resolveTaskReference } from "@/lib/ai/resolveTaskReference";
 import type { StructuredAction } from "@/lib/ai/types";
+import { apiPost } from "@/lib/api";
 import { rankTasksForNext } from "@/lib/scoring";
-import type { Task } from "@/types/task";
+import type { Task, TaskCategory } from "@/types/task";
 
 export type ClassifyIntentInput = {
   text: string;
@@ -11,7 +14,78 @@ export type ClassifyIntentInput = {
   currentTaskId?: string;
   recentTaskIds: string[];
   tasks: Task[];
+  history?: { role: "user" | "ai"; text: string }[];
 };
+
+const VALID_CATEGORIES: TaskCategory[] = ["work", "school", "personal", "other"];
+
+// Layer A's action.type enum doesn't carry a confirmation tier for every
+// case — the destructive/safe ones are fixed here regardless of what the
+// model returns, so a wrong model output can never skip a confirmation it
+// shouldn't.
+function mapInboxResponse(response: InboxResponseBody, fallbackNote: string): StructuredAction {
+  const { action, reply } = response;
+  const type: InboxActionType = action.type;
+
+  if (type === "CREATE_TASK" && action.fields.title) {
+    const category = VALID_CATEGORIES.includes(action.fields.category as TaskCategory)
+      ? (action.fields.category as TaskCategory)
+      : "other";
+    return {
+      type: "CREATE_TASK",
+      drafts: [
+        {
+          title: action.fields.title,
+          category,
+          estimatedMinutes: action.fields.estimatedMinutes ?? 30,
+          dueDate: action.fields.dueDate,
+        },
+      ],
+      confirmationTier: "confirm-required",
+    };
+  }
+
+  if (type === "UPDATE_TASK" && action.taskId) {
+    const changes: Partial<Pick<Task, "title" | "dueDate" | "estimatedMinutes" | "category">> = {};
+    if (action.fields.title) changes.title = action.fields.title;
+    if (action.fields.dueDate) changes.dueDate = action.fields.dueDate;
+    if (typeof action.fields.estimatedMinutes === "number") changes.estimatedMinutes = action.fields.estimatedMinutes;
+    if (VALID_CATEGORIES.includes(action.fields.category as TaskCategory)) changes.category = action.fields.category as TaskCategory;
+    return {
+      type: "UPDATE_TASK",
+      taskId: action.taskId,
+      changes,
+      confirmationTier: action.confirmationRequired ? "confirm-required" : "immediate",
+    };
+  }
+
+  if (type === "COMPLETE_TASK" && action.taskId) {
+    return { type: "COMPLETE_TASK", taskId: action.taskId, confirmationTier: "immediate" };
+  }
+
+  if (type === "DELETE_TASK" && action.taskId) {
+    return { type: "DELETE_TASK", taskId: action.taskId, confirmationTier: "confirm-required" };
+  }
+
+  if (type === "ADD_CONTEXT" && action.taskId) {
+    return {
+      type: "ADD_TASK_CONTEXT",
+      taskId: action.taskId,
+      note: action.fields.note ?? fallbackNote,
+      confirmationTier: "safe",
+    };
+  }
+
+  if (response.intent === "CLARIFY_NEEDED") {
+    return { type: "CLARIFY", question: reply, candidates: [], confirmationTier: "safe" };
+  }
+
+  if (response.intent === "GENERAL_QUESTION" || response.intent === "ASK_RECOMMENDATION") {
+    return { type: "QUERY", answer: reply, confirmationTier: "safe" };
+  }
+
+  return { type: "UNKNOWN", reply, confirmationTier: "safe" };
+}
 
 const DELETE_PATTERN = /\b(delete|remove|cancel)\b/i;
 const ALREADY_DID_PATTERN = /\balready (did|finished|completed|done|started)\b/i;
@@ -33,10 +107,12 @@ function askWhich(candidates: Task[]): StructuredAction {
   };
 }
 
-// Ordered keyword/regex rules standing in for a real LLM intent classifier.
+// Ordered keyword/regex rules — used as an offline fallback if the real
+// Gemini call below fails (no network, missing API key, malformed output),
+// so the inbox degrades gracefully instead of breaking.
 // Order matters — more specific/destructive intents are checked first so a
 // message like "delete the essay, it's already done" resolves to delete.
-export function classifyIntent(input: ClassifyIntentInput): StructuredAction {
+function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
   const { text, now, currentTaskId, recentTaskIds, tasks } = input;
   const referenceCtx = { currentTaskId, recentTaskIds, tasks };
 
@@ -105,4 +181,25 @@ export function classifyIntent(input: ClassifyIntentInput): StructuredAction {
     reply: "I'm not sure what you'd like me to do with that — try mentioning a task by name.",
     confirmationTier: "safe",
   };
+}
+
+// Layer A (Task Manager) — see data/aiPrompts.ts and app/api/inbox+api.ts.
+// Falls back to the heuristic classifier above on any network/parse failure.
+export async function classifyIntent(input: ClassifyIntentInput): Promise<StructuredAction> {
+  const relevantTasks = selectRelevantTasks(input.text, input.tasks, input.recentTaskIds, input.currentTaskId);
+
+  try {
+    const response = await apiPost<InboxResponseBody>("/api/inbox", {
+      message: input.text,
+      now: input.now.toISOString(),
+      currentTaskId: input.currentTaskId,
+      recentTaskIds: input.recentTaskIds,
+      tasks: relevantTasks.map(taskToContext),
+      history: input.history ?? [],
+    });
+    return mapInboxResponse(response, input.text);
+  } catch (error) {
+    console.warn("[classifyIntent] falling back to heuristic", error);
+    return classifyIntentHeuristic(input);
+  }
 }

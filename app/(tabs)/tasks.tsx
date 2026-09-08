@@ -20,18 +20,10 @@ const CATEGORY_TABS: { label: string; value: TaskCategory | "all" }[] = [
   { label: "Other", value: "other" },
 ];
 
-const STATUS_OPTIONS: { label: string; value: TaskStatusFilter }[] = [
-  { label: "All", value: "all" },
-  { label: "Pending", value: "pending" },
-  { label: "Completed", value: "completed" },
-  { label: "Overdue", value: "overdue" },
-];
-
 const SORT_OPTIONS: { label: string; value: TaskSortOption }[] = [
   { label: "Recently added", value: "recent" },
   { label: "Due date", value: "dueDate" },
   { label: "Priority score", value: "priority" },
-  { label: "Title (A–Z)", value: "alphabetical" },
 ];
 
 function compareBySort(a: Task, b: Task, sort: TaskSortOption): number {
@@ -45,8 +37,6 @@ function compareBySort(a: Task, b: Task, sort: TaskSortOption): number {
     }
     case "priority":
       return b.priorityScore - a.priorityScore;
-    case "alphabetical":
-      return a.title.localeCompare(b.title);
     case "recent":
     default:
       return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
@@ -76,6 +66,16 @@ export default function TasksListScreen() {
   const completedCount = tasks.filter((task) => task.status === "completed").length;
   const overdueCount = tasks.filter((task) => getDueInfo(task).tone === "overdue").length;
 
+  const statusOptions = useMemo(
+    () => [
+      { label: "All", value: "all" as TaskStatusFilter, count: tasks.length },
+      { label: "Pending", value: "pending" as TaskStatusFilter, count: pendingCount },
+      { label: "Completed", value: "completed" as TaskStatusFilter, count: completedCount },
+      { label: "Overdue", value: "overdue" as TaskStatusFilter, count: overdueCount },
+    ],
+    [tasks.length, pendingCount, completedCount, overdueCount],
+  );
+
   const categoryCounts = useMemo(() => {
     const counts: Record<TaskCategory | "all", number> = {
       all: tasks.length,
@@ -101,7 +101,7 @@ export default function TasksListScreen() {
     return sortTasks(filtered, sort);
   }, [tasks, category, status, sort, search]);
 
-  const statusLabel = STATUS_OPTIONS.find((option) => option.value === status)?.label ?? "All";
+  const statusLabel = statusOptions.find((option) => option.value === status)?.label ?? "All";
   const sortLabel = SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Recently added";
 
   const handleOpenTask = (taskId: string) => {
@@ -132,7 +132,7 @@ export default function TasksListScreen() {
         </View>
 
         {searchOpen ? (
-          <View className="flex-row items-center gap-2 rounded-full border border-charcoal-600 bg-charcoal-800 px-4 py-2.5">
+          <View className="flex-row items-center gap-2 rounded-2xl border border-charcoal-600 bg-charcoal-800 px-4 py-2.5">
             <Feather name="search" size={16} color={colors.ink.charcoalMuted} />
             <TextInput
               value={search}
@@ -176,8 +176,8 @@ export default function TasksListScreen() {
                 onPress={() => setCategory(tab.value)}
                 className={
                   active
-                    ? "flex-row items-center gap-1.5 rounded-full bg-cream-50 px-4 py-2.5"
-                    : "flex-row items-center gap-1.5 rounded-full px-4 py-2.5"
+                    ? "flex-row items-center gap-1.5 rounded-2xl bg-cream-50 px-4 py-2.5"
+                    : "flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
                 }
               >
                 <Text
@@ -191,7 +191,7 @@ export default function TasksListScreen() {
                 </Text>
                 <View
                   className={
-                    active ? "rounded-full bg-orange-100 px-2 py-0.5" : "rounded-full bg-cream-200 px-2 py-0.5"
+                    active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
                   }
                 >
                   <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value]}</Text>
@@ -204,7 +204,7 @@ export default function TasksListScreen() {
         <View className="flex-row gap-3 px-6 pt-4">
           <Pressable
             onPress={() => setStatusSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-full border border-cream-300 bg-cream-50 px-4 py-3"
+            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
           >
             <Feather name="filter" size={14} color={colors.ink.cream} />
             <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
@@ -214,7 +214,7 @@ export default function TasksListScreen() {
           </Pressable>
           <Pressable
             onPress={() => setSortSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-full border border-cream-300 bg-cream-50 px-4 py-3"
+            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
           >
             <Ionicons name="swap-vertical" size={14} color={colors.ink.cream} />
             <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
@@ -253,7 +253,7 @@ export default function TasksListScreen() {
       <FilterSheet
         visible={statusSheetOpen}
         title="STATUS"
-        options={STATUS_OPTIONS}
+        options={statusOptions}
         selected={status}
         onSelect={setStatus}
         onClose={() => setStatusSheetOpen(false)}
