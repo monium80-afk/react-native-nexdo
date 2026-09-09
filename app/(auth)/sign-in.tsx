@@ -1,4 +1,4 @@
-import { useSignIn } from "@clerk/expo";
+import { useClerk, useSignIn } from "@clerk/expo";
 import { useSSO } from "@clerk/expo/experimental";
 import { useRouter } from "expo-router";
 import { useState } from "react";
@@ -27,23 +27,43 @@ export default function SignIn() {
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
   const { signIn, errors, fetchStatus } = useSignIn();
+  const clerk = useClerk();
   const { startSSOFlow } = useSSO();
   const [showEmailForm, setShowEmailForm] = useState(false);
   const [email, setEmail] = useState("");
   const [modalVisible, setModalVisible] = useState(false);
+  const [socialError, setSocialError] = useState<string | null>(null);
 
   const handleSocialAuth = async (provider: "google" | "apple") => {
     posthog.capture('sign_in_social_tapped', { provider })
+    setSocialError(null);
     try {
       const { createdSessionId } = await startSSOFlow({
         strategy: provider === "google" ? "oauth_google" : "oauth_apple",
       });
+
       if (createdSessionId) {
         posthog.capture('sign_in_completed', { method: 'social', provider })
         router.replace("/");
+        return;
       }
+
+      // No new session, but the user already has an active one. Treat it as
+      // success and let them into the app.
+      if (clerk.session) {
+        router.replace("/");
+        return;
+      }
+
+      // Otherwise the user closed the browser. Stay on the screen.
     } catch (err) {
-      console.error("Social sign-in error:", JSON.stringify(err, null, 2));
+      // The user reached this screen with a live session and Clerk rejects the
+      // repeat attempt. That is not a failure, so route them into the app.
+      if (clerk.session) {
+        router.replace("/");
+        return;
+      }
+      setSocialError("We could not sign you in. Try again.");
       posthog.captureException(err instanceof Error ? err : new Error(String(err)), {
         context: 'sign_in_social',
         provider,
@@ -101,6 +121,11 @@ export default function SignIn() {
                 provider="apple"
                 onPress={() => handleSocialAuth("apple")}
               />
+              {socialError ? (
+                <Text className="text-sm font-grotesk-medium text-overdue-500">
+                  {socialError}
+                </Text>
+              ) : null}
             </View>
 
             <Animated.View layout={REVEAL_LAYOUT} className="mt-5 gap-3">
