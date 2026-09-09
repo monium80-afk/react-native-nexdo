@@ -18,6 +18,8 @@ export type ComplexityAnalysis = {
   reasoning: string;
 };
 
+export type PlanStep = { title: string; estimatedMinutes: number };
+
 export type StructuredAction =
   | { type: "CREATE_TASK"; drafts: ExtractedTaskDraft[]; confirmationTier: "confirm-required" }
   | {
@@ -27,10 +29,21 @@ export type StructuredAction =
       confirmationTier: ConfirmationTier;
     }
   | { type: "COMPLETE_TASK"; taskId: string; confirmationTier: "immediate" }
-  | { type: "DELETE_TASK"; taskId: string; confirmationTier: "confirm-required" }
-  | { type: "ADD_TASK_CONTEXT"; taskId: string; note: string; confirmationTier: "safe" }
+  // Deletion is a direct, unambiguous command per the input taxonomy — it
+  // executes immediately; ambiguity is handled by asking which task
+  // (CLARIFY) rather than by a confirmation step.
+  | { type: "DELETE_TASK"; taskId: string; confirmationTier: "immediate" }
+  // estimatedMinutes is set alongside a note when added context changes the
+  // task's scope (taxonomy 2.2) or shrinks it via partial progress (3.3).
+  | { type: "ADD_TASK_CONTEXT"; taskId: string; note: string; estimatedMinutes?: number; confirmationTier: "safe" }
   | { type: "RESCHEDULE_TASK"; taskId: string; newDueDate?: string; confirmationTier: "immediate" }
   | { type: "SKIP_TASK"; taskId: string; reason: string; confirmationTier: "safe" }
+  // A proposed subtask plan (taxonomy 5.1) — always confirmed before it
+  // overwrites the task's existing subtasks.
+  | { type: "BREAKDOWN_TASK"; taskId: string; steps: PlanStep[]; confirmationTier: "confirm-required" }
+  // A time-budget statement (taxonomy 4.2) — never answered inline, always
+  // routes the user to the Next page pre-loaded with this time budget.
+  | { type: "REDIRECT_NEXT"; availableMinutes: number; confirmationTier: "safe" }
   | { type: "QUERY"; answer: string; confirmationTier: "safe" }
   | { type: "CLARIFY"; question: string; candidates: Task[]; confirmationTier: "safe" }
   | { type: "UNKNOWN"; reply: string; confirmationTier: "safe" };
