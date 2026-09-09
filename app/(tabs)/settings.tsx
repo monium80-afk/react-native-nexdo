@@ -33,13 +33,13 @@ export default function Settings() {
     try {
       posthog.capture('user_signed_out')
       posthog.reset()
+      await signOut();
       const cleanupResults = await Promise.allSettled([
         Promise.resolve().then(() => handleChatSignOut()),
         Promise.resolve().then(() => handleTaskSignOut()),
       ]);
-      await signOut();
       if (cleanupResults.some((result) => result.status === "rejected")) {
-        throw new Error("Store cleanup failed");
+        setSignOutError("Signed out, but local data cleanup needs attention.");
       }
     } catch {
       setSignOutError("Couldn't sign out. Try again.");

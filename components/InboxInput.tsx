@@ -148,7 +148,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder="Type, speak, or take a picture..."
+          placeholder="Type, speak, or take a picture of tasks..."
           placeholderTextColor={colors.ink.creamMuted}
           multiline
           style={{ textAlignVertical: "center", maxHeight: 100, paddingVertical: 8 }}
@@ -162,14 +162,9 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
         disabled={!isRecording && !canSend}
         hitSlop={4}
-        className="h-11 w-11 items-center justify-center rounded-full"
-        style={{ backgroundColor: isRecording || canSend ? colors.orange[500] : colors.cream[200] }}
+        className="h-11 w-11 items-center justify-center rounded-full bg-orange-500"
       >
-        <Feather
-          name={isRecording ? "square" : "send"}
-          size={isRecording ? 15 : 17}
-          color={isRecording || canSend ? colors.cream[50] : colors.ink.creamMuted}
-        />
+        <Feather name={isRecording ? "square" : "send"} size={isRecording ? 15 : 17} color={colors.cream[50]} />
       </Pressable>
     </View>
   );

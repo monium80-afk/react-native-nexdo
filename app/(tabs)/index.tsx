@@ -1,6 +1,6 @@
 import { useUser } from "@clerk/expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -9,8 +9,8 @@ import { GemLogo } from "@/components/GemLogo";
 import { SessionTaskCard } from "@/components/SessionTaskCard";
 import { TaskPickerSheet } from "@/components/TaskPickerSheet";
 import { colors } from "@/constants/theme";
-import { posthog } from "@/lib/posthog";
 import { formatDuration } from "@/lib/formatDuration";
+import { posthog } from "@/lib/posthog";
 import { buildSessionPlan, ENERGY_LEVELS, sumEstimatedMinutes, TIME_OPTIONS, type EnergyLevel } from "@/lib/sessionPlan";
 import { useTaskStore } from "@/store/useTaskStore";
 
@@ -29,11 +29,17 @@ function getGreeting(hour: number) {
 export default function Next() {
   const router = useRouter();
   const { user } = useUser();
+  const { minutes: incomingMinutes } = useLocalSearchParams<{ minutes?: string }>();
   const tasks = useTaskStore((state) => state.tasks);
   const completeStep = useTaskStore((state) => state.completeStep);
   const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
 
-  const [selectedMinutes, setSelectedMinutes] = useState(45);
+  // A time-budget statement in AI Chat (taxonomy 4.2) lands here via a
+  // "minutes" param instead of being answered inline in the chat.
+  const [selectedMinutes, setSelectedMinutes] = useState(() => {
+    const parsed = incomingMinutes ? Number.parseInt(incomingMinutes, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 45;
+  });
   const [customMinutesOpen, setCustomMinutesOpen] = useState(false);
   const [customMinutesText, setCustomMinutesText] = useState("");
   const [energy, setEnergy] = useState<EnergyLevel>("ready");
@@ -315,7 +321,11 @@ export default function Next() {
             </View>
           </View>
 
-          <Pressable onPress={handleStartSession} className="btn btn--primary flex-row gap-2">
+          <Pressable
+            onPress={handleStartSession}
+            disabled={sessionTasks.length === 0}
+            className="btn btn--primary flex-row gap-2"
+          >
             <Feather name="play" size={18} color={colors.cream[50]} />
             <Text className="font-grotesk-bold text-lg text-cream-50">
               Start session ({formatDuration(totalMinutes)})

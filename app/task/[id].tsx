@@ -23,7 +23,8 @@ const POSTPONE_OPTIONS: { label: string; value: PostponeValue; days: number }[] 
 ];
 
 function computePostponeDate(currentDueDate: string | undefined, days: number, now: Date): Date {
-  const base = currentDueDate ? new Date(currentDueDate) : new Date(now);
+  const parsedDueDate = currentDueDate ? new Date(currentDueDate) : now;
+  const base = new Date(Math.max(parsedDueDate.getTime(), now.getTime()));
   base.setDate(base.getDate() + days);
   return base;
 }
@@ -266,7 +267,9 @@ export default function TaskDetail() {
               <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
               <Text className="font-grotesk-semibold text-sm text-orange-500">AI priority rationale</Text>
             </View>
-            <Text className="text-quote text-ink-cream">&quot;{advice}&quot;</Text>
+            <Text className="text-quote text-ink-cream">
+              {advice ? `"${advice}"` : "Generating advice..."}
+            </Text>
           </View>
 
           <View className="gap-3">

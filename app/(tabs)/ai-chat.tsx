@@ -1,5 +1,5 @@
 import { useUser } from "@clerk/expo";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -7,6 +7,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { GemLogo } from "@/components/GemLogo";
 import { InboxInput } from "@/components/InboxInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
+import { TaskConfirmationCard } from "@/components/TaskConfirmationCard";
 import { colors } from "@/constants/theme";
 import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
 import { generateAdvice } from "@/lib/ai/generateAdvice";
@@ -68,15 +69,18 @@ function TypingBubble() {
 }
 
 function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: string; mode?: string; availableMinutes?: number }) {
+  const router = useRouter();
   const { user } = useUser();
   const messages = useChatStore((state) => state.messages);
   const isAiTyping = useChatStore((state) => state.isAiTyping);
   const sendMessage = useChatStore((state) => state.sendMessage);
   const seedMessage = useChatStore((state) => state.seedMessage);
   const updateMessageAttachment = useChatStore((state) => state.updateMessageAttachment);
-  const pendingAction = useChatStore((state) => state.pendingAction);
-  const confirmPendingAction = useChatStore((state) => state.confirmPendingAction);
-  const cancelPendingAction = useChatStore((state) => state.cancelPendingAction);
+  const pendingActions = useChatStore((state) => state.pendingActions);
+  const confirmPendingActions = useChatStore((state) => state.confirmPendingActions);
+  const cancelPendingActions = useChatStore((state) => state.cancelPendingActions);
+  const redirectToNext = useChatStore((state) => state.redirectToNext);
+  const clearRedirectToNext = useChatStore((state) => state.clearRedirectToNext);
   const tasks = useTaskStore((state) => state.tasks);
   const planningStyle = useSettingsStore((state) => state.planningStyle);
 
@@ -90,25 +94,33 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const hasUserReplied = messages.some((message) => message.role === "user");
 
   useEffect(() => {
-    if (!contextTask || analysisSeededFor.current === contextTask.id) return;
-    analysisSeededFor.current = contextTask.id;
+    if (!contextTaskId || analysisSeededFor.current === contextTaskId) return;
+    const task = useTaskStore.getState().tasks.find((candidate) => candidate.id === contextTaskId);
+    if (!task) return;
     let cancelled = false;
-    generateAdvice(contextTask, planningStyle, availableMinutes).then((advice) => {
+    generateAdvice(task, planningStyle, availableMinutes).then((advice) => {
       if (cancelled) return;
       seedMessage(
-        `Here's my read on "${contextTask.title}" — it's a ${contextTask.complexity} task. ${advice}`,
-        contextTask.id,
+        `Here's my read on "${task.title}" — it's a ${task.complexity} task. ${advice}`,
+        task.id,
       );
     });
     return () => {
       cancelled = true;
+      if (analysisSeededFor.current === contextTaskId) analysisSeededFor.current = null;
     };
-  }, [contextTask, planningStyle, availableMinutes, seedMessage]);
+  }, [contextTaskId, planningStyle, availableMinutes, seedMessage]);
 
   const handleSend = (text: string, attachment?: ChatAttachment) => {
     if (!text.trim()) return;
     sendMessage(text, attachment, contextTaskId);
     setDraft("");
+  };
+
+  const handleOpenNext = () => {
+    const minutes = redirectToNext?.minutes;
+    clearRedirectToNext();
+    router.push({ pathname: "/(tabs)", params: minutes ? { minutes: String(minutes) } : undefined });
   };
 
   const handleAttachment = async (attachment: ChatAttachment) => {
@@ -154,11 +166,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
         </View>
       </View>
 
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : undefined}
-        keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
-      >
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
           ref={scrollRef}
           className="flex-1"
@@ -171,10 +179,32 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
           ))}
           {isAiTyping ? <TypingBubble /> : null}
 
-          {pendingAction ? (
+          {pendingActions.length > 0 ? (
+            <View className="gap-3 pr-8">
+              {pendingActions.flatMap((pending, index) =>
+                pending.action.type === "CREATE_TASK"
+                  ? pending.action.drafts.map((draft, draftIndex) => (
+                      <TaskConfirmationCard
+                        key={`${index}-${draftIndex}`}
+                        draft={draft}
+                        onAdd={confirmPendingActions}
+                        onDismiss={cancelPendingActions}
+                      />
+                    ))
+                  : [],
+              )}
+              {pendingActions.some((pending) => pending.action.type !== "CREATE_TASK") ? (
+                <View className="flex-row gap-2">
+                  <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingActions} />
+                  <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingActions} />
+                </View>
+              ) : null}
+            </View>
+          ) : null}
+
+          {redirectToNext ? (
             <View className="flex-row gap-2 pr-8">
-              <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingAction} />
-              <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingAction} />
+              <SuggestionChip emoji="🎯" label={`Open Next (${redirectToNext.minutes} min)`} onPress={handleOpenNext} />
             </View>
           ) : null}
 
