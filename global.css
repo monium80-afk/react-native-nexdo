@@ -229,7 +229,7 @@
  * the energy-level picker). */
 
 @utility chip {
-  border-radius: 16px;
+  border-radius: 9999px;
   border-width: 1px;
 }
 

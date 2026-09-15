@@ -1,4 +1,4 @@
-import { Pressable, type PressableProps } from "react-native";
+import { Pressable, type PressableProps, type PressableStateCallbackType } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 const ReanimatedPressable = Animated.createAnimatedComponent(Pressable);
@@ -31,7 +31,10 @@ export function AnimatedPressable({ scaleTo = 0.96, onPressIn, onPressOut, style
         scale.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) });
         onPressOut?.(event);
       }}
-      style={[style, animatedStyle]}
+      style={(state: PressableStateCallbackType) => {
+        const resolvedStyle = typeof style === "function" ? style(state) : style;
+        return [resolvedStyle, animatedStyle];
+      }}
     />
   );
 }

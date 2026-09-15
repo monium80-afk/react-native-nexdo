@@ -16,7 +16,7 @@ colors:
   outline: '#8d7168'
   outline-variant: '#e1bfb5'
   surface-tint: '#ab3504'
-  primary: '#a83301'
+  primary: '#A83301'
   on-primary: '#ffffff'
   primary-container: '#ca4a1c'
   on-primary-container: '#fffbff'
@@ -133,7 +133,7 @@ The visual style blends modern warm minimalism with tactile, rounded containers 
 
 The color palette centers on tactile warmth and intentional contrast:
 
-- **Primary (`#E05A2B`)**: Vibrant burnt terracotta. Reserved for primary calls to action, high-priority status indicators, active focus chips, and key interactive triggers.
+- **Primary (`#A83301`)**: Vibrant burnt terracotta. Reserved for primary calls to action, high-priority status indicators, active focus chips, and key interactive triggers.
 - **Secondary (`#1D1A18`)**: Deep obsidian charcoal. Serves as the high-contrast foundational ink for titles, top headers, dark mode sheets, and grounded badge backgrounds.
 - **Tertiary (`#5A9E74`)**: Muted sage green. Applied to completed states, check indicators, balance affirmations, and low-friction categorical tags.
 - **Neutral Canvas (`#F4EFE6`)**: Natural unbleached cream. Replaces cold digital whites to establish a calm, paper-like background that prevents eye fatigue.
@@ -177,13 +177,13 @@ The design system uses soft, rounded container geometry paired with fully pill-s
 ## Components
 
 ### Buttons
-- **Primary**: Terracotta background (`#E05A2B`), crisp white text, full pill curvature (`rounded-full`), height 52px for mobile screen anchors. Active states scale down to `0.98` with subtle warmth intensification (`#CB4D20`).
+- **Primary**: Terracotta background (`#A83301`), crisp white text, full pill curvature (`rounded-full`), height 52px for mobile screen anchors. Active states scale down to `0.98` with subtle warmth intensification (`#CB4D20`).
 - **Secondary / Charcoal**: Obsidian background (`#1D1A18`), white text, used for focused AI actions (e.g., "Break down session").
 - **Ghost / Tertiary**: Transparent with soft warm borders (`#E0D7C9`) and charcoal text; interactive hover or press applies `#EAE3D5`.
 
 ### Selector Chips & Time Pills
 - Unselected state: Warm neutral fill (`#EAE3D5` or `#FAF7F2`), subtle 1px border (`#DED4C4`), deep charcoal text (`#1D1A18`).
-- Selected state: Primary terracotta fill (`#E05A2B`) with white text, or deep charcoal (`#1D1A18`) for mode switches.
+- Selected state: Primary terracotta fill (`#A83301`) with white text, or deep charcoal (`#1D1A18`) for mode switches.
 
 ### Task & Session Cards
 - Encapsulated within 16px rounded surfaces with light perimeter borders.

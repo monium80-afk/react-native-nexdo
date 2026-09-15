@@ -3,15 +3,16 @@ import { useFonts } from "expo-font";
 import { Stack, useGlobalSearchParams, usePathname } from "expo-router";
 import * as SplashScreen from "expo-splash-screen";
 import * as SystemUI from "expo-system-ui";
+import { PostHogProvider } from "posthog-react-native";
 import { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
-import { PostHogProvider } from "posthog-react-native";
 
-import "../global.css";
 import { colors } from "@/constants/theme";
 import { publishableKey, tokenCache } from "@/lib/clerk";
 import { posthog } from "@/lib/posthog";
+import "../global.css";
 
+SystemUI.setBackgroundColorAsync(colors.cream[100]);
 SplashScreen.preventAutoHideAsync();
 
 // Mobile-first app: on web, RN Web's flex containers stretch full-bleed to
@@ -39,15 +40,6 @@ export default function RootLayout() {
       SplashScreen.hideAsync();
     }
   }, [fontsLoaded, fontError]);
-
-  // Without this, the native root window defaults to white — any transient
-  // gap (scroll bounce, screen transition, safe-area edge) briefly reveals
-  // it instead of the app's own background. Cream matches the scrollable
-  // body color on almost every screen, so any such gap blends in instead of
-  // standing out as its own rectangle.
-  useEffect(() => {
-    SystemUI.setBackgroundColorAsync(colors.cream[100]);
-  }, []);
 
   // Manual screen tracking for Expo Router
   // @see https://posthog.com/docs/libraries/react-native

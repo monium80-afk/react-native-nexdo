@@ -1,5 +1,6 @@
+import { useAuth } from "@clerk/expo";
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { Redirect, useRouter } from "expo-router";
 import { useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
@@ -38,6 +39,7 @@ function createStepId(): string {
 }
 
 export default function Add() {
+  const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const addTask = useTaskStore((state) => state.addTask);
@@ -49,10 +51,12 @@ export default function Add() {
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [customDurationOpen, setCustomDurationOpen] = useState(false);
   const [customDurationText, setCustomDurationText] = useState("");
+  const [customDurationError, setCustomDurationError] = useState(false);
 
   const [deadlineValue, setDeadlineValue] = useState<DeadlineValue>("tomorrow");
   const [customDeadlineOpen, setCustomDeadlineOpen] = useState(false);
   const [customDeadlineText, setCustomDeadlineText] = useState("");
+  const [customDeadlineError, setCustomDeadlineError] = useState(false);
 
   const [priorityLevel, setPriorityLevel] = useState<TaskPriorityLevel>("high");
 
@@ -62,12 +66,14 @@ export default function Add() {
 
   const [notes, setNotes] = useState("");
 
+  if (!isLoaded) return null;
+  if (!isSignedIn) return <Redirect href="/onboarding" />;
+
   const handleCustomDurationChange = (text: string) => {
     setCustomDurationText(text);
-    const parsed = Number.parseInt(text, 10);
-    if (!Number.isNaN(parsed) && parsed > 0) {
-      setDurationMinutes(parsed);
-    }
+    const parsed = /^\d+$/.test(text.trim()) ? Number.parseInt(text, 10) : undefined;
+    setDurationMinutes(parsed && parsed > 0 ? parsed : 0);
+    setCustomDurationError(false);
   };
 
   const handleCycleStepDuration = () => {
@@ -103,13 +109,25 @@ export default function Add() {
       return;
     }
 
+    const estimatedMinutes = customDurationOpen && /^\d+$/.test(customDurationText.trim())
+      ? Number.parseInt(customDurationText, 10)
+      : durationMinutes;
+    if (customDurationOpen && (!Number.isInteger(estimatedMinutes) || estimatedMinutes <= 0)) {
+      setCustomDurationError(true);
+      return;
+    }
+
     const customDeadline = customDeadlineOpen ? parseCustomDeadline(customDeadlineText) : undefined;
-    const dueDate = (customDeadline ?? computeDeadlineDate(deadlineValue))?.toISOString();
+    if (customDeadlineOpen && !customDeadline) {
+      setCustomDeadlineError(true);
+      return;
+    }
+    const dueDate = (customDeadlineOpen ? customDeadline : computeDeadlineDate(deadlineValue))?.toISOString();
 
     addTask({
       title: trimmedTitle,
       category,
-      estimatedMinutes: durationMinutes,
+      estimatedMinutes,
       dueDate,
       priorityLevel,
       notes,
@@ -119,7 +137,7 @@ export default function Add() {
     posthog.capture("task_created", {
       task_category: category,
       priority_level: priorityLevel,
-      estimated_minutes: durationMinutes,
+      estimated_minutes: estimatedMinutes,
       has_deadline: Boolean(dueDate),
       step_count: steps.length,
     });
@@ -226,6 +244,9 @@ export default function Add() {
                     <Text className="font-grotesk-medium text-xs text-ink-cream-muted">min</Text>
                   </View>
                 ) : null}
+                {customDurationError ? (
+                  <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a positive whole number of minutes.</Text>
+                ) : null}
               </View>
 
               <View className="gap-3">
@@ -251,7 +272,10 @@ export default function Add() {
                   <View className="gap-1.5 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3">
                     <TextInput
                       value={customDeadlineText}
-                      onChangeText={setCustomDeadlineText}
+                      onChangeText={(text) => {
+                        setCustomDeadlineText(text);
+                        setCustomDeadlineError(false);
+                      }}
                       placeholder="YYYY-MM-DD HH:mm"
                       placeholderTextColor={colors.ink.creamMuted}
                       className="font-grotesk-regular text-sm text-ink-cream"
@@ -260,6 +284,9 @@ export default function Add() {
                       e.g. 2026-09-15 14:30
                     </Text>
                   </View>
+                ) : null}
+                {customDeadlineError ? (
+                  <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a valid date and time.</Text>
                 ) : null}
               </View>
 
