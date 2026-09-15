@@ -11,7 +11,7 @@ export async function readFileAsBase64(uri: string): Promise<string> {
 
 const DEFAULT_MIME_TYPE: Record<ChatAttachment["kind"], string> = {
   photo: "image/jpeg",
-  voice: "audio/m4a",
+  voice: "audio/aac",
   document: "application/pdf",
 };
 

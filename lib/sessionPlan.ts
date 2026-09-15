@@ -6,9 +6,9 @@ export type EnergyLevel = "ready" | "low" | "procrastinating";
 export const TIME_OPTIONS: number[] = [15, 25, 30, 45, 60, 90];
 
 export const ENERGY_LEVELS: { value: EnergyLevel; label: string }[] = [
-  { value: "ready", label: "Ready to work" },
+  { value: "ready", label: "Ready" },
   { value: "low", label: "Low energy" },
-  { value: "procrastinating", label: "Procrastinating" },
+  { value: "procrastinating", label: "Stuck" },
 ];
 
 const COMPLEXITY_WEIGHT = { simple: 0, medium: 1, complex: 2 };

@@ -19,7 +19,7 @@
       "softwareKeyboardLayoutMode": "pan"
     },
     "web": {
-      "output": "static",
+      "output": "single",
       "favicon": "./assets/images/logo.png"
     },
     "plugins": [

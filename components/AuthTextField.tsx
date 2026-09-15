@@ -1,7 +1,8 @@
 import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
-import { Pressable, Text, TextInput, View, type TextInputProps } from "react-native";
+import { Text, TextInput, View, type TextInputProps } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
 
 type AuthTextFieldProps = {
@@ -38,13 +39,13 @@ export function AuthTextField({
           className="flex-1 font-grotesk-medium text-base text-ink-cream"
         />
         {secureEntry ? (
-          <Pressable onPress={() => setHidden((prev) => !prev)} hitSlop={8}>
+          <AnimatedPressable onPress={() => setHidden((prev) => !prev)} hitSlop={8}>
             <Feather
               name={hidden ? "eye" : "eye-off"}
               size={18}
               color={colors.ink.creamMuted}
             />
-          </Pressable>
+          </AnimatedPressable>
         ) : null}
       </View>
     </View>

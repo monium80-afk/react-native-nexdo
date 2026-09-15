@@ -1,0 +1,360 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Nexdo Now - Work Session Engine</title>
+<!-- Tailwind CSS v3 with Plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              charcoal: '#1F1A17',
+              header: '#211B17',
+              terracotta: '#D45627',
+              orangeBadge: '#E95725',
+              creamBg: '#F5EFE4',
+              cardBg: '#EDE6D8',
+              cardInner: '#FAF7F0',
+              subtaskBg: '#E9E2D2',
+              pillBorder: '#DFD7C7',
+              pillBg: '#EAE3D4',
+              softBrown: '#6B6056',
+              mutedText: '#877B6F'
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<!-- Phosphor Icons for precise UI iconography -->
+<link href="assets/style-2219ad9a36a1630381ba835e5444d5b2.css" rel="stylesheet">
+<link href="assets/style-57ee8af34ed81ad195136d156aedcf1f.css" rel="stylesheet">
+<link href="assets/style-1ef42f4aab9e576892fc5ae89da61ed5.css" rel="stylesheet">
+<style data-purpose="custom-layout">
+    /* Custom fine adjustments matching exact screenshot */
+    body {
+      background-color: #F5EFE4;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+    }
+    
+    .completed-strike {
+      text-decoration: line-through;
+      text-decoration-color: #9C9082;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-800 antialiased flex justify-center selection:bg-orange-200">
+<!-- Mobile iOS Frame Container -->
+<div class="w-full max-w-[430px] min-h-screen bg-brand-creamBg flex flex-col relative pb-10 shadow-2xl">
+<!-- BEGIN: TopHeader -->
+<header class="bg-[#211B17] px-6 pt-7 pb-6 text-white" data-purpose="top-header">
+<!-- Eyebrow & Brand -->
+<div class="flex items-center gap-2 mb-2">
+<!-- Diamond Logo Mark -->
+<div class="w-4 h-4 relative flex items-center justify-center -ml-0.5">
+<div class="w-3 h-3 bg-brand-terracotta rotate-45 rounded-sm"></div>
+</div>
+<div class="flex items-center gap-1.5 text-[11px] font-bold tracking-wider text-brand-terracotta uppercase">
+<i class="ph-fill ph-lightning text-xs"></i>
+<span>Nexdo Now</span>
+<span class="text-stone-500 font-normal">•</span>
+<span class="text-stone-400 font-normal tracking-normal capitalize">Work Session Engine</span>
+</div>
+</div>
+<!-- Main Headline -->
+<h1 class="text-[25px] leading-tight font-extrabold tracking-tight text-white">
+        What can you do right now?
+      </h1>
+</header>
+<!-- END: TopHeader -->
+<!-- Main Content Stream -->
+<main class="flex-1 px-4 py-4 space-y-4">
+<!-- BEGIN: TimeAndEnergyCard -->
+<section class="bg-brand-cardBg/60 rounded-2xl p-4 border border-[#E5DC store-border border-[#E3DACB]" data-purpose="time-energy-selector">
+<!-- Header: Time Selection -->
+<div class="flex items-center gap-1.5 mb-3 text-[11px] font-bold tracking-wider text-stone-900 uppercase">
+<i class="ph ph-clock text-sm text-brand-terracotta"></i>
+<span>How much time have you got?</span>
+</div>
+<!-- Time Chips Grid -->
+<div class="grid grid-cols-4 gap-2 mb-2.5">
+<button class="py-1.5 px-1 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-800 border border-brand-pillBorder/70 text-center hover:bg-[#E3DC store]" type="button">
+            15 min
+          </button>
+<button class="py-1.5 px-1 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-800 border border-brand-pillBorder/70 text-center" type="button">
+            25 min
+          </button>
+<button class="py-1.5 px-1 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-800 border border-brand-pillBorder/70 text-center" type="button">
+            30 min
+          </button>
+<button class="py-1.5 px-1 bg-brand-terracotta text-white font-semibold rounded-lg text-[13px] shadow-sm text-center" type="button">
+            45 min
+          </button>
+</div>
+<div class="grid grid-cols-3 gap-2 mb-4">
+<button class="py-1.5 px-2 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-800 border border-brand-pillBorder/70 text-center" type="button">
+            60 min
+          </button>
+<button class="py-1.5 px-2 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-800 border border-brand-pillBorder/70 text-center" type="button">
+            90 min
+          </button>
+<button class="py-1.5 px-2 bg-brand-pillBg rounded-lg text-[13px] font-medium text-stone-700 border border-brand-pillBorder/70 text-center" type="button">
+            Custom...
+          </button>
+</div>
+<!-- Divider -->
+<div class="border-t border-[#DFD5C4] pt-3">
+<p class="text-[12px] text-brand-softBrown mb-2.5">Energy &amp; focus level:</p>
+<!-- Energy Level Selectors -->
+<div class="grid grid-cols-3 gap-2">
+<!-- Active: Ready to work -->
+<button class="flex items-center justify-center gap-1.5 py-2 px-1.5 bg-[#241E1A] text-white rounded-xl text-[12px] font-semibold tracking-tight shadow-sm" type="button">
+<i class="ph-fill ph-lightning text-brand-terracotta text-xs"></i>
+<span class="truncate">Ready to work</span>
+</button>
+<!-- Low energy -->
+<button class="flex items-center justify-center gap-1.5 py-2 px-1.5 bg-brand-pillBg text-stone-800 rounded-xl text-[12px] font-medium border border-brand-pillBorder/70" type="button">
+<i class="ph ph-coffee text-xs text-stone-600"></i>
+<span class="truncate">Low energy</span>
+</button>
+<!-- Procrastinating -->
+<button class="flex items-center justify-center gap-1.5 py-2 px-1.5 bg-brand-pillBg text-stone-800 rounded-xl text-[12px] font-medium border border-brand-pillBorder/70" type="button">
+<i class="ph ph-lightbulb text-xs text-stone-600"></i>
+<span class="truncate">Procrastinating</span>
+</button>
+</div>
+</div>
+</section>
+<!-- END: TimeAndEnergyCard -->
+<!-- BEGIN: SessionPlanSection -->
+<section class="bg-brand-cardBg/40 border border-[#E3DACB] rounded-2xl p-3.5 space-y-3.5" data-purpose="session-plan-container">
+<!-- Header Info -->
+<div class="flex items-center justify-between gap-2">
+<div>
+<div class="flex items-center gap-1.5 text-[11px] font-extrabold uppercase text-brand-terracotta tracking-wider">
+<i class="ph-fill ph-lightning text-xs"></i>
+<span>Session Plan</span>
+<span class="text-stone-400 font-medium">•</span>
+<span class="text-stone-600 font-semibold tracking-normal lowercase">2 tasks</span>
+</div>
+<p class="text-[12px] text-stone-600 mt-0.5 font-normal">
+              Tasks optimized to fit your available time.
+            </p>
+</div>
+<!-- Breakdown Button -->
+<button class="flex items-center gap-1.5 bg-[#231E1B] text-white px-2.5 py-1.5 rounded-lg text-[11px] font-semibold whitespace-nowrap shadow-sm" type="button">
+<i class="ph-bold ph-list-dashes text-xs text-brand-terracotta"></i>
+<span>Break down session</span>
+</button>
+</div>
+<!-- TASK 1: Finish Chemistry Assignment -->
+<article class="bg-brand-cardInner rounded-xl p-3.5 border border-[#E3DACB] shadow-sm" data-purpose="task-card">
+<!-- Card Header -->
+<div class="flex items-start justify-between gap-2 mb-2">
+<div class="flex items-start gap-2.5">
+<!-- Number badge -->
+<div class="w-6 h-6 rounded-full bg-brand-terracotta text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                1
+              </div>
+<div>
+<h2 class="text-[14px] font-bold text-stone-900 leading-tight">Finish Chemistry Assignment</h2>
+<!-- Badges -->
+<div class="flex items-center gap-1.5 mt-1.5">
+<span class="bg-[#EAE2D2] text-stone-700 text-[11px] font-medium px-2 py-0.5 rounded border border-[#DFD6C3]">School</span>
+<span class="bg-[#EAE2D2] text-stone-700 text-[11px] font-medium px-2 py-0.5 rounded border border-[#DFD6C3] flex items-center gap-1">
+<i class="ph-bold ph-sliders-horizontal text-[10px] text-stone-500"></i>
+                    3/3 steps completed
+                  </span>
+</div>
+</div>
+</div>
+<!-- Estimated Duration Badge -->
+<div class="bg-[#FBE8E0] text-[#D0491E] font-bold text-[12px] px-2 py-0.5 rounded-md border border-[#F3CFC2] shrink-0">
+              35 min
+            </div>
+</div>
+<!-- Subtasks Container -->
+<div class="mt-3 bg-[#EAE2D4]/70 rounded-lg p-2.5 border border-[#E0D7C6]">
+<div class="text-[9px] font-bold text-stone-500 tracking-wider uppercase mb-2">
+              Smaller sub-tasks:
+            </div>
+<!-- Check items -->
+<div class="space-y-2 text-[12px]">
+<!-- Item 1 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Review lecture 8 reaction formulas and molar ratios</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">10 min</span>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Complete stoichiometry problem sets 1 through 10</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">25 min</span>
+</div>
+<!-- Item 3 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Format titration data table and upload PDF</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">10 min</span>
+</div>
+</div>
+</div>
+<!-- Bottom Actions -->
+<div class="flex items-center justify-between mt-3 pt-1">
+<div class="flex items-center gap-2">
+<button class="bg-[#EDE5D6] text-stone-800 text-[11px] font-semibold px-2 py-1 rounded-md border border-[#DCD3C2] flex items-center gap-1" type="button">
+<i class="ph ph-pencil-simple-line text-xs text-brand-terracotta"></i>
+                Edit breakdown
+              </button>
+<button class="bg-[#EDE5D6] text-stone-800 text-[11px] font-semibold px-2 py-1 rounded-md border border-[#DCD3C2] flex items-center gap-1" type="button">
+<i class="ph ph-lightbulb text-xs text-brand-terracotta"></i>
+                AI Advice
+              </button>
+</div>
+<button class="text-[11px] font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-0.5" type="button">
+              Details <i class="ph-bold ph-caret-right text-[10px]"></i>
+</button>
+</div>
+</article>
+<!-- TASK 2: Dentist Appointment -->
+<article class="bg-brand-cardInner rounded-xl p-3.5 border border-[#E3DACB] shadow-sm" data-purpose="task-card">
+<!-- Card Header -->
+<div class="flex items-start justify-between gap-2 mb-2">
+<div class="flex items-start gap-2.5">
+<!-- Number badge -->
+<div class="w-6 h-6 rounded-full bg-brand-terracotta text-white flex items-center justify-center font-bold text-xs shrink-0 mt-0.5">
+                2
+              </div>
+<div>
+<h2 class="text-[14px] font-bold text-stone-900 leading-tight">Dentist Appointment</h2>
+<!-- Badges -->
+<div class="flex items-center gap-1.5 mt-1.5">
+<span class="bg-[#EAE2D2] text-stone-700 text-[11px] font-medium px-2 py-0.5 rounded border border-[#DFD6C3]">Personal</span>
+<span class="bg-[#EAE2D2] text-stone-700 text-[11px] font-medium px-2 py-0.5 rounded border border-[#DFD6C3] flex items-center gap-1">
+<i class="ph-bold ph-sliders-horizontal text-[10px] text-stone-500"></i>
+                    5/5 steps completed
+                  </span>
+</div>
+</div>
+</div>
+<!-- Estimated Duration Badge -->
+<div class="bg-[#FBE8E0] text-[#D0491E] font-bold text-[12px] px-2 py-0.5 rounded-md border border-[#F3CFC2] shrink-0">
+              10 min
+            </div>
+</div>
+<!-- Subtasks Container -->
+<div class="mt-3 bg-[#EAE2D4]/70 rounded-lg p-2.5 border border-[#E0D7C6]">
+<div class="text-[9px] font-bold text-stone-500 tracking-wider uppercase mb-2">
+              Smaller sub-tasks:
+            </div>
+<!-- Check items -->
+<div class="space-y-2 text-[12px]">
+<!-- Item 1 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Define data schema, API endpoints, and component state hierarchy for Dentist ...</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">5 min</span>
+</div>
+<!-- Item 2 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Build UI components and interactive user input handlers</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">5 min</span>
+</div>
+<!-- Item 3 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Implement backend service routes, authentication, and persistence logic</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">5 min</span>
+</div>
+<!-- Item 4 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Handle error states, loading skeletons, and edge cases</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">5 min</span>
+</div>
+<!-- Item 5 -->
+<div class="flex items-center justify-between text-stone-500 gap-2">
+<div class="flex items-center gap-2 min-w-0">
+<div class="w-4 h-4 rounded-full bg-emerald-600 text-white flex items-center justify-center shrink-0 text-[10px]">
+<i class="ph-bold ph-check"></i>
+</div>
+<span class="truncate completed-strike">Verify responsive styling, accessibility, and run build tests</span>
+</div>
+<span class="completed-strike text-[11px] text-stone-500 shrink-0">5 min</span>
+</div>
+</div>
+</div>
+<!-- Bottom Actions -->
+<div class="flex items-center justify-between mt-3 pt-1">
+<div class="flex items-center gap-2">
+<button class="bg-[#EDE5D6] text-stone-800 text-[11px] font-semibold px-2 py-1 rounded-md border border-[#DCD3C2] flex items-center gap-1" type="button">
+<i class="ph ph-pencil-simple-line text-xs text-brand-terracotta"></i>
+                Edit breakdown
+              </button>
+<button class="bg-[#EDE5D6] text-stone-800 text-[11px] font-semibold px-2 py-1 rounded-md border border-[#DCD3C2] flex items-center gap-1" type="button">
+<i class="ph ph-lightbulb text-xs text-brand-terracotta"></i>
+                AI Advice
+              </button>
+</div>
+<button class="text-[11px] font-semibold text-stone-600 hover:text-stone-900 flex items-center gap-0.5" type="button">
+              Details <i class="ph-bold ph-caret-right text-[10px]"></i>
+</button>
+</div>
+</article>
+</section>
+<!-- END: SessionPlanSection -->
+<!-- BEGIN: ActionButtons -->
+<section class="pt-1 pb-4 space-y-3" data-purpose="primary-actions">
+<!-- Main Start Session Button -->
+<button class="w-full py-3.5 px-4 bg-[#D95526] hover:bg-[#C64B1E] active:scale-[0.99] transition-all rounded-xl text-white font-bold text-[16px] shadow-sm flex items-center justify-center gap-2" type="button">
+<i class="ph-fill ph-play text-sm"></i>
+<span>Start session (45 min)</span>
+</button>
+<!-- Secondary swap action -->
+<div class="text-center">
+<button class="text-[12.5px] font-medium text-stone-700 hover:text-stone-900 inline-flex items-center gap-1" type="button">
+<span>Swap or pick different tasks</span>
+<i class="ph-bold ph-caret-right text-[11px]"></i>
+</button>
+</div>
+</section>
+<!-- END: ActionButtons -->
+</main>
+</div>
+</body></html>

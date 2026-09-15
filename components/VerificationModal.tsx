@@ -10,6 +10,8 @@ import {
   View,
 } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
+
 const CODE_LENGTH = 6;
 
 type VerificationModalProps = {
@@ -132,11 +134,11 @@ export function VerificationModal({
               className="absolute h-px w-px opacity-0"
             />
 
-            <Pressable onPress={onClose} className="items-center">
+            <AnimatedPressable onPress={onClose} className="items-center">
               <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">
                 Cancel
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
         </KeyboardAvoidingView>
       </View>

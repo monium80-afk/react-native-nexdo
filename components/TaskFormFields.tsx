@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import type { TaskCategory } from "@/types/task";
@@ -97,9 +98,9 @@ export function SectionHeader({
         <Text className="eyebrow text-ink-cream">{label}</Text>
       </View>
       {action ? (
-        <Pressable onPress={action.onPress} hitSlop={8}>
+        <AnimatedPressable onPress={action.onPress} hitSlop={8}>
           <Text className="font-grotesk-semibold text-sm text-orange-500">{action.label}</Text>
-        </Pressable>
+        </AnimatedPressable>
       ) : null}
     </View>
   );
@@ -118,7 +119,7 @@ export function CategoryOption({
   const tint = colors.category[category];
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className="flex-1 flex-row items-center gap-2.5 rounded-2xl border px-4 py-3.5"
       style={{
@@ -128,13 +129,13 @@ export function CategoryOption({
     >
       <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.dotColor }} />
       <Text className="font-grotesk-semibold text-sm text-ink-cream">{meta.label}</Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 export function DurationChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={
         selected
@@ -149,13 +150,13 @@ export function DurationChip({ label, selected, onPress }: { label: string; sele
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 export function DeadlineChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={
         selected
@@ -170,7 +171,7 @@ export function DeadlineChip({ label, selected, onPress }: { label: string; sele
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -186,7 +187,7 @@ export function PriorityCard({
   onPress: () => void;
 }) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={
         selected
@@ -210,6 +211,6 @@ export function PriorityCard({
       >
         {subtitle}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }

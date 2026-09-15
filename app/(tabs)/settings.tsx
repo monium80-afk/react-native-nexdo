@@ -1,9 +1,10 @@
 import { useClerk, useUser } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
 import { posthog } from "@/lib/posthog";
 import { useChatStore } from "@/store/useChatStore";
@@ -76,7 +77,7 @@ export default function Settings() {
             {PLANNING_STYLE_OPTIONS.map((option) => {
               const selected = planningStyle === option.value;
               return (
-                <Pressable
+                <AnimatedPressable
                   key={option.value}
                   onPress={() => setPlanningStyle(option.value)}
                   className={
@@ -100,13 +101,13 @@ export default function Settings() {
                     </Text>
                   </View>
                   {selected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
-                </Pressable>
+                </AnimatedPressable>
               );
             })}
           </View>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={handleSignOut}
           disabled={isSigningOut}
           className="card card--charcoal flex-row items-center gap-3 p-4"
@@ -116,7 +117,7 @@ export default function Settings() {
           <Text className="font-grotesk-semibold text-base text-overdue-500">
             {isSigningOut ? "Signing out…" : "Sign out"}
           </Text>
-        </Pressable>
+        </AnimatedPressable>
 
         {signOutError ? (
           <Text className="text-sm font-grotesk-medium text-overdue-500">

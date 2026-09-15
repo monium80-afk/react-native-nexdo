@@ -1,9 +1,18 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, Text, TextInput, View } from "react-native";
+import Animated, {
+  Easing,
+  FadeInUp,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { FilterSheet } from "@/components/FilterSheet";
 import { TaskCard } from "@/components/TaskCard";
 import { colors } from "@/constants/theme";
@@ -62,6 +71,16 @@ export default function TasksListScreen() {
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
 
+  const [categoryTabLayouts, setCategoryTabLayouts] = useState<
+    Record<string, { x: number; width: number }>
+  >({});
+  const categoryHighlightX = useSharedValue(0);
+  const categoryHighlightWidth = useSharedValue(0);
+  const categoryHighlightStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: categoryHighlightX.value }],
+    width: categoryHighlightWidth.value,
+  }));
+
   const pendingCount = tasks.filter((task) => task.status === "pending").length;
   const completedCount = tasks.filter((task) => task.status === "completed").length;
   const overdueCount = tasks.filter((task) => getDueInfo(task).tone === "overdue").length;
@@ -101,6 +120,22 @@ export default function TasksListScreen() {
     return sortTasks(filtered, sort);
   }, [tasks, category, status, sort, search]);
 
+  const hasPositionedInitialHighlight = useRef(false);
+  useEffect(() => {
+    const layout = categoryTabLayouts[category];
+    if (!layout) return;
+    if (!hasPositionedInitialHighlight.current) {
+      hasPositionedInitialHighlight.current = true;
+      // eslint-disable-next-line react-hooks/immutability
+      categoryHighlightX.value = layout.x;
+      // eslint-disable-next-line react-hooks/immutability
+      categoryHighlightWidth.value = layout.width;
+      return;
+    }
+    categoryHighlightX.value = withTiming(layout.x, { duration: 220 });
+    categoryHighlightWidth.value = withTiming(layout.width, { duration: 220 });
+  }, [category, categoryTabLayouts, categoryHighlightX, categoryHighlightWidth]);
+
   const statusLabel = statusOptions.find((option) => option.value === status)?.label ?? "All";
   const sortLabel = SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Recently added";
 
@@ -114,20 +149,20 @@ export default function TasksListScreen() {
         <View className="flex-row items-center justify-between gap-3">
           <Text className="text-title text-ink-charcoal">Tasks</Text>
           <View className="flex-row items-center gap-2.5">
-            <Pressable
+            <AnimatedPressable
               onPress={() => setSearchOpen((open) => !open)}
               hitSlop={8}
               className="h-11 w-11 items-center justify-center rounded-full bg-charcoal-800"
             >
               <Feather name={searchOpen ? "x" : "search"} size={18} color={colors.ink.charcoal} />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/(tabs)/add")}
+            </AnimatedPressable>
+            <AnimatedPressable
+              onPress={() => router.push("/add")}
               className="btn btn--primary flex-row gap-2"
             >
               <Feather name="plus" size={16} color={colors.cream[50]} />
               <Text className="font-grotesk-bold text-sm text-cream-50">Add Task</Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
         </View>
 
@@ -159,31 +194,36 @@ export default function TasksListScreen() {
       </View>
 
       <ScrollView
-        className="bg-cream-100"
+        style={{ backgroundColor: colors.cream[100] }}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, gap: 8 }}
+          contentContainerStyle={{ marginHorizontal: 16, marginTop: 20, paddingHorizontal: 8, paddingVertical: 4, gap: 4, alignItems: "center", backgroundColor: colors.cream[200], borderRadius: 20 }}
         >
+          <Animated.View
+            pointerEvents="none"
+            className="absolute bottom-1 left-0 top-1 rounded-2xl bg-cream-50"
+            style={categoryHighlightStyle}
+          />
           {CATEGORY_TABS.map((tab) => {
             const active = tab.value === category;
             return (
-              <Pressable
+              <AnimatedPressable
                 key={tab.value}
                 onPress={() => setCategory(tab.value)}
-                className={
-                  active
-                    ? "flex-row items-center gap-1.5 rounded-2xl bg-cream-50 px-4 py-2.5"
-                    : "flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
-                }
+                onLayout={(event) => {
+                  const { x, width } = event.nativeEvent.layout;
+                  setCategoryTabLayouts((current) => ({ ...current, [tab.value]: { x, width } }));
+                }}
+                className="flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
               >
                 <Text
                   className={
                     active
-                      ? "font-grotesk-semibold text-sm text-ink-cream"
+                      ? "font-grotesk-semibold text-sm text-orange-500"
                       : "font-grotesk-medium text-sm text-ink-cream-muted"
                   }
                 >
@@ -196,31 +236,53 @@ export default function TasksListScreen() {
                 >
                   <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value]}</Text>
                 </View>
-              </Pressable>
+              </AnimatedPressable>
             );
           })}
         </ScrollView>
 
         <View className="flex-row gap-3 px-6 pt-4">
-          <Pressable
+          <AnimatedPressable
             onPress={() => setStatusSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
+            className={
+              status !== "all"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+            }
           >
-            <Feather name="filter" size={14} color={colors.ink.cream} />
-            <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
-              Status: {statusLabel}
+            <Feather name="filter" size={14} color={status !== "all" ? colors.orange[600] : colors.ink.cream} />
+            <Text
+              className={
+                status !== "all"
+                  ? "font-grotesk-bold text-sm text-orange-600"
+                  : "font-grotesk-semibold text-sm text-ink-cream"
+              }
+              numberOfLines={1}
+            >
+              {statusLabel}
             </Text>
-            <Feather name="chevron-down" size={14} color={colors.ink.creamMuted} />
-          </Pressable>
-          <Pressable
+            <Feather name="chevron-down" size={14} color={status !== "all" ? colors.orange[600] : colors.ink.creamMuted} />
+          </AnimatedPressable>
+          <AnimatedPressable
             onPress={() => setSortSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
+            className={
+              sort !== "recent"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+            }
           >
-            <Ionicons name="swap-vertical" size={14} color={colors.ink.cream} />
-            <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
-              Sort: {sortLabel}
+            <Ionicons name="swap-vertical" size={14} color={sort !== "recent" ? colors.orange[600] : colors.ink.cream} />
+            <Text
+              className={
+                sort !== "recent"
+                  ? "font-grotesk-bold text-sm text-orange-600"
+                  : "font-grotesk-semibold text-sm text-ink-cream"
+              }
+              numberOfLines={1}
+            >
+              {sortLabel}
             </Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         <Text className="px-6 pt-4 font-grotesk-medium text-sm text-ink-cream-muted">
@@ -238,13 +300,18 @@ export default function TasksListScreen() {
               </Text>
             </View>
           ) : (
-            filteredTasks.map((task) => (
-              <TaskCard
+            filteredTasks.map((task, index) => (
+              <Animated.View
                 key={task.id}
-                task={task}
-                onPress={() => handleOpenTask(task.id)}
-                onToggle={() => toggleTaskStatus(task.id)}
-              />
+                entering={FadeInUp.delay(Math.min(index, 8) * 40).duration(260)}
+                layout={LinearTransition.duration(350).easing(Easing.out(Easing.quad))}
+              >
+                <TaskCard
+                  task={task}
+                  onPress={() => handleOpenTask(task.id)}
+                  onToggle={() => toggleTaskStatus(task.id)}
+                />
+              </Animated.View>
             ))
           )}
         </View>

@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
 import { Modal, Pressable, Text, View } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
 
 type FilterOption<T extends string> = { label: string; value: T; count?: number };
@@ -30,7 +31,7 @@ export function FilterSheet<T extends string>({
           {options.map((option) => {
             const isSelected = option.value === selected;
             return (
-              <Pressable
+              <AnimatedPressable
                 key={option.value}
                 onPress={() => {
                   onSelect(option.value);
@@ -55,7 +56,7 @@ export function FilterSheet<T extends string>({
                   ) : null}
                   {isSelected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
                 </View>
-              </Pressable>
+              </AnimatedPressable>
             );
           })}
         </Pressable>

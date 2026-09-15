@@ -223,6 +223,26 @@
   background-color: var(--color-stone-100);
 }
 
+/* Chips (selectable pill toggles: time/duration options, filter pills,
+ * suggestion chips) — pair with the caller's own text/icon color classes,
+ * since the selected tint varies (orange for active filters, charcoal for
+ * the energy-level picker). */
+
+@utility chip {
+  border-radius: 16px;
+  border-width: 1px;
+}
+
+@utility chip--idle {
+  background-color: var(--color-cream-50);
+  border-color: var(--color-cream-300);
+}
+
+@utility chip--selected {
+  background-color: var(--color-orange-100);
+  border-color: var(--color-orange-500);
+}
+
 /* Scrim (modal overlay) -------------------------------------------- */
 
 @utility scrim {

@@ -1,7 +1,9 @@
 import { useUser } from "@clerk/expo";
+import { Feather } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { GemLogo } from "@/components/GemLogo";
@@ -29,7 +31,7 @@ function formatTime(iso: string) {
 function ChatBubble({ message }: { message: ChatMessage }) {
   if (message.role === "ai") {
     return (
-      <View className="flex-row items-start gap-2.5 pr-12">
+      <Animated.View entering={FadeInUp.duration(240)} className="flex-row items-start gap-2.5 pr-6">
         <View className="h-8 w-8 items-center justify-center rounded-full bg-cream-200">
           <GemLogo size={16} />
         </View>
@@ -39,32 +41,35 @@ function ChatBubble({ message }: { message: ChatMessage }) {
             {formatTime(message.createdAt)}
           </Text>
         </View>
-      </View>
+      </Animated.View>
     );
   }
 
   return (
-    <View className="items-end gap-1 pl-12">
-      <View className="rounded-2xl bg-orange-500 px-4 py-3">
-        <Text className="font-grotesk-medium text-sm text-cream-50">{message.text}</Text>
+    <Animated.View entering={FadeInDown.duration(220)} className="flex-row items-center justify-end gap-2 pl-6">
+      <View className="flex-1 rounded-2xl bg-charcoal-900 px-4 py-3">
+        <Text className="font-grotesk-medium text-sm text-ink-charcoal">{message.text}</Text>
+        <Text className="mt-1 self-end font-grotesk-medium text-xs text-ink-charcoal-muted">
+          {formatTime(message.createdAt)}
+        </Text>
       </View>
-      <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
-        {formatTime(message.createdAt)}
-      </Text>
-    </View>
+      <View className="h-8 w-8 items-center justify-center rounded-full bg-charcoal-900">
+        <Feather name="user" size={16} color={colors.ink.charcoal} />
+      </View>
+    </Animated.View>
   );
 }
 
 function TypingBubble() {
   return (
-    <View className="flex-row items-center gap-2.5 pr-16">
+    <Animated.View entering={FadeInUp.duration(200)} className="flex-row items-center gap-2.5 pr-6">
       <View className="h-8 w-8 items-center justify-center rounded-full bg-cream-200">
         <GemLogo size={16} />
       </View>
       <View className="card card--cream-elevated px-4 py-3.5">
         <Text className="text-quote text-ink-cream-muted">Typing…</Text>
       </View>
-    </View>
+    </Animated.View>
   );
 }
 
@@ -115,6 +120,13 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
     if (!text.trim()) return;
     sendMessage(text, attachment, contextTaskId);
     setDraft("");
+  };
+
+  // Quick-action chips (Add, Mark complete, Remove, Change deadline) don't
+  // send on their own — they drop their label into the draft so the user
+  // can add the specifics (which task, what deadline) before sending.
+  const handleQuickAction = (label: string) => {
+    setDraft(`${label}: `);
   };
 
   const handleOpenNext = () => {
@@ -180,7 +192,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
           {isAiTyping ? <TypingBubble /> : null}
 
           {pendingActions.length > 0 ? (
-            <View className="gap-3 pr-8">
+            <Animated.View entering={FadeInUp.duration(240)} className="gap-3 pr-8">
               {pendingActions.flatMap((pending, index) =>
                 pending.action.type === "CREATE_TASK"
                   ? pending.action.drafts.map((draft, draftIndex) => (
@@ -199,25 +211,26 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                   <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingActions} />
                 </View>
               ) : null}
-            </View>
+            </Animated.View>
           ) : null}
 
           {redirectToNext ? (
-            <View className="flex-row gap-2 pr-8">
+            <Animated.View entering={FadeInUp.duration(240)} className="flex-row gap-2 pr-8">
               <SuggestionChip emoji="🎯" label={`Open Next (${redirectToNext.minutes} min)`} onPress={handleOpenNext} />
-            </View>
+            </Animated.View>
           ) : null}
 
           {!hasUserReplied && !contextTask ? (
             <View className="gap-2.5 pr-8">
-              {INBOX_STARTER_SUGGESTIONS.map((suggestion) => (
-                <SuggestionChip
-                  key={suggestion.id}
-                  emoji={suggestion.emoji}
-                  label={suggestion.label}
-                  fullWidth
-                  onPress={() => handleSend(suggestion.label)}
-                />
+              {INBOX_STARTER_SUGGESTIONS.map((suggestion, index) => (
+                <Animated.View key={suggestion.id} entering={FadeInUp.delay(index * 60).duration(240)}>
+                  <SuggestionChip
+                    emoji={suggestion.emoji}
+                    label={suggestion.label}
+                    fullWidth
+                    onPress={() => handleSend(suggestion.label)}
+                  />
+                </Animated.View>
               ))}
             </View>
           ) : null}
@@ -235,7 +248,16 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                   key={action.id}
                   emoji={action.emoji}
                   label={action.label}
-                  onPress={() => handleSend(action.label)}
+                  icon={
+                    action.id === "whats-next"
+                      ? "plus"
+                      : action.id === "breakdown-top"
+                        ? "check"
+                        : action.id === "quick-win"
+                          ? "trash-2"
+                          : "refresh-cw"
+                  }
+                  onPress={() => handleQuickAction(action.label)}
                 />
               ))}
             </ScrollView>

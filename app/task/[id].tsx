@@ -1,13 +1,16 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import { DeadlineChip, parseCustomDeadline } from "@/components/TaskFormFields";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
 import { generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
@@ -41,6 +44,7 @@ export default function TaskDetail() {
   const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
   const planningStyle = useSettingsStore((state) => state.planningStyle);
+  const enterStyle = useScreenEnterAnimation();
 
   const [note, setNote] = useState("");
   const [subtaskDraft, setSubtaskDraft] = useState("");
@@ -71,10 +75,10 @@ export default function TaskDetail() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
         <View className="flex-1 items-center justify-center gap-3 px-6">
           <Text className="text-title text-ink-cream">Task not found</Text>
-          <Pressable onPress={() => router.back()} className="btn btn--secondary-cream flex-row gap-2 px-6">
+          <AnimatedPressable onPress={() => router.back()} className="btn btn--secondary-cream flex-row gap-2 px-6">
             <Feather name="arrow-left" size={16} color={colors.ink.cream} />
             <Text className="font-grotesk-semibold text-base text-ink-cream">Go back</Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
       </SafeAreaView>
     );
@@ -151,9 +155,9 @@ export default function TaskDetail() {
             <GemLogo size={18} />
             <Text className="eyebrow text-ink-cream">TASK DETAILS</Text>
           </View>
-          <Pressable onPress={() => router.back()} hitSlop={8} className="h-9 w-9 items-center justify-center">
+          <AnimatedPressable onPress={() => router.back()} hitSlop={8} className="h-9 w-9 items-center justify-center">
             <Feather name="x" size={22} color={colors.ink.cream} />
-          </Pressable>
+          </AnimatedPressable>
         </View>
         <View className="flex-row flex-wrap items-center gap-2">
           <View className="flex-row items-center gap-1.5 rounded-2xl border border-orange-500 px-3 py-1.5">
@@ -162,23 +166,24 @@ export default function TaskDetail() {
               Score: <Text className="font-grotesk-bold">{task.priorityScore}</Text>
             </Text>
           </View>
-          <Pressable
+          <AnimatedPressable
             onPress={handleFocusNow}
             className="flex-row items-center gap-1.5 rounded-2xl bg-orange-100 px-3 py-1.5"
           >
             <Feather name="target" size={13} color={colors.orange[600]} />
             <Text className="font-grotesk-semibold text-xs text-orange-600">Focus Now</Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
         <ScrollView
-          className="bg-cream-100"
-          contentContainerStyle={{ padding: 24, gap: 22, paddingBottom: 24 }}
+          style={{ backgroundColor: colors.cream[100] }}
+          contentContainerStyle={{ padding: 24, paddingBottom: 24 }}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
+          <Animated.View style={[{ gap: 22 }, enterStyle]}>
           <View className="gap-4 rounded-2xl bg-cream-200 p-5">
             <View className="flex-row items-start gap-3">
               <View className="h-10 w-10 items-center justify-center rounded-full bg-cream-300">
@@ -215,13 +220,13 @@ export default function TaskDetail() {
                   placeholderTextColor={colors.ink.creamMuted}
                   className="font-grotesk-regular text-sm text-ink-cream"
                 />
-                <Pressable
+                <AnimatedPressable
                   onPress={handleCustomPostpone}
                   disabled={!customPostponeText.trim()}
                   className="self-start rounded-2xl bg-orange-500 px-4 py-1.5"
                 >
                   <Text className="font-grotesk-semibold text-xs text-cream-50">Set date</Text>
-                </Pressable>
+                </AnimatedPressable>
               </View>
             ) : null}
           </View>
@@ -240,9 +245,9 @@ export default function TaskDetail() {
             ) : (
               <Text className="flex-1 text-title text-ink-cream">{task.title}</Text>
             )}
-            <Pressable onPress={editingTitle ? handleCommitTitle : handleStartEditTitle} hitSlop={8} className="pt-1">
+            <AnimatedPressable onPress={editingTitle ? handleCommitTitle : handleStartEditTitle} hitSlop={8} className="pt-1">
               <Feather name={editingTitle ? "check" : "edit-2"} size={18} color={colors.ink.creamMuted} />
-            </Pressable>
+            </AnimatedPressable>
           </View>
 
           <View className="flex-row flex-wrap gap-2">
@@ -277,13 +282,13 @@ export default function TaskDetail() {
               <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
                 Subtasks ({completedSubtaskCount}/{orderedSubtasks.length})
               </Text>
-              <Pressable
+              <AnimatedPressable
                 onPress={() => regeneratePlan(task.id)}
                 className="flex-row items-center gap-1.5 rounded-2xl border border-orange-500 px-3 py-1.5"
               >
                 <Feather name="list" size={13} color={colors.orange[500]} />
                 <Text className="font-grotesk-semibold text-xs text-orange-500">AI plan</Text>
-              </Pressable>
+              </AnimatedPressable>
             </View>
 
             {orderedSubtasks.length > 0 ? (
@@ -291,7 +296,7 @@ export default function TaskDetail() {
                 {orderedSubtasks.map((subtask) => {
                   const done = subtask.status === "completed";
                   return (
-                    <Pressable
+                    <AnimatedPressable
                       key={subtask.id}
                       onPress={() => task.status === "pending" && subtask.status === "current" && completeStep(task.id, subtask.id)}
                       className="flex-row items-center gap-3 rounded-2xl bg-cream-200 px-4 py-3.5"
@@ -314,7 +319,7 @@ export default function TaskDetail() {
                       >
                         {subtask.label}
                       </Text>
-                    </Pressable>
+                    </AnimatedPressable>
                   );
                 })}
               </View>
@@ -330,14 +335,14 @@ export default function TaskDetail() {
                 returnKeyType="done"
                 className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
               />
-              <Pressable
+              <AnimatedPressable
                 onPress={handleAddSubtask}
                 disabled={!subtaskDraft.trim()}
                 className="h-11 w-11 items-center justify-center rounded-2xl"
                 style={{ backgroundColor: subtaskDraft.trim() ? colors.charcoal[600] : colors.cream[300] }}
               >
                 <Feather name="plus" size={18} color={colors.ink.charcoal} />
-              </Pressable>
+              </AnimatedPressable>
             </View>
           </View>
 
@@ -377,23 +382,24 @@ export default function TaskDetail() {
                 style={{ textAlignVertical: "top", maxHeight: 120 }}
                 className="flex-1 font-grotesk-regular text-sm text-ink-cream"
               />
-              <Pressable onPress={handleSendNote} hitSlop={8} disabled={!note.trim()}>
+              <AnimatedPressable onPress={handleSendNote} hitSlop={8} disabled={!note.trim()}>
                 <Feather
                   name="send"
                   size={18}
                   color={note.trim() ? colors.orange[500] : colors.ink.creamMuted}
                 />
-              </Pressable>
+              </AnimatedPressable>
             </View>
           </View>
+          </Animated.View>
         </ScrollView>
 
         <View className="flex-row items-center justify-between border-t border-cream-300 bg-cream-50 px-6 py-4">
-          <Pressable onPress={handleDelete} hitSlop={8} className="flex-row items-center gap-2">
+          <AnimatedPressable onPress={handleDelete} hitSlop={8} className="flex-row items-center gap-2">
             <Feather name="trash-2" size={17} color={colors.overdue[500]} />
             <Text className="font-grotesk-semibold text-sm text-overdue-500">Delete Task</Text>
-          </Pressable>
-          <Pressable
+          </AnimatedPressable>
+          <AnimatedPressable
             onPress={() => toggleTaskStatus(task.id)}
             className={isCompleted ? "btn btn--secondary-cream flex-row gap-2 px-6 py-3" : "btn btn--primary flex-row gap-2 px-6 py-3"}
           >
@@ -405,7 +411,7 @@ export default function TaskDetail() {
             >
               {isCompleted ? "Reopen task" : "Mark Complete"}
             </Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

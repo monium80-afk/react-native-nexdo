@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
     KeyboardAvoidingView,
     Platform,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -14,6 +13,7 @@ import {
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { AuthTextField } from "@/components/AuthTextField";
 import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { SocialAuthButton } from "@/components/SocialAuthButton";
@@ -182,33 +182,31 @@ export default function SignUp() {
                       {sendCodeError}
                     </Text>
                   ) : null}
-                  <Pressable
+                  <AnimatedPressable
                     onPress={handleSignUp}
                     disabled={fetchStatus === "fetching"}
+                    scaleTo={0.98}
                     className="btn btn--primary mt-1"
-                    style={({ pressed }) => [
-                      pressed ? { transform: [{ scale: 0.99 }] } : undefined,
-                      fetchStatus === "fetching" ? { opacity: 0.6 } : undefined,
-                    ]}
+                    style={fetchStatus === "fetching" ? { opacity: 0.6 } : undefined}
                   >
                     <Text className="font-grotesk-bold text-lg text-cream-50">
                       Sign Up
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               ) : (
                 <Animated.View
                   entering={FadeIn.duration(220)}
                   exiting={FadeOut.duration(150)}
                 >
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() => setShowEmailForm(true)}
                     className="items-center"
                   >
                     <Text className="font-grotesk-semibold text-sm text-ink-cream-muted underline">
                       or continue with email
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               )}
             </Animated.View>
@@ -220,11 +218,11 @@ export default function SignUp() {
               <Text className="font-grotesk-regular text-sm text-ink-cream-muted">
                 I have an account already?
               </Text>
-              <Pressable onPress={() => router.push("/(auth)/sign-in")}>
+              <AnimatedPressable onPress={() => router.push("/(auth)/sign-in")}>
                 <Text className="font-grotesk-bold text-sm text-orange-500">
                   Log in
                 </Text>
-              </Pressable>
+              </AnimatedPressable>
             </Animated.View>
           </Animated.View>
 

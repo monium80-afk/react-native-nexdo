@@ -8,8 +8,9 @@ import {
 } from "expo-audio";
 import * as DocumentPicker from "expo-document-picker";
 import * as ImagePicker from "expo-image-picker";
-import { Alert, Pressable, Text, TextInput, View } from "react-native";
+import { Alert, Text, TextInput, View } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
 import type { ChatAttachment } from "@/types/chat";
 
@@ -46,7 +47,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
           label: `Voice note (${formatDurationLabel(seconds)})`,
           uri: audioRecorder.uri,
           durationSeconds: seconds,
-          mimeType: "audio/m4a",
+          mimeType: "audio/aac",
         });
       }
       return;
@@ -104,8 +105,8 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
   };
 
   return (
-    <View className="flex-row items-end gap-1 rounded-full border border-cream-300 bg-cream-50 py-1.5 pl-2.5 pr-1.5">
-      <Pressable
+    <View className="flex-row items-center gap-1 rounded-2xl border border-cream-300 bg-cream-50 py-1.5 pl-2.5 pr-1.5">
+      <AnimatedPressable
         onPress={handleMicPress}
         accessibilityRole="button"
         accessibilityLabel={isRecording ? "Stop recording" : "Record voice note"}
@@ -113,8 +114,8 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         className="h-9 w-9 items-center justify-center"
       >
         <Feather name="mic" size={19} color={isRecording ? colors.overdue[500] : colors.ink.creamMuted} />
-      </Pressable>
-      <Pressable
+      </AnimatedPressable>
+      <AnimatedPressable
         onPress={handleCameraPress}
         accessibilityRole="button"
         accessibilityLabel="Take a photo"
@@ -124,8 +125,8 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         className="h-9 w-9 items-center justify-center"
       >
         <Feather name="camera" size={19} color={colors.ink.creamMuted} />
-      </Pressable>
-      <Pressable
+      </AnimatedPressable>
+      <AnimatedPressable
         onPress={handleAttachPress}
         accessibilityRole="button"
         accessibilityLabel="Attach a document"
@@ -135,7 +136,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         className="h-9 w-9 items-center justify-center"
       >
         <Feather name="paperclip" size={19} color={colors.ink.creamMuted} />
-      </Pressable>
+      </AnimatedPressable>
 
       {isRecording ? (
         <View className="flex-1 flex-row items-center gap-2 py-2.5">
@@ -156,16 +157,16 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         />
       )}
 
-      <Pressable
+      <AnimatedPressable
         onPress={isRecording ? handleMicPress : onSend}
         accessibilityRole="button"
         accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
         disabled={!isRecording && !canSend}
         hitSlop={4}
-        className="h-11 w-11 items-center justify-center rounded-full bg-orange-500"
+        className="mr-1 h-11 w-11 items-center justify-center rounded-2xl bg-orange-500"
       >
         <Feather name={isRecording ? "square" : "send"} size={isRecording ? 15 : 17} color={colors.cream[50]} />
-      </Pressable>
+      </AnimatedPressable>
     </View>
   );
 }

@@ -1,21 +1,25 @@
 import { Feather } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, useRouter } from "expo-router";
 import type { ComponentProps } from "react";
-import { Platform, Pressable, Text, View } from "react-native";
+import { Platform, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
 import { useTaskStore } from "@/store/useTaskStore";
 
 // Derived from Tabs itself so this always matches whatever prop shape expo-router expects.
 type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>>[0];
 
-type TabRouteName = "index" | "tasks" | "add" | "ai-chat" | "settings";
+// "add" isn't a tab route — it's a top-level modal (see app/add.tsx) so it
+// can slide up like a card instead of being limited to bottom-tabs' own
+// fade/shift/none transitions. The Add button below is rendered as a fixed
+// extra slot between the real tab routes, not one of them.
+type TabRouteName = "index" | "tasks" | "ai-chat" | "settings";
 
-const TAB_LABELS: Record<TabRouteName, string> = {
+const TAB_ACCESSIBILITY_LABELS: Record<TabRouteName, string> = {
   index: "Next",
   tasks: "Tasks",
-  add: "Add",
   "ai-chat": "Inbox",
   settings: "Settings",
 };
@@ -31,42 +35,42 @@ function TabIcon({
 }) {
   switch (routeName) {
     case "index":
-      return <Feather name="home" size={size} color={color} />;
+      return <Feather name="zap" size={size} color={color} />;
     case "tasks":
       return <Feather name="clipboard" size={size} color={color} />;
-    case "add":
-      return <Feather name="plus" size={size} color={color} />;
     case "ai-chat":
-      return <Feather name="inbox" size={size} color={color} />;
+      return <Feather name="archive" size={size} color={color} />;
     case "settings":
       return <Feather name="settings" size={size} color={color} />;
   }
 }
 
-function AddTabButton({ focused, onPress }: { focused: boolean; onPress: () => void }) {
+function AddTabButton() {
+  const router = useRouter();
+
   return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="tab"
-      accessibilityState={{ selected: focused }}
-      className="items-center -mt-[30px]"
+    <AnimatedPressable
+      onPress={() => router.push("/add")}
+      scaleTo={0.92}
+      accessibilityRole="button"
+      accessibilityLabel="Add task"
+      className="items-center -mt-3"
     >
       <View
         style={Platform.select({
           ios: {
             shadowColor: colors.orange[600],
-            shadowOffset: { width: 0, height: 6 },
+            shadowOffset: { width: 0, height: 5 },
             shadowOpacity: 0.45,
-            shadowRadius: 12,
+            shadowRadius: 10,
           },
-          android: { elevation: 8 },
+          android: { elevation: 6 },
         })}
-        className="h-16 w-16 items-center justify-center rounded-full bg-orange-500"
+        className="h-12 w-12 items-center justify-center rounded-full bg-orange-500"
       >
-        <TabIcon routeName="add" color={colors.ink.charcoal} size={28} />
+        <Feather name="plus" size={20} color={colors.ink.charcoal} />
       </View>
-      <Text className="mt-2 font-grotesk-medium text-xs text-ink-charcoal-muted">Add</Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
@@ -74,10 +78,13 @@ function StandardTabButton({
   routeName,
   focused,
   onPress,
+  edgeClassName,
 }: {
-  routeName: Exclude<TabRouteName, "add">;
+  routeName: TabRouteName;
   focused: boolean;
   onPress: () => void;
+  /** Extra padding nudging the icon away from the centered Add button. */
+  edgeClassName?: string;
 }) {
   const tintColor = focused ? colors.orange[500] : colors.ink.charcoalMuted;
   const pendingTaskCount = useTaskStore((state) =>
@@ -85,11 +92,13 @@ function StandardTabButton({
   );
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      scaleTo={0.88}
       accessibilityRole="tab"
+      accessibilityLabel={TAB_ACCESSIBILITY_LABELS[routeName]}
       accessibilityState={{ selected: focused }}
-      className="flex-1 items-center gap-1"
+      className={`flex-1 items-center justify-center ${edgeClassName ?? ""}`}
     >
       <View>
         <TabIcon routeName={routeName} color={tintColor} size={24} />
@@ -101,56 +110,76 @@ function StandardTabButton({
           </View>
         )}
       </View>
-      <Text
-        className={
-          focused
-            ? "font-grotesk-semibold text-xs text-orange-500"
-            : "font-grotesk-medium text-xs text-ink-charcoal-muted"
-        }
-      >
-        {TAB_LABELS[routeName]}
-      </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
+
+// The floating Add button pokes up above the bar's own background (see its
+// -mt-5 offset) via a negative margin, which overflows outside its parent's
+// measured box without adding to it. React Navigation sizes each screen's
+// bottom safe-content padding off that measured box, so without this reserve
+// the poked-up button would visually overlap screen content sitting just
+// above the tab bar (e.g. the AI chat input).
+const BAR_HEIGHT = 52;
+const FAB_RESERVE = 14;
 
 export function TabBar({ state, navigation }: TabBarProps) {
   const insets = useSafeAreaInsets();
 
+  const renderRoute = (route: TabBarProps["state"]["routes"][number], index: number, edgeClassName?: string) => {
+    const focused = state.index === index;
+    const routeName = route.name as TabRouteName;
+
+    const onPress = () => {
+      const event = navigation.emit({
+        type: "tabPress",
+        target: route.key,
+        canPreventDefault: true,
+      });
+
+      if (!focused && !event.defaultPrevented) {
+        navigation.navigate(route.name);
+      }
+    };
+
+    return (
+      <StandardTabButton
+        key={route.key}
+        routeName={routeName}
+        focused={focused}
+        onPress={onPress}
+        edgeClassName={edgeClassName}
+      />
+    );
+  };
+
+  // The two routes flanking the centered Add button (tasks, ai-chat) sit
+  // right up against it — nudge each away from center so the spacing
+  // across all five slots feels even instead of tasks/ai-chat reading as
+  // crowded against the middle.
+  const [first, second, third, fourth] = state.routes;
+
+  // The reserve and the icon row share one uninterrupted charcoal fill and
+  // one border — only at the very top of this outer box — so the whole
+  // thing reads as a single tall bar with headroom for the poked-up Add
+  // button, not two stacked bars. A border between the two zones (or a
+  // fill that only covers one of them) is what makes it look like a
+  // separate slab sitting above the "real" bar — that was the bug.
   return (
     <View
-      className="flex-row items-end border-t border-white/10 bg-charcoal-900 px-4 pt-3"
-      style={{ paddingBottom: insets.bottom + 10 }}
+      className="border-t border-white/10 bg-charcoal-900"
+      style={{ height: BAR_HEIGHT + FAB_RESERVE + insets.bottom }}
     >
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
-        const routeName = route.name as TabRouteName;
-
-        const onPress = () => {
-          const event = navigation.emit({
-            type: "tabPress",
-            target: route.key,
-            canPreventDefault: true,
-          });
-
-          if (!focused && !event.defaultPrevented) {
-            navigation.navigate(route.name);
-          }
-        };
-
-        if (routeName === "add") {
-          return <AddTabButton key={route.key} focused={focused} onPress={onPress} />;
-        }
-
-        return (
-          <StandardTabButton
-            key={route.key}
-            routeName={routeName}
-            focused={focused}
-            onPress={onPress}
-          />
-        );
-      })}
+      <View
+        className="absolute inset-x-0 bottom-0 flex-row items-center px-4"
+        style={{ height: BAR_HEIGHT + insets.bottom, paddingBottom: insets.bottom }}
+      >
+        {renderRoute(first, 0)}
+        {renderRoute(second, 1, "pr-3")}
+        <AddTabButton />
+        {renderRoute(third, 2, "pl-3")}
+        {renderRoute(fourth, 3)}
+      </View>
     </View>
   );
 }

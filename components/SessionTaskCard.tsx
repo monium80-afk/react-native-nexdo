@@ -1,9 +1,11 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { formatDuration } from "@/lib/formatDuration";
+import { getDueInfo } from "@/lib/taskMeta";
 import type { Task } from "@/types/task";
 
 export function SessionTaskCard({
@@ -22,6 +24,8 @@ export function SessionTaskCard({
   onDetails: (taskId: string) => void;
 }) {
   const category = CATEGORY_META[task.category];
+  const due = getDueInfo(task);
+  const isOverdue = due.tone === "overdue";
   const orderedSubtasks = task.subtasks?.slice().sort((a, b) => a.order - b.order) ?? [];
   const hasSubtasks = orderedSubtasks.length > 0;
   const completedCount = orderedSubtasks.filter((subtask) => subtask.status === "completed").length;
@@ -34,11 +38,20 @@ export function SessionTaskCard({
             <Text className="font-grotesk-bold text-xs text-cream-50">{index + 1}</Text>
           </View>
           <View className="flex-1 gap-2">
-            <Text className="font-grotesk-bold text-base text-ink-cream">{task.title}</Text>
+            <Text className="font-grotesk-bold text-[19px] leading-6 text-ink-cream">{task.title}</Text>
             <View className="flex-row flex-wrap items-center gap-2">
               <View className={`badge ${category.badgeClass} flex-row items-center gap-1.5`}>
                 <View className="h-2 w-2 rounded-full" style={{ backgroundColor: category.dotColor }} />
                 <Text className="font-grotesk-semibold text-xs text-ink-cream">{category.label}</Text>
+              </View>
+              <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-2.5 py-1">
+                <Feather name="calendar" size={11} color={isOverdue ? colors.overdue[500] : colors.ink.creamMuted} />
+                <Text
+                  className="font-grotesk-medium text-xs"
+                  style={{ color: isOverdue ? colors.overdue[500] : colors.ink.creamMuted }}
+                >
+                  {isOverdue ? due.pillLabel : due.label}
+                </Text>
               </View>
               {hasSubtasks ? (
                 <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-2.5 py-1">
@@ -64,7 +77,7 @@ export function SessionTaskCard({
           {orderedSubtasks.map((subtask) => {
             const done = subtask.status === "completed";
             return (
-              <Pressable
+              <AnimatedPressable
                 key={subtask.id}
                 onPress={() => task.status === "pending" && subtask.status === "current" && onToggleSubtask(task.id, subtask.id)}
                 className="flex-row items-center gap-3"
@@ -90,7 +103,7 @@ export function SessionTaskCard({
                 <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
                   {formatDuration(subtask.estimatedMinutes)}
                 </Text>
-              </Pressable>
+              </AnimatedPressable>
             );
           })}
         </View>
@@ -98,7 +111,7 @@ export function SessionTaskCard({
 
       <View className="flex-row items-center justify-between gap-2">
         <View className="flex-1 flex-row flex-wrap items-center gap-2">
-          <Pressable
+          <AnimatedPressable
             onPress={() => onBreakdown(task.id)}
             className="flex-row items-center gap-1.5 rounded-2xl bg-cream-200 px-3 py-1.5"
           >
@@ -106,19 +119,19 @@ export function SessionTaskCard({
             <Text className="font-grotesk-semibold text-xs text-ink-cream">
               {hasSubtasks ? "Edit breakdown" : "Break down task"}
             </Text>
-          </Pressable>
-          <Pressable
+          </AnimatedPressable>
+          <AnimatedPressable
             onPress={() => onAdvice(task.id)}
             className="flex-row items-center gap-1.5 rounded-2xl bg-cream-200 px-3 py-1.5"
           >
             <Ionicons name="bulb-outline" size={13} color={colors.ink.cream} />
             <Text className="font-grotesk-semibold text-xs text-ink-cream">AI Advice</Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
-        <Pressable onPress={() => onDetails(task.id)} hitSlop={8} className="shrink-0 flex-row items-center gap-1">
+        <AnimatedPressable onPress={() => onDetails(task.id)} hitSlop={8} className="shrink-0 flex-row items-center gap-1">
           <Text className="font-grotesk-semibold text-xs text-ink-cream-muted">Details</Text>
           <Feather name="chevron-right" size={14} color={colors.ink.creamMuted} />
-        </Pressable>
+        </AnimatedPressable>
       </View>
     </View>
   );

@@ -1,10 +1,11 @@
 import { useAuth } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { Redirect, useRouter } from "expo-router";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { colors } from "@/constants/theme";
@@ -103,18 +104,16 @@ export default function Onboarding() {
           </View>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={handleGetStarted}
+          scaleTo={0.98}
           className="btn btn--primary flex-row items-center justify-center gap-2"
-          style={({ pressed }) => [
-            pressed ? { transform: [{ scale: 0.99 }] } : undefined,
-          ]}
         >
           <Text className="font-grotesk-bold text-lg text-cream-50">
             Get Started
           </Text>
           <Feather name="chevron-right" size={20} color={colors.cream[50]} />
-        </Pressable>
+        </AnimatedPressable>
       </Animated.View>
     </SafeAreaView>
   );

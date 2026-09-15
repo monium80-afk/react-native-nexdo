@@ -1,6 +1,7 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import { colors } from "@/constants/theme";
 
@@ -18,7 +19,7 @@ export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
   const isApple = provider === "apple";
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={`btn flex-row items-center justify-center gap-3 ${
         isApple ? "btn--charcoal-solid" : "bg-cream-50 btn--secondary-cream"
@@ -36,6 +37,6 @@ export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
       >
         {COPY[provider]}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }

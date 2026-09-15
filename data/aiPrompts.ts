@@ -5,11 +5,12 @@ export type SuggestionPrompt = {
   id: string;
   emoji: string;
   label: string;
+  command?: string;
 };
 
 // Grounded in the actual mock task list (data/tasks.ts) rather than generic
 // placeholders, so tapping one demonstrates a real capability of the app.
-// Tapping a chip sends its label as real text through the intent pipeline —
+// Tapping a chip sends its label or explicit command as real text through the intent pipeline —
 // see lib/ai/classifyIntent.ts — rather than echoing a canned reply.
 export const INBOX_STARTER_SUGGESTIONS: SuggestionPrompt[] = [
   { id: "capacity-20", emoji: "⚡", label: "I only have 20 minutes right now" },
@@ -19,18 +20,19 @@ export const INBOX_STARTER_SUGGESTIONS: SuggestionPrompt[] = [
 ];
 
 export const INBOX_QUICK_ACTIONS: SuggestionPrompt[] = [
-  { id: "whats-next", emoji: "⚡", label: "What next?" },
-  { id: "breakdown-top", emoji: "📋", label: "Break down my top task" },
-  { id: "quick-win", emoji: "⏱️", label: "I only have 10 minutes" },
-  { id: "overdue-catchup", emoji: "🚨", label: "Catch me up on overdue" },
+  { id: "whats-next", emoji: "⚡", label: "Add", command: "Add a task" },
+  { id: "breakdown-top", emoji: "📋", label: "Mark complete", command: "Mark the current task complete" },
+  { id: "quick-win", emoji: "⏱️", label: "Remove", command: "Remove the current task" },
+  { id: "overdue-catchup", emoji: "🚨", label: "Change deadline", command: "Change the current task deadline" },
 ];
 
-// Real parsing (transcription/OCR) happens server-side per AGENTS.md — these are the
-// honest placeholder replies until that backend wiring lands.
+// Server-side extraction (app/api/extract-text+api.ts) runs on every attachment.
+// These only show up when that comes back empty — silence, a blank photo, an
+// unreadable file — never a "not built yet" placeholder.
 export const ATTACHMENT_REPLIES: Record<"photo" | "voice" | "document", string> = {
-  photo: "Got your photo — I'll scan it for tasks once vision processing is wired up on the backend.",
-  voice: "Got your voice note — I'll transcribe it into tasks once voice processing is wired up on the backend.",
-  document: "Got your file — I'll pull tasks out of it once document parsing is wired up on the backend.",
+  photo: "I couldn't find anything readable in that photo — try a clearer shot, or type it instead.",
+  voice: "I couldn't quite catch that recording — try again somewhere quieter, or type it instead.",
+  document: "I couldn't pull any text out of that file — try a different one, or type it instead.",
 };
 
 // Layer A — powers the /api/inbox route (AI Chat, the inbox, and Tasks-page
@@ -110,6 +112,13 @@ TAXONOMY — how to handle every kind of input
 1.6 Anything you're not confident about stays visible in "reply"
     rather than being silently assumed — the confirmation step is the
     safety net for all of the above.
+1.7 The message may carry instruction scaffolding in front of the
+    actual task — a quick-action prefix like "Add: ", "New task:", or
+    the user just echoing a command verb. Strip that scaffolding
+    entirely: fields.title is always a clean, natural description of
+    the task itself, never the instruction that introduced it. "Add:
+    pick up dry cleaning tomorrow" → title "Pick up dry cleaning," not
+    "Add pick up dry cleaning tomorrow" or "Add: pick up dry cleaning."
 
 2. EDITING EXISTING TASKS
 2.1 Field-specific edits ("move chemistry to Friday," "make the dentist

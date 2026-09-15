@@ -1,6 +1,7 @@
 import { Feather } from "@expo/vector-icons";
-import { Pressable, Text, View } from "react-native";
+import { Text, View } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import type { ExtractedTaskDraft } from "@/lib/ai/types";
@@ -87,13 +88,13 @@ export function TaskConfirmationCard({
       <View className="h-px bg-cream-300" style={{ marginHorizontal: -20 }} />
 
       <View className="flex-row items-center justify-end gap-5">
-        <Pressable onPress={onDismiss} hitSlop={8}>
+        <AnimatedPressable onPress={onDismiss} hitSlop={8}>
           <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">Dismiss</Text>
-        </Pressable>
-        <Pressable onPress={onAdd} className="flex-row items-center gap-2 rounded-full bg-orange-500 px-5 py-2.5">
+        </AnimatedPressable>
+        <AnimatedPressable onPress={onAdd} className="flex-row items-center gap-2 rounded-full bg-orange-500 px-5 py-2.5">
           <Feather name="check" size={16} color={colors.cream[50]} />
           <Text className="font-grotesk-bold text-sm text-cream-50">Add Task</Text>
-        </Pressable>
+        </AnimatedPressable>
       </View>
     </View>
   );

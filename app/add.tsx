@@ -1,9 +1,10 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import { useState } from "react";
-import { KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import {
   CATEGORY_ROWS,
@@ -38,6 +39,7 @@ function createStepId(): string {
 
 export default function Add() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
   const addTask = useTaskStore((state) => state.addTask);
 
   const [title, setTitle] = useState("");
@@ -87,11 +89,11 @@ export default function Add() {
   };
 
   const handleClose = () => {
-    router.push("/(tabs)/tasks");
+    router.back();
   };
 
   const handleOpenAiChat = () => {
-    router.push("/(tabs)/ai-chat");
+    router.dismissTo("/(tabs)/ai-chat");
   };
 
   const handleSubmit = () => {
@@ -122,7 +124,7 @@ export default function Add() {
       step_count: steps.length,
     });
 
-    router.push("/(tabs)/tasks");
+    router.dismissTo("/(tabs)/tasks");
   };
 
   return (
@@ -138,9 +140,9 @@ export default function Add() {
                   <Text className="text-title text-ink-cream">Add New Task</Text>
                 </View>
               </View>
-              <Pressable onPress={handleClose} hitSlop={8} className="h-9 w-9 items-center justify-center">
+              <AnimatedPressable onPress={handleClose} hitSlop={8} className="h-9 w-9 items-center justify-center">
                 <Feather name="x" size={22} color={colors.ink.creamMuted} />
-              </Pressable>
+              </AnimatedPressable>
             </View>
             <View className="border-b border-cream-300" />
 
@@ -296,14 +298,14 @@ export default function Add() {
                     placeholderTextColor={colors.ink.creamMuted}
                     className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
                   />
-                  <Pressable
+                  <AnimatedPressable
                     onPress={handleCycleStepDuration}
                     className="flex-row items-center gap-1 rounded-2xl border border-cream-300 bg-cream-50 px-3 py-3"
                   >
                     <Text className="font-grotesk-medium text-sm text-ink-cream">{stepDraftMinutes}m</Text>
                     <Feather name="chevron-down" size={14} color={colors.ink.creamMuted} />
-                  </Pressable>
-                  <Pressable
+                  </AnimatedPressable>
+                  <AnimatedPressable
                     onPress={handleAddStep}
                     disabled={!stepDraftLabel.trim()}
                     className="h-11 w-11 items-center justify-center rounded-2xl"
@@ -314,7 +316,7 @@ export default function Add() {
                       size={18}
                       color={stepDraftLabel.trim() ? colors.cream[50] : colors.ink.creamMuted}
                     />
-                  </Pressable>
+                  </AnimatedPressable>
                 </View>
 
                 {steps.length > 0 ? (
@@ -331,9 +333,9 @@ export default function Add() {
                         <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
                           {formatDuration(step.estimatedMinutes)}
                         </Text>
-                        <Pressable onPress={() => handleRemoveStep(step.id)} hitSlop={8}>
+                        <AnimatedPressable onPress={() => handleRemoveStep(step.id)} hitSlop={8}>
                           <Feather name="x" size={14} color={colors.ink.creamMuted} />
-                        </Pressable>
+                        </AnimatedPressable>
                       </View>
                     ))}
                   </View>
@@ -357,19 +359,22 @@ export default function Add() {
               </View>
             </ScrollView>
 
-            <View className="gap-4 border-t border-cream-300 bg-cream-50 px-6 pb-6 pt-4">
-              <Pressable onPress={handleOpenAiChat} className="flex-row items-center justify-center gap-2">
+            <View
+              className="gap-4 border-t border-cream-300 bg-cream-50 px-6 pt-4"
+              style={{ paddingBottom: insets.bottom + 24 }}
+            >
+              <AnimatedPressable onPress={handleOpenAiChat} className="flex-row items-center justify-center gap-2">
                 <Feather name="message-circle" size={16} color={colors.orange[500]} />
                 <Text className="font-grotesk-semibold text-sm text-orange-500">Open AI Chat instead</Text>
-              </Pressable>
+              </AnimatedPressable>
               <View className="flex-row items-center gap-4">
-                <Pressable onPress={handleClose} hitSlop={8} className="px-2 py-3.5">
+                <AnimatedPressable onPress={handleClose} hitSlop={8} className="px-2 py-3.5">
                   <Text className="font-grotesk-semibold text-base text-ink-cream-muted">Cancel</Text>
-                </Pressable>
-                <Pressable onPress={handleSubmit} className="btn btn--primary flex-1 flex-row gap-2">
+                </AnimatedPressable>
+                <AnimatedPressable onPress={handleSubmit} className="btn btn--primary flex-1 flex-row gap-2">
                   <Feather name="plus" size={18} color={colors.cream[50]} />
                   <Text className="font-grotesk-bold text-lg text-cream-50">Add Task</Text>
-                </Pressable>
+                </AnimatedPressable>
               </View>
             </View>
           </KeyboardAvoidingView>
