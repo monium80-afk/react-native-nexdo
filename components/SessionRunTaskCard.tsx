@@ -7,6 +7,7 @@ import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { BreakdownSheet } from "@/components/BreakdownSheet";
 import { colors } from "@/constants/theme";
 import { useTaskAiAssist } from "@/hooks/useTaskAiAssist";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { Subtask, Task } from "@/types/task";
 
 // How far apart the two things a connector joins should sit. Steps within a
@@ -154,6 +155,7 @@ export function SessionRunTaskCard({
   onStuck: () => void;
   onToggleSubtask: (subtaskId: string) => void;
 }) {
+  const t = useTranslation();
   const done = task.status === "completed";
   const subtasks = task.subtasks?.slice().sort((a, b) => a.order - b.order) ?? [];
   const { advice, requestAdvice, dismissAdvice, breakdownStatus, regenerateBreakdown } = useTaskAiAssist(
@@ -187,7 +189,7 @@ export function SessionRunTaskCard({
           disabled={isActive || done}
           scaleTo={isActive || done ? 1 : 0.985}
           accessibilityRole="button"
-          accessibilityLabel={isActive ? task.title : `Switch to ${task.title}`}
+          accessibilityLabel={isActive ? task.title : t.session.switchTo(task.title)}
           className="gap-3.5"
         >
           <View className="flex-row items-center gap-2.5">
@@ -212,7 +214,7 @@ export function SessionRunTaskCard({
                 </Text>
               )}
             </View>
-            <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">of {total}</Text>
+            <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">{t.session.of(total)}</Text>
           </View>
 
           <Text
@@ -235,13 +237,13 @@ export function SessionRunTaskCard({
             <View className="flex-row items-center justify-between gap-2">
               <View className="flex-row items-center gap-2">
                 <Ionicons name="bulb-outline" size={18} color={colors.orange[500]} />
-                <Text className="font-grotesk-semibold text-[15px] text-orange-500">AI Advice</Text>
+                <Text className="font-grotesk-semibold text-[15px] text-orange-500">{t.session.aiAdvice}</Text>
               </View>
               <AnimatedPressable
                 onPress={dismissAdvice}
                 hitSlop={10}
                 accessibilityRole="button"
-                accessibilityLabel="Close AI advice"
+                accessibilityLabel={t.session.closeAdvice}
               >
                 <Feather name="x" size={18} color={colors.ink.charcoalMuted} />
               </AnimatedPressable>
@@ -251,19 +253,17 @@ export function SessionRunTaskCard({
               <View className="flex-row items-center gap-2.5">
                 <ActivityIndicator size="small" color={colors.orange[500]} />
                 <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">
-                  Reading through this task…
+                  {t.session.readingTask}
                 </Text>
               </View>
             ) : null}
 
             {advice.status === "error" ? (
               <View className="gap-2.5">
-                <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">
-                  Couldn&apos;t reach the AI. Check your connection and try again.
-                </Text>
+                <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">{t.common.aiUnreachable}</Text>
                 <AnimatedPressable onPress={requestAdvice} accessibilityRole="button" className="flex-row items-center gap-1.5 self-start">
                   <Feather name="rotate-ccw" size={13} color={colors.orange[500]} />
-                  <Text className="font-grotesk-semibold text-sm text-orange-500">Try again</Text>
+                  <Text className="font-grotesk-semibold text-sm text-orange-500">{t.common.tryAgain}</Text>
                 </AnimatedPressable>
               </View>
             ) : null}
@@ -293,7 +293,7 @@ export function SessionRunTaskCard({
           >
             <Feather name="check" size={18} color={colors.cream[50]} />
             <Text className="font-grotesk-bold text-base text-cream-50">
-              {isLastTask ? "Done — finish session" : "Done with this task → Next task"}
+              {isLastTask ? t.session.finishSession : t.session.nextTask}
             </Text>
           </AnimatedPressable>
         ) : null}
@@ -304,19 +304,19 @@ export function SessionRunTaskCard({
             <View className="flex-row flex-wrap gap-2">
               <ActionChip
                 icon={<Ionicons name="sparkles-outline" size={14} color={colors.orange[500]} />}
-                label="AI Breakdown"
+                label={t.session.aiBreakdown}
                 onPress={handleOpenBreakdown}
               />
               <ActionChip
                 icon={<Ionicons name="bulb-outline" size={14} color={colors.orange[500]} />}
-                label={adviceShown ? "Hide AI Advice" : isActive ? "Take AI Advice" : "AI Advice"}
+                label={adviceShown ? t.session.hideAdvice : isActive ? t.session.takeAdvice : t.session.aiAdvice}
                 selected={adviceShown}
                 onPress={handleToggleAdvice}
               />
               {isActive ? (
                 <ActionChip
                   icon={<Feather name="life-buoy" size={14} color={colors.orange[500]} />}
-                  label="I'm stuck"
+                  label={t.session.stuck}
                   onPress={onStuck}
                 />
               ) : null}

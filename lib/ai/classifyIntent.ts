@@ -6,6 +6,7 @@ import { parseDatePhrase } from "@/lib/ai/parseDate";
 import { resolveTaskReference } from "@/lib/ai/resolveTaskReference";
 import type { StructuredAction } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
+import { getLanguage, translate } from "@/lib/i18n";
 import { rankTasksForNext } from "@/lib/scoring";
 import type { TaskScope } from "@/lib/taskMeta";
 import type { Category } from "@/types/category";
@@ -156,7 +157,7 @@ function askWhich(candidates: Task[]): StructuredAction {
   const titles = candidates.map((task) => task.title).join(", ");
   return {
     type: "CLARIFY",
-    question: `Which one do you mean: ${titles}?`,
+    question: translate().assistant.whichOne(titles),
     candidates,
     confirmationTier: "safe",
   };
@@ -170,6 +171,7 @@ function askWhich(candidates: Task[]): StructuredAction {
 function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
   const { text, now, currentTaskId, recentTaskIds, tasks } = input;
   const referenceCtx = { currentTaskId, recentTaskIds, tasks };
+  const t = translate();
 
   if (DELETE_PATTERN.test(text) && BULK_PATTERN.test(text)) {
     const scope: TaskScope = PENDING_SCOPE_PATTERN.test(text)
@@ -184,7 +186,7 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
     const ref = resolveTaskReference(text, referenceCtx);
     if (ref.status === "resolved") return { type: "DELETE_TASK", taskId: ref.taskId, confirmationTier: "immediate" };
     if (ref.status === "ambiguous") return askWhich(ref.candidates);
-    return { type: "UNKNOWN", reply: "Which task should I delete?", confirmationTier: "safe" };
+    return { type: "UNKNOWN", reply: t.assistant.whichDelete, confirmationTier: "safe" };
   }
 
   if (ALREADY_DID_PATTERN.test(text) && currentTaskId) {
@@ -220,7 +222,7 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
   }
 
   if (OVERDUE_WORKFLOW_PATTERN.test(text)) {
-    return { type: "QUERY", answer: `I'll help with "${text.trim()}" without changing a task yet.`, confirmationTier: "safe" };
+    return { type: "QUERY", answer: t.assistant.overdueWorkflow(text.trim()), confirmationTier: "safe" };
   }
 
   // A bare time-budget statement with no task already in view redirects to
@@ -243,9 +245,7 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
 
   if (WHAT_NEXT_PATTERN.test(text)) {
     const top = rankTasksForNext(tasks, now)[0];
-    const answer = top
-      ? `Your best next move is "${top.title}" — priority score ${top.priorityScore}.`
-      : "You're all caught up — nothing pending right now.";
+    const answer = top ? t.assistant.bestNext(top.title, top.priorityScore) : t.assistant.allCaughtUp;
     return { type: "QUERY", answer, confirmationTier: "safe" };
   }
 
@@ -271,7 +271,7 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
 
   return {
     type: "UNKNOWN",
-    reply: 'I couldn\'t find a task in that — try naming what you need to do, like "clean the house tomorrow".',
+    reply: t.assistant.noTaskFound,
     confirmationTier: "safe",
   };
 }
@@ -288,6 +288,7 @@ export async function classifyIntent(input: ClassifyIntentInput): Promise<Classi
       tasks: tasksForPrompt(input.tasks).map((task) => taskToContext(task, input.categories)),
       categories: input.categories.map(({ id, label }) => ({ id, label })),
       history: input.history ?? [],
+      language: getLanguage(),
     };
     const response = await apiPost<InboxResponseBody>("/api/inbox", request);
     const actions = mapInboxResponse(response, input.text, input.categories);

@@ -4,6 +4,7 @@ import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { findCategory } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatDuration } from "@/lib/formatDuration";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import type { Task } from "@/types/task";
@@ -23,6 +24,7 @@ export function TaskPickerSheet({
   onUseRecommended: () => void;
   onClose: () => void;
 }) {
+  const t = useTranslation();
   const categories = useCategoryStore((state) => state.categories);
 
   return (
@@ -30,9 +32,9 @@ export function TaskPickerSheet({
       <Pressable className="scrim flex-1 justify-end" onPress={onClose}>
         <Pressable onPress={() => {}} className="card--cream-elevated max-h-[80%] gap-1 rounded-t-2xl p-6 pb-10">
           <View className="flex-row items-center justify-between pb-3">
-            <Text className="eyebrow text-ink-cream-muted">PICK YOUR TASKS</Text>
+            <Text className="eyebrow text-ink-cream-muted">{t.next.pickTasks}</Text>
             <AnimatedPressable onPress={onUseRecommended} hitSlop={8}>
-              <Text className="font-grotesk-semibold text-sm text-orange-500">Use recommended</Text>
+              <Text className="font-grotesk-semibold text-sm text-orange-500">{t.next.useRecommended}</Text>
             </AnimatedPressable>
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
@@ -66,7 +68,7 @@ export function TaskPickerSheet({
             })}
           </ScrollView>
           <AnimatedPressable onPress={onClose} className="btn btn--primary mt-3 flex-row gap-2">
-            <Text className="font-grotesk-bold text-base text-cream-50">Done</Text>
+            <Text className="font-grotesk-bold text-base text-cream-50">{t.common.done}</Text>
           </AnimatedPressable>
         </Pressable>
       </Pressable>

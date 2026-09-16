@@ -2,6 +2,7 @@ import type { BreakdownRequestBody, BreakdownResponseBody } from "@/app/api/brea
 import { taskToContext } from "@/lib/ai/context";
 import type { PlanStep } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
+import { getLanguage } from "@/lib/i18n";
 import type { Category } from "@/types/category";
 import type { Subtask, Task } from "@/types/task";
 
@@ -27,6 +28,7 @@ export async function suggestBreakdown(
     currentSteps: subtasks.filter((subtask) => subtask.status !== "completed").map(toPlanStep),
     previousSuggestion: options.previousSuggestion ?? [],
     availableMinutes: options.availableMinutes,
+    language: getLanguage(),
   };
 
   const result = await apiPost<BreakdownResponseBody>("/api/breakdown", body);

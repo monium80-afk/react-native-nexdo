@@ -4,6 +4,7 @@ import { Text, View } from "react-native";
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
 import { useCategory } from "@/store/useCategoryStore";
@@ -24,6 +25,7 @@ export function SessionTaskCard({
   index: number;
   onDetails: (taskId: string) => void;
 }) {
+  const t = useTranslation();
   const category = useCategory(task.category);
   const categoryTint = getCategoryTint(category.color);
   const due = getDueInfo(task);
@@ -60,7 +62,7 @@ export function SessionTaskCard({
                 <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-2.5 py-1">
                   <Feather name="list" size={11} color={colors.ink.creamMuted} />
                   <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
-                    {completedCount}/{subtasks.length} steps completed
+                    {t.next.stepsCompleted(completedCount, subtasks.length)}
                   </Text>
                 </View>
               ) : null}
@@ -79,7 +81,7 @@ export function SessionTaskCard({
         hitSlop={8}
         className="flex-row items-center justify-end gap-1"
       >
-        <Text className="font-grotesk-semibold text-xs text-ink-cream-muted">Details</Text>
+        <Text className="font-grotesk-semibold text-xs text-ink-cream-muted">{t.next.details}</Text>
         <Feather name="chevron-right" size={14} color={colors.ink.creamMuted} />
       </AnimatedPressable>
     </View>

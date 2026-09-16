@@ -6,6 +6,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
+import type { Translations } from "@/lib/i18n";
 import { useTaskStore } from "@/store/useTaskStore";
 
 // Derived from Tabs itself so this always matches whatever prop shape expo-router expects.
@@ -17,11 +19,11 @@ type TabBarProps = Parameters<NonNullable<ComponentProps<typeof Tabs>["tabBar"]>
 // extra slot between the real tab routes, not one of them.
 type TabRouteName = "index" | "tasks" | "ai-chat" | "settings";
 
-const TAB_ACCESSIBILITY_LABELS: Record<TabRouteName, string> = {
-  index: "Next",
-  tasks: "Tasks",
-  "ai-chat": "Inbox",
-  settings: "Settings",
+const TAB_LABEL_KEYS: Record<TabRouteName, keyof Translations["tabs"]> = {
+  index: "next",
+  tasks: "tasks",
+  "ai-chat": "inbox",
+  settings: "settings",
 };
 
 function TabIcon({
@@ -47,13 +49,14 @@ function TabIcon({
 
 function AddTabButton() {
   const router = useRouter();
+  const t = useTranslation();
 
   return (
     <AnimatedPressable
       onPress={() => router.push("/add")}
       scaleTo={0.92}
       accessibilityRole="button"
-      accessibilityLabel="Add task"
+      accessibilityLabel={t.tabs.addTask}
       className="items-center -mt-3"
     >
       <View
@@ -86,6 +89,7 @@ function StandardTabButton({
   /** Extra padding nudging the icon away from the centered Add button. */
   edgeClassName?: string;
 }) {
+  const t = useTranslation();
   const tintColor = focused ? colors.orange[500] : colors.ink.charcoalMuted;
   const pendingTaskCount = useTaskStore((state) =>
     state.tasks.filter((task) => task.status === "pending").length,
@@ -96,7 +100,7 @@ function StandardTabButton({
       onPress={onPress}
       scaleTo={0.88}
       accessibilityRole="tab"
-      accessibilityLabel={TAB_ACCESSIBILITY_LABELS[routeName]}
+      accessibilityLabel={t.tabs[TAB_LABEL_KEYS[routeName]]}
       accessibilityState={{ selected: focused }}
       className={`flex-1 items-center justify-center ${edgeClassName ?? ""}`}
     >

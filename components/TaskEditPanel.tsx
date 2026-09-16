@@ -15,6 +15,7 @@ import {
   type DeadlineValue,
 } from "@/components/TaskFormFields";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { getDueInfo } from "@/lib/taskMeta";
 import type { Task } from "@/types/task";
 
@@ -36,7 +37,8 @@ export function TaskEditPanel({
   onSave: (changes: TaskEditChanges) => void;
   onCancel: () => void;
 }) {
-  const isPresetDuration = DURATION_OPTIONS.some((option) => option.minutes === task.estimatedMinutes);
+  const t = useTranslation();
+  const isPresetDuration = DURATION_OPTIONS.includes(task.estimatedMinutes);
 
   const [title, setTitle] = useState(task.title);
   const [titleError, setTitleError] = useState(false);
@@ -57,12 +59,12 @@ export function TaskEditPanel({
 
   const deadlineCaption =
     deadline === "keep"
-      ? `Current deadline: ${describeDeadline(task.dueDate)}`
+      ? t.form.editCurrentDeadline(describeDeadline(task.dueDate))
       : deadline === "custom"
-        ? "e.g. 2026-09-15 14:30"
+        ? t.form.dateExample
         : deadline === "none"
-          ? "The deadline will be removed."
-          : `New deadline: ${describeDeadline(computeDeadlineDate(deadline)?.toISOString())}`;
+          ? t.form.deadlineRemoved
+          : t.form.newDeadline(describeDeadline(computeDeadlineDate(deadline)?.toISOString()));
 
   const handleSave = () => {
     const trimmedTitle = title.trim();
@@ -98,18 +100,18 @@ export function TaskEditPanel({
     <View className="gap-6 rounded-2xl border border-cream-300 bg-cream-50 p-4">
       <View className="flex-row items-center gap-2">
         <Feather name="edit-2" size={13} color={colors.orange[500]} />
-        <Text className="eyebrow text-orange-500">EDIT TASK</Text>
+        <Text className="eyebrow text-orange-500">{t.form.editEyebrow}</Text>
       </View>
 
       <View className="gap-2">
-        <Text className="eyebrow text-ink-cream">TASK TITLE</Text>
+        <Text className="eyebrow text-ink-cream">{t.form.taskTitle}</Text>
         <TextInput
           value={title}
           onChangeText={(text) => {
             setTitle(text);
             setTitleError(false);
           }}
-          placeholder="Task title"
+          placeholder={t.form.editTitlePlaceholder}
           placeholderTextColor={colors.ink.creamMuted}
           returnKeyType="done"
           className={
@@ -119,29 +121,29 @@ export function TaskEditPanel({
           }
         />
         {titleError ? (
-          <Text className="font-grotesk-medium text-xs text-overdue-500">Task title is required.</Text>
+          <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.titleRequired}</Text>
         ) : null}
       </View>
 
       <View className="gap-3">
-        <Text className="eyebrow text-ink-cream">CATEGORY</Text>
+        <Text className="eyebrow text-ink-cream">{t.form.category}</Text>
         <CategoryPicker selectedId={category} onSelect={setCategory} />
       </View>
 
       <View className="gap-3">
         <SectionHeader
           icon={<Feather name="clock" size={14} color={colors.orange[500]} />}
-          label="ESTIMATED DURATION"
-          action={{ label: "Custom duration", onPress: () => setCustomDurationOpen((open) => !open) }}
+          label={t.form.duration}
+          action={{ label: t.form.customDuration, onPress: () => setCustomDurationOpen((open) => !open) }}
         />
         <View className="flex-row flex-wrap gap-2">
-          {DURATION_OPTIONS.map((option) => (
+          {DURATION_OPTIONS.map((minutes) => (
             <DurationChip
-              key={option.minutes}
-              label={option.label}
-              selected={!customDurationOpen && durationMinutes === option.minutes}
+              key={minutes}
+              label={t.form.durationOptions[minutes]}
+              selected={!customDurationOpen && durationMinutes === minutes}
               onPress={() => {
-                setDurationMinutes(option.minutes);
+                setDurationMinutes(minutes);
                 setCustomDurationOpen(false);
                 setDurationError(false);
               }}
@@ -156,36 +158,36 @@ export function TaskEditPanel({
                 setCustomDurationText(text);
                 setDurationError(false);
               }}
-              placeholder="Minutes, e.g. 50"
+              placeholder={t.form.minutesPlaceholder}
               placeholderTextColor={colors.ink.creamMuted}
               keyboardType="number-pad"
               className="flex-1 font-grotesk-regular text-sm text-ink-cream"
             />
-            <Text className="font-grotesk-medium text-xs text-ink-cream-muted">min</Text>
+            <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.form.minutesUnit}</Text>
           </View>
         ) : null}
         {durationError ? (
-          <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a positive whole number of minutes.</Text>
+          <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.durationError}</Text>
         ) : null}
       </View>
 
       <View className="gap-3">
         <SectionHeader
           icon={<Feather name="calendar" size={14} color={colors.orange[500]} />}
-          label="DEADLINE"
+          label={t.form.deadline}
           action={{
-            label: "Specific date / time",
+            label: t.form.specificDate,
             onPress: () => setDeadline((current) => (current === "custom" ? "keep" : "custom")),
           }}
         />
         <View className="flex-row flex-wrap gap-2">
-          {DEADLINE_OPTIONS.map((option) => (
+          {DEADLINE_OPTIONS.map((value) => (
             <DeadlineChip
-              key={option.value}
-              label={option.label}
-              selected={deadline === option.value}
+              key={value}
+              label={t.form.deadlines[value]}
+              selected={deadline === value}
               onPress={() => {
-                setDeadline(option.value);
+                setDeadline(value);
                 setDeadlineError(false);
               }}
             />
@@ -199,7 +201,7 @@ export function TaskEditPanel({
                 setCustomDeadlineText(text);
                 setDeadlineError(false);
               }}
-              placeholder="YYYY-MM-DD HH:mm"
+              placeholder={t.form.dateFormat}
               placeholderTextColor={colors.ink.creamMuted}
               className="font-grotesk-regular text-sm text-ink-cream"
             />
@@ -207,17 +209,17 @@ export function TaskEditPanel({
         ) : null}
         <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{deadlineCaption}</Text>
         {deadlineError ? (
-          <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a valid date and time.</Text>
+          <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.dateError}</Text>
         ) : null}
       </View>
 
       <View className="flex-row items-center justify-end gap-4">
         <AnimatedPressable onPress={onCancel} hitSlop={8} accessibilityRole="button" className="px-2 py-3">
-          <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">Cancel</Text>
+          <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">{t.common.cancel}</Text>
         </AnimatedPressable>
         <AnimatedPressable onPress={handleSave} accessibilityRole="button" className="btn btn--primary flex-row gap-2 px-5 py-3">
           <Feather name="check" size={16} color={colors.cream[50]} />
-          <Text className="font-grotesk-bold text-sm text-cream-50">Save changes</Text>
+          <Text className="font-grotesk-bold text-sm text-cream-50">{t.form.saveChanges}</Text>
         </AnimatedPressable>
       </View>
     </View>

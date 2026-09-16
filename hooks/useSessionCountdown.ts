@@ -1,20 +1,8 @@
 import { useEffect, useState } from "react";
 
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatClock } from "@/lib/formatDuration";
 import { sessionElapsedMs, type ActiveSession } from "@/store/useSessionStore";
-
-/**
- * Compact budget label for the caption beside the clock — "45m", "1h 30m".
- * Deliberately terser than formatDuration()'s "45 mins": it sits next to a
- * 38px numeral and has to stay out of its way.
- */
-function formatBudget(minutes: number): string {
-  const hours = Math.floor(minutes / 60);
-  const mins = minutes % 60;
-
-  if (hours === 0) return `${mins}m`;
-  return mins === 0 ? `${hours}h` : `${hours}h ${mins}m`;
-}
 
 export type SessionCountdown = {
   /** `MM:SS` remaining, or `+MM:SS` once the budget is spent. */
@@ -34,6 +22,7 @@ export type SessionCountdown = {
  * which is why pausing can simply stop the interval.
  */
 export function useSessionCountdown(session: ActiveSession | null): SessionCountdown {
+  const t = useTranslation();
   const runningSince = session?.runningSince ?? null;
   const [now, setNow] = useState(() => Date.now());
 
@@ -50,11 +39,14 @@ export function useSessionCountdown(session: ActiveSession | null): SessionCount
   const elapsedMs = session ? sessionElapsedMs(session, now) : 0;
   const remainingMs = totalMs - elapsedMs;
   const isOvertime = remainingMs <= 0;
-  const budgetLabel = formatBudget(session?.plannedMinutes ?? 0);
+  // Deliberately terser than formatDuration()'s "45 mins": it sits next to a
+  // 38px numeral and has to stay out of its way.
+  const plannedMinutes = session?.plannedMinutes ?? 0;
+  const budgetLabel = t.format.budget(Math.floor(plannedMinutes / 60), plannedMinutes % 60);
 
   return {
     clock: isOvertime ? `+${formatClock(-remainingMs)}` : formatClock(remainingMs),
-    caption: isOvertime ? `over your ${budgetLabel}` : `remaining of ${budgetLabel}`,
+    caption: isOvertime ? t.session.overBudget(budgetLabel) : t.session.remainingOf(budgetLabel),
     progress: totalMs === 0 ? 0 : Math.min(elapsedMs / totalMs, 1),
     isRunning: runningSince !== null,
     isOvertime,

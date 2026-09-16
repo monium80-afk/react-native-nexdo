@@ -21,17 +21,14 @@ import {
 } from "@/components/TaskFormFields";
 import { resolveCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
 
-const PRIORITY_OPTIONS: { value: TaskPriorityLevel; title: string }[] = [
-  { value: "high", title: "High Priority" },
-  { value: "medium", title: "Medium Priority" },
-  { value: "low", title: "Low Priority" },
-];
+const PRIORITY_OPTIONS: TaskPriorityLevel[] = ["high", "medium", "low"];
 
 const STEP_DURATIONS = [15, 30, 45, 60, 90, 120];
 
@@ -40,6 +37,7 @@ function createStepId(): string {
 }
 
 export default function Add() {
+  const t = useTranslation();
   const { isLoaded, isSignedIn } = useAuth();
   const router = useRouter();
   const insets = useSafeAreaInsets();
@@ -174,8 +172,8 @@ export default function Add() {
               <View className="flex-row items-center gap-3">
                 <GemLogo size={32} />
                 <View>
-                  <Text className="eyebrow text-orange-500">MANUAL ENTRY</Text>
-                  <Text className="text-title text-ink-cream">Add New Task</Text>
+                  <Text className="eyebrow text-orange-500">{t.form.eyebrow}</Text>
+                  <Text className="text-title text-ink-cream">{t.form.title}</Text>
                 </View>
               </View>
               <AnimatedPressable onPress={handleClose} hitSlop={8} className="h-9 w-9 items-center justify-center">
@@ -192,7 +190,7 @@ export default function Add() {
             >
               <View className="gap-2">
                 <View className="flex-row items-center gap-1">
-                  <Text className="eyebrow text-ink-cream">TASK TITLE</Text>
+                  <Text className="eyebrow text-ink-cream">{t.form.taskTitle}</Text>
                   <Text className="eyebrow text-orange-500">*</Text>
                 </View>
                 <TextInput
@@ -201,7 +199,7 @@ export default function Add() {
                     setTitle(text);
                     if (titleTouched) setTitleTouched(false);
                   }}
-                  placeholder="e.g. Complete Organic Chemistry lab writeup"
+                  placeholder={t.form.titlePlaceholder}
                   placeholderTextColor={colors.ink.creamMuted}
                   className={
                     titleTouched
@@ -210,29 +208,29 @@ export default function Add() {
                   }
                 />
                 {titleTouched ? (
-                  <Text className="font-grotesk-medium text-xs text-overdue-500">Task title is required.</Text>
+                  <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.titleRequired}</Text>
                 ) : null}
               </View>
 
               <View className="gap-3">
-                <Text className="eyebrow text-ink-cream">CATEGORY</Text>
+                <Text className="eyebrow text-ink-cream">{t.form.category}</Text>
                 <CategoryPicker selectedId={category} onSelect={setCategory} />
               </View>
 
               <View className="gap-3">
                 <SectionHeader
                   icon={<Feather name="clock" size={14} color={colors.orange[500]} />}
-                  label="ESTIMATED DURATION"
-                  action={{ label: "Custom duration", onPress: () => setCustomDurationOpen((open) => !open) }}
+                  label={t.form.duration}
+                  action={{ label: t.form.customDuration, onPress: () => setCustomDurationOpen((open) => !open) }}
                 />
                 <View className="flex-row flex-wrap gap-2">
-                  {DURATION_OPTIONS.map((option) => (
+                  {DURATION_OPTIONS.map((minutes) => (
                     <DurationChip
-                      key={option.minutes}
-                      label={option.label}
-                      selected={!customDurationOpen && durationMinutes === option.minutes}
+                      key={minutes}
+                      label={t.form.durationOptions[minutes]}
+                      selected={!customDurationOpen && durationMinutes === minutes}
                       onPress={() => {
-                        setDurationMinutes(option.minutes);
+                        setDurationMinutes(minutes);
                         setCustomDurationOpen(false);
                       }}
                     />
@@ -243,33 +241,33 @@ export default function Add() {
                     <TextInput
                       value={customDurationText}
                       onChangeText={handleCustomDurationChange}
-                      placeholder="Minutes, e.g. 50"
+                      placeholder={t.form.minutesPlaceholder}
                       placeholderTextColor={colors.ink.creamMuted}
                       keyboardType="number-pad"
                       className="flex-1 font-grotesk-regular text-sm text-ink-cream"
                     />
-                    <Text className="font-grotesk-medium text-xs text-ink-cream-muted">min</Text>
+                    <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.form.minutesUnit}</Text>
                   </View>
                 ) : null}
                 {customDurationError ? (
-                  <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a positive whole number of minutes.</Text>
+                  <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.durationError}</Text>
                 ) : null}
               </View>
 
               <View className="gap-3">
                 <SectionHeader
                   icon={<Feather name="calendar" size={14} color={colors.orange[500]} />}
-                  label="DEADLINE"
-                  action={{ label: "Specific date / time", onPress: () => setCustomDeadlineOpen((open) => !open) }}
+                  label={t.form.deadline}
+                  action={{ label: t.form.specificDate, onPress: () => setCustomDeadlineOpen((open) => !open) }}
                 />
                 <View className="flex-row flex-wrap gap-2">
-                  {DEADLINE_OPTIONS.map((option) => (
+                  {DEADLINE_OPTIONS.map((value) => (
                     <DeadlineChip
-                      key={option.value}
-                      label={option.label}
-                      selected={!customDeadlineOpen && deadlineValue === option.value}
+                      key={value}
+                      label={t.form.deadlines[value]}
+                      selected={!customDeadlineOpen && deadlineValue === value}
                       onPress={() => {
-                        setDeadlineValue(option.value);
+                        setDeadlineValue(value);
                         setCustomDeadlineOpen(false);
                       }}
                     />
@@ -283,32 +281,30 @@ export default function Add() {
                         setCustomDeadlineText(text);
                         setCustomDeadlineError(false);
                       }}
-                      placeholder="YYYY-MM-DD HH:mm"
+                      placeholder={t.form.dateFormat}
                       placeholderTextColor={colors.ink.creamMuted}
                       className="font-grotesk-regular text-sm text-ink-cream"
                     />
-                    <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
-                      e.g. 2026-09-15 14:30
-                    </Text>
+                    <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.form.dateExample}</Text>
                   </View>
                 ) : null}
                 {customDeadlineError ? (
-                  <Text className="font-grotesk-medium text-xs text-overdue-500">Enter a valid date and time.</Text>
+                  <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.dateError}</Text>
                 ) : null}
               </View>
 
               <View className="gap-3">
                 <SectionHeader
                   icon={<Ionicons name="flame" size={15} color={colors.orange[500]} />}
-                  label="PRIORITY LEVEL"
+                  label={t.form.priority}
                 />
                 <View className="flex-row gap-3">
-                  {PRIORITY_OPTIONS.map((option) => (
+                  {PRIORITY_OPTIONS.map((level) => (
                     <PriorityCard
-                      key={option.value}
-                      title={option.title}
-                      selected={priorityLevel === option.value}
-                      onPress={() => setPriorityLevel(option.value)}
+                      key={level}
+                      title={t.form.priorities[level]}
+                      selected={priorityLevel === level}
+                      onPress={() => setPriorityLevel(level)}
                     />
                   ))}
                 </View>
@@ -318,16 +314,16 @@ export default function Add() {
                 <View className="flex-row items-center justify-between">
                   <View className="flex-row items-center gap-2">
                     <Feather name="check-square" size={14} color={colors.ink.cream} />
-                    <Text className="font-grotesk-bold text-sm text-ink-cream">Plan Steps ({steps.length})</Text>
+                    <Text className="font-grotesk-bold text-sm text-ink-cream">{t.form.planSteps(steps.length)}</Text>
                   </View>
-                  <Text className="font-grotesk-medium text-xs text-ink-cream-muted">Optional step plan</Text>
+                  <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.form.optionalPlan}</Text>
                 </View>
 
                 <View className="flex-row items-center gap-2">
                   <TextInput
                     value={stepDraftLabel}
                     onChangeText={setStepDraftLabel}
-                    placeholder="e.g. Step 1: Draft the introduction"
+                    placeholder={t.form.stepPlaceholder}
                     placeholderTextColor={colors.ink.creamMuted}
                     className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
                   />
@@ -335,7 +331,7 @@ export default function Add() {
                     onPress={handleCycleStepDuration}
                     className="flex-row items-center gap-1 rounded-2xl border border-cream-300 bg-cream-50 px-3 py-3"
                   >
-                    <Text className="font-grotesk-medium text-sm text-ink-cream">{stepDraftMinutes}m</Text>
+                    <Text className="font-grotesk-medium text-sm text-ink-cream">{t.form.stepMinutes(stepDraftMinutes)}</Text>
                     <Feather name="chevron-down" size={14} color={colors.ink.creamMuted} />
                   </AnimatedPressable>
                   <AnimatedPressable
@@ -378,12 +374,12 @@ export default function Add() {
               <View className="gap-2">
                 <View className="flex-row items-center gap-2">
                   <Feather name="align-left" size={14} color={colors.ink.cream} />
-                  <Text className="eyebrow text-ink-cream">NOTES & CONTEXT (OPTIONAL)</Text>
+                  <Text className="eyebrow text-ink-cream">{t.form.notesTitle}</Text>
                 </View>
                 <TextInput
                   value={notes}
                   onChangeText={setNotes}
-                  placeholder="Add key requirements, instructions, or links..."
+                  placeholder={t.form.notesPlaceholder}
                   placeholderTextColor={colors.ink.creamMuted}
                   multiline
                   style={{ textAlignVertical: "top", minHeight: 90 }}
@@ -398,15 +394,15 @@ export default function Add() {
             >
               <AnimatedPressable onPress={handleOpenAiChat} className="flex-row items-center justify-center gap-2">
                 <Feather name="message-circle" size={16} color={colors.orange[500]} />
-                <Text className="font-grotesk-semibold text-sm text-orange-500">Open AI Chat instead</Text>
+                <Text className="font-grotesk-semibold text-sm text-orange-500">{t.form.openAiChat}</Text>
               </AnimatedPressable>
               <View className="flex-row items-center gap-4">
                 <AnimatedPressable onPress={handleClose} hitSlop={8} className="px-2 py-3.5">
-                  <Text className="font-grotesk-semibold text-base text-ink-cream-muted">Cancel</Text>
+                  <Text className="font-grotesk-semibold text-base text-ink-cream-muted">{t.common.cancel}</Text>
                 </AnimatedPressable>
                 <AnimatedPressable onPress={handleSubmit} className="btn btn--primary flex-1 flex-row gap-2">
                   <Feather name="plus" size={18} color={colors.cream[50]} />
-                  <Text className="font-grotesk-bold text-lg text-cream-50">Add Task</Text>
+                  <Text className="font-grotesk-bold text-lg text-cream-50">{t.form.addTask}</Text>
                 </AnimatedPressable>
               </View>
             </View>

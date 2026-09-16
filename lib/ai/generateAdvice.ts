@@ -1,7 +1,8 @@
-import type { NextResponseBody } from "@/app/api/next+api";
+import type { NextRequestBody, NextResponseBody } from "@/app/api/next+api";
 import { taskToContext } from "@/lib/ai/context";
 import { apiPost } from "@/lib/api";
 import { formatDuration } from "@/lib/formatDuration";
+import { getLanguage, translate } from "@/lib/i18n";
 import type { Category } from "@/types/category";
 import type { Task } from "@/types/task";
 
@@ -22,11 +23,13 @@ export async function generateAdvice(task: Task, categories: Category[], availab
       estimatedMinutes: subtask.estimatedMinutes,
       status: subtask.status,
     }));
-    const result = await apiPost<NextResponseBody>("/api/next", {
+    const body: NextRequestBody = {
       task: taskToContext(task, categories),
       existingPlan,
       availableMinutes,
-    });
+      language: getLanguage(),
+    };
+    const result = await apiPost<NextResponseBody>("/api/next", body);
     return { headline: result.advice.trim(), detail: result.explanation.trim() };
   } catch (error) {
     console.warn("[generateAdvice] falling back to heuristic", error);
@@ -38,18 +41,19 @@ export async function generateAdvice(task: Task, categories: Category[], availab
 // Advice here is derived at read time from the task, so it can never go
 // stale relative to a task edit.
 function generateAdviceHeuristic(task: Task): TaskAdvice {
+  const t = translate();
   const currentSubtask = task.subtasks?.find((subtask) => subtask.status === "current");
 
   const headline = currentSubtask
-    ? `Do this now: ${currentSubtask.label} (~${formatDuration(currentSubtask.estimatedMinutes)}).`
-    : `Just do it — ${task.title} should take about ${formatDuration(task.estimatedMinutes)}.`;
+    ? t.assistant.adviceDoNow(currentSubtask.label, formatDuration(currentSubtask.estimatedMinutes))
+    : t.assistant.adviceJustDo(task.title, formatDuration(task.estimatedMinutes));
 
   const urgencyPhrase =
     task.priorityScore >= 85
-      ? "this is one of your most urgent tasks"
+      ? t.assistant.urgencyHigh
       : task.priorityScore >= 60
-        ? "this is worth tackling soon"
-        : "there's no rush, but it's on your list";
+        ? t.assistant.urgencyMedium
+        : t.assistant.urgencyLow;
 
-  return { headline, detail: `Priority score ${task.priorityScore}/100 — ${urgencyPhrase}.` };
+  return { headline, detail: t.assistant.adviceDetail(task.priorityScore, urgencyPhrase) };
 }

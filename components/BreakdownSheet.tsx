@@ -4,6 +4,7 @@ import { ActivityIndicator, Modal, Pressable, ScrollView, Text, TextInput, View 
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { Task } from "@/types/task";
 
@@ -27,6 +28,7 @@ export function BreakdownSheet({
   onToggleStep: (subtaskId: string) => void;
   onClose: () => void;
 }) {
+  const t = useTranslation();
   const addSubtask = useTaskStore((state) => state.addSubtask);
   const [addingStep, setAddingStep] = useState(false);
   const [stepDraft, setStepDraft] = useState("");
@@ -51,13 +53,13 @@ export function BreakdownSheet({
         >
           <View className="flex-row items-start justify-between gap-4">
             <View className="flex-1 gap-1.5">
-              <Text className="eyebrow text-orange-500">AI BREAKDOWN</Text>
+              <Text className="eyebrow text-orange-500">{t.breakdown.eyebrow}</Text>
               <Text className="text-card-title text-ink-charcoal">{task.title}</Text>
             </View>
             <AnimatedPressable
               onPress={onClose}
               accessibilityRole="button"
-              accessibilityLabel="Close AI breakdown"
+              accessibilityLabel={t.breakdown.close}
               className="h-10 w-10 items-center justify-center rounded-full bg-white/10"
             >
               <Feather name="x" size={20} color={colors.ink.charcoalMuted} />
@@ -66,7 +68,7 @@ export function BreakdownSheet({
 
           <View className="mt-5 flex-row items-center justify-between gap-3">
             <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">
-              {steps.length} {steps.length === 1 ? "step" : "steps"}
+              {t.breakdown.steps(steps.length)}
             </Text>
             <AnimatedPressable
               onPress={onRegenerate}
@@ -81,15 +83,13 @@ export function BreakdownSheet({
                 <Ionicons name="sparkles-outline" size={18} color={colors.cream[50]} />
               )}
               <Text className="font-grotesk-bold text-[15px] text-cream-50">
-                {isLoading ? "Generating…" : "Regenerate"}
+                {isLoading ? t.breakdown.generating : t.breakdown.regenerate}
               </Text>
             </AnimatedPressable>
           </View>
 
           {status === "error" ? (
-            <Text className="mt-3 font-grotesk-medium text-sm text-overdue-500">
-              Couldn&apos;t reach the AI. Check your connection and try again.
-            </Text>
+            <Text className="mt-3 font-grotesk-medium text-sm text-overdue-500">{t.common.aiUnreachable}</Text>
           ) : null}
 
           <View className="mt-4 h-px bg-white/10" />
@@ -104,7 +104,7 @@ export function BreakdownSheet({
               <View className="flex-row items-center justify-center gap-2.5 py-6">
                 <ActivityIndicator size="small" color={colors.orange[500]} />
                 <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">
-                  Breaking this task down…
+                  {t.breakdown.breakingDown}
                 </Text>
               </View>
             ) : null}
@@ -148,7 +148,7 @@ export function BreakdownSheet({
                   value={stepDraft}
                   onChangeText={setStepDraft}
                   onSubmitEditing={handleAddStep}
-                  placeholder="Describe the step…"
+                  placeholder={t.breakdown.stepPlaceholder}
                   placeholderTextColor={colors.ink.charcoalMuted}
                   returnKeyType="done"
                   autoFocus
@@ -163,7 +163,7 @@ export function BreakdownSheet({
                 className="flex-row items-center justify-center gap-2 rounded-2xl border border-dashed border-white/20 py-3.5"
               >
                 <Feather name="plus" size={18} color={colors.orange[500]} />
-                <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">Add step</Text>
+                <Text className="font-grotesk-medium text-[15px] text-ink-charcoal-muted">{t.breakdown.addStep}</Text>
               </AnimatedPressable>
             )}
           </ScrollView>

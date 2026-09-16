@@ -3,7 +3,9 @@ import { TASK_MANAGER_INTEGRATION_NOTES, TASK_MANAGER_SYSTEM_PROMPT } from "@/da
 import type { TaskContext } from "@/lib/ai/context";
 import { guessCategory, guessDuration, guessPriorityLevel, parseDurationMinutes } from "@/lib/ai/extractTasks";
 import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
+import { aiUnavailableMessage, datePhraseInstruction, languageInstruction } from "@/lib/ai/language";
 import { hasExplicitTime, parseDatePhrase } from "@/lib/ai/parseDate";
+import type { AppLanguage } from "@/types/settings";
 
 export type InboxCategory = { id: string; label: string };
 
@@ -16,6 +18,8 @@ export type InboxRequestBody = {
   /** The user's categories, built-in and custom — the only ids CREATE/UPDATE may use. */
   categories: InboxCategory[];
   history: { role: "user" | "ai"; text: string }[];
+  /** The app language — "reply" and task titles come back in it. */
+  language?: AppLanguage;
 };
 
 export type InboxActionType =
@@ -160,11 +164,13 @@ const buildSingleTurnSchema = (categoryIds: string[]): GeminiJsonSchema => ({
   propertyOrdering: ["intent", "action", "remainingMessage", "reply"],
 });
 
-const FALLBACK_RESPONSE: InboxResponseBody = {
-  intent: "UNRELATED",
-  actions: [{ type: "NONE", taskId: null, fields: {}, confirmationRequired: false }],
-  reply: "Sorry, I'm having trouble reaching the AI right now — try again in a moment.",
-};
+function fallbackResponse(language: AppLanguage | undefined): InboxResponseBody {
+  return {
+    intent: "UNRELATED",
+    actions: [{ type: "NONE", taskId: null, fields: {}, confirmationRequired: false }],
+    reply: aiUnavailableMessage(language),
+  };
+}
 
 // A compound message resolves over at most this many single-instruction
 // turns — comfortably more than any realistic message describes, while
@@ -286,10 +292,12 @@ async function classifyOneInstruction(params: {
   tasks: TaskContext[];
   categories: InboxCategory[];
   history: { role: "user" | "ai"; text: string }[];
+  language?: AppLanguage;
 }): Promise<SingleTurnResult> {
+  const { language, ...userContent } = params;
   const result = await generateStructuredJson({
-    systemPrompt: `${TASK_MANAGER_SYSTEM_PROMPT}\n\n${TASK_MANAGER_INTEGRATION_NOTES}`,
-    userContent: JSON.stringify(params),
+    systemPrompt: `${TASK_MANAGER_SYSTEM_PROMPT}\n\n${TASK_MANAGER_INTEGRATION_NOTES}${languageInstruction(language)}${datePhraseInstruction(language)}`,
+    userContent: JSON.stringify(userContent),
     responseSchema: buildSingleTurnSchema(params.categories.map((category) => category.id)),
   });
   const raw = result as Partial<SingleTurnResult>;
@@ -337,6 +345,7 @@ async function classifyFragmentsIndependently(
         tasks: context.tasks,
         categories: context.categories,
         history: context.history,
+        language: context.language,
       }),
     ),
   );
@@ -378,6 +387,7 @@ export async function POST(request: Request) {
         tasks: body.tasks,
         categories: body.categories,
         history: body.history,
+        language: body.language,
       });
     } catch (error) {
       console.error("[api/inbox]", error);
@@ -406,12 +416,12 @@ export async function POST(request: Request) {
   }
 
   if (actions.length === 0) {
-    return Response.json(FALLBACK_RESPONSE);
+    return Response.json(fallbackResponse(body.language));
   }
 
   return Response.json({
     intent,
     actions,
-    reply: replies.join(" ").trim() || FALLBACK_RESPONSE.reply,
+    reply: replies.join(" ").trim() || aiUnavailableMessage(body.language),
   } satisfies InboxResponseBody);
 }

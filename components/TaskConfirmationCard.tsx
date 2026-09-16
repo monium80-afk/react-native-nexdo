@@ -7,8 +7,10 @@ import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import { findCategory, getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { ExtractedTaskDraft } from "@/lib/ai/types";
 import { formatDuration } from "@/lib/formatDuration";
+import type { Translations } from "@/lib/i18n";
 import { computePriorityScore, PRIORITY_LEVEL_IMPORTANCE } from "@/lib/scoring";
 import { useCategoryStore } from "@/store/useCategoryStore";
 
@@ -24,25 +26,25 @@ function startOfDay(date: Date): Date {
 // No urgency tint here: this card is a preview, so the icons stay brand orange.
 // The time is only shown when the user actually gave one — otherwise the
 // hour on dueDate is just a default and would read as a time they never said.
-function previewDueLabel(dueDate: string | undefined, hasTime: boolean | undefined, now: Date): string {
-  if (!dueDate) return "No deadline";
+function previewDueLabel(dueDate: string | undefined, hasTime: boolean | undefined, now: Date, t: Translations): string {
+  if (!dueDate) return t.due.noDeadline;
   const due = new Date(dueDate);
   const dayDiff = Math.round((startOfDay(due).getTime() - startOfDay(now).getTime()) / DAY_MS);
-  const time = hasTime ? `, ${due.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "";
-  if (dayDiff < 0) return `Overdue${time}`;
-  if (dayDiff === 0) return `Due today${time}`;
-  if (dayDiff === 1) return `Due tomorrow${time}`;
+  const time = hasTime ? `, ${due.toLocaleTimeString(t.locale, { hour: "numeric", minute: "2-digit" })}` : "";
+  if (dayDiff < 0) return `${t.due.overdue}${time}`;
+  if (dayDiff === 0) return `${t.due.dueToday}${time}`;
+  if (dayDiff === 1) return `${t.due.dueTomorrow}${time}`;
   // Weekday plus date — a bare "Tuesday" read as the wrong day for "in six days".
-  if (dayDiff <= 6) return `${due.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${time}`;
-  return `${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}${time}`;
+  if (dayDiff <= 6) return `${due.toLocaleDateString(t.locale, { weekday: "short", month: "short", day: "numeric" })}${time}`;
+  return `${due.toLocaleDateString(t.locale, { month: "short", day: "numeric" })}${time}`;
 }
 
-function formatDueFieldValue(dueDate: string | undefined, hasTime: boolean | undefined): string {
-  if (!dueDate) return "No deadline";
+function formatDueFieldValue(dueDate: string | undefined, hasTime: boolean | undefined, t: Translations): string {
+  if (!dueDate) return t.due.noDeadline;
   const due = new Date(dueDate);
-  const date = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const date = due.toLocaleDateString(t.locale, { month: "short", day: "numeric" });
   if (!hasTime) return date;
-  return `${date}, ${due.toLocaleTimeString("en-US", {
+  return `${date}, ${due.toLocaleTimeString(t.locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -68,6 +70,7 @@ export function TaskConfirmationCard({
   /** Writes edits back into the queued draft so "Add Task" saves what's on screen. */
   onChange: (patch: Partial<ExtractedTaskDraft>) => void;
 }) {
+  const t = useTranslation();
   const [isEditing, setIsEditing] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   // "date" then "time" on Android, where the two pickers are separate dialogs.
@@ -86,7 +89,7 @@ export function TaskConfirmationCard({
     },
     now,
   );
-  const dueLabel = previewDueLabel(draft.dueDate, draft.dueHasTime, now);
+  const dueLabel = previewDueLabel(draft.dueDate, draft.dueHasTime, now, t);
 
   const handleMinutesChange = (text: string) => {
     const parsed = Number.parseInt(text.replace(/\D/g, ""), 10);
@@ -123,7 +126,7 @@ export function TaskConfirmationCard({
           <TextInput
             value={draft.title}
             onChangeText={(text) => onChange?.({ title: text })}
-            placeholder="Task title"
+            placeholder={t.chat.titlePlaceholder}
             placeholderTextColor={colors.ink.creamMuted}
             style={{ flex: 1 }}
             className="rounded-xl border border-cream-300 bg-cream-50 px-3 py-2 font-grotesk-bold text-sm text-ink-cream"
@@ -151,7 +154,7 @@ export function TaskConfirmationCard({
                 value={draft.estimatedMinutes ? String(draft.estimatedMinutes) : ""}
                 onChangeText={handleMinutesChange}
                 keyboardType="number-pad"
-                placeholder="Minutes"
+                placeholder={t.chat.minutesPlaceholder}
                 placeholderTextColor={colors.ink.creamSubtle}
                 style={{ padding: 0 }}
                 className="font-grotesk-medium text-sm text-ink-cream-subtle"
@@ -163,7 +166,7 @@ export function TaskConfirmationCard({
               className="flex-1 rounded-xl border border-cream-300 bg-cream-50 px-3 py-2"
             >
               <Text className="font-grotesk-medium text-sm text-ink-cream-subtle">
-                {formatDueFieldValue(draft.dueDate, draft.dueHasTime)}
+                {formatDueFieldValue(draft.dueDate, draft.dueHasTime, t)}
               </Text>
             </AnimatedPressable>
           </View>
@@ -187,7 +190,7 @@ export function TaskConfirmationCard({
               }}
               hitSlop={8}
             >
-              <Text className="font-grotesk-medium text-sm text-ink-cream-subtle underline">Done editing</Text>
+              <Text className="font-grotesk-medium text-sm text-ink-cream-subtle underline">{t.chat.doneEditing}</Text>
             </AnimatedPressable>
           </View>
 
@@ -242,7 +245,7 @@ export function TaskConfirmationCard({
           </View>
           {/* Icon rather than an "Edit details" label — the row is tight on
               narrow screens and the text pushed past the card's edge. */}
-          <AnimatedPressable onPress={() => setIsEditing(true)} hitSlop={10} accessibilityLabel="Edit task details">
+          <AnimatedPressable onPress={() => setIsEditing(true)} hitSlop={10} accessibilityLabel={t.chat.editDetails}>
             <Feather name="edit-2" size={15} color={colors.ink.creamSubtle} />
           </AnimatedPressable>
         </View>
@@ -252,11 +255,11 @@ export function TaskConfirmationCard({
 
       <View className="flex-row items-center justify-end gap-4">
         <AnimatedPressable onPress={onDismiss} hitSlop={8}>
-          <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">Dismiss</Text>
+          <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">{t.chat.dismiss}</Text>
         </AnimatedPressable>
         <AnimatedPressable onPress={onAdd} className="flex-row items-center gap-2 rounded-full bg-orange-500 px-4 py-2">
           <Feather name="check" size={16} color={colors.cream[50]} />
-          <Text className="font-grotesk-bold text-sm text-cream-50">Add Task</Text>
+          <Text className="font-grotesk-bold text-sm text-cream-50">{t.chat.addTask}</Text>
         </AnimatedPressable>
       </View>
     </View>

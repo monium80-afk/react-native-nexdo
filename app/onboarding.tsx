@@ -10,16 +10,19 @@ import { GemLogo } from "@/components/GemLogo";
 import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
 
+// Positions only — the note labels come from onboarding.stickyNotes, in the same order.
 const STICKY_NOTES = [
-  { label: "dentist appt?", style: { top: 0, left: -6 }, rotate: "-7deg" },
-  { label: "exam next week", style: { top: 0, right: -10 }, rotate: "4deg" },
-  { label: "groceries", style: { bottom: 0, left: -8 }, rotate: "3deg" },
-  { label: "reply to email", style: { bottom: 0, right: -4 }, rotate: "-5deg" },
+  { style: { top: 0, left: -6 }, rotate: "-7deg" },
+  { style: { top: 0, right: -10 }, rotate: "4deg" },
+  { style: { bottom: 0, left: -8 }, rotate: "3deg" },
+  { style: { bottom: 0, right: -4 }, rotate: "-5deg" },
 ] as const;
 
 export default function Onboarding() {
+  const t = useTranslation();
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
   const { isLoaded, isSignedIn } = useAuth();
@@ -47,18 +50,17 @@ export default function Onboarding() {
 
           <View className="gap-4">
             <Text className="text-center text-[34px] font-grotesk-bold leading-[1.02] tracking-tight text-ink-cream">
-              Stop figuring out what to do next.
+              {t.onboarding.headline}
             </Text>
             <Text className="px-2 text-center text-[16px] font-grotesk-regular leading-relaxed text-ink-cream-muted">
-              Dump everything on your mind. Nexdo organizes it, detects
-              deadlines, and tells you what deserves your attention.
+              {t.onboarding.body}
             </Text>
           </View>
 
           <View className="relative mt-2 w-[84%] pb-[26px] pt-[26px]">
-            {STICKY_NOTES.map((note) => (
+            {STICKY_NOTES.map((note, index) => (
               <View
-                key={note.label}
+                key={index}
                 className="absolute rounded-full bg-cream-200 px-4 py-2"
                 style={{
                   ...note.style,
@@ -66,7 +68,7 @@ export default function Onboarding() {
                 }}
               >
                 <Text className="text-xs font-grotesk-regular text-ink-cream-muted">
-                  {note.label}
+                  {t.onboarding.stickyNotes[index]}
                 </Text>
               </View>
             ))}
@@ -77,18 +79,18 @@ export default function Onboarding() {
             >
               <View className="badge bg-orange-500">
                 <Text className="text-xs font-grotesk-bold tracking-wide text-cream-50">
-                  NEXT UP
+                  {t.onboarding.nextUp}
                 </Text>
               </View>
 
               <Text className="font-grotesk-bold text-base text-ink-charcoal">
-                Finish chemistry lab report
+                {t.onboarding.sampleTask}
               </Text>
 
               <View className="flex-row items-center gap-2">
                 <Feather name="calendar" size={12} color={colors.orange[500]} />
                 <Text className="font-grotesk-medium text-xs text-orange-500">
-                  Due tomorrow
+                  {t.onboarding.dueTomorrow}
                 </Text>
                 <Text className="text-xs text-ink-charcoal-muted">·</Text>
                 <Feather name="clock" size={12} color={colors.ink.charcoalMuted} />
@@ -110,7 +112,7 @@ export default function Onboarding() {
           className="btn btn--primary flex-row items-center justify-center gap-2"
         >
           <Text className="font-grotesk-bold text-lg text-cream-50">
-            Get Started
+            {t.onboarding.getStarted}
           </Text>
           <Feather name="chevron-right" size={20} color={colors.cream[50]} />
         </AnimatedPressable>

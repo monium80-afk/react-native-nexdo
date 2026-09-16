@@ -3,12 +3,12 @@ import type { RealtimeChannel } from "@supabase/supabase-js";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
-import type { ExtractTextResponseBody } from "@/app/api/extract-text+api";
-import { ATTACHMENT_REPLIES, INBOX_WELCOME_MESSAGE } from "@/data/aiPrompts";
+import type { ExtractTextRequestBody, ExtractTextResponseBody } from "@/app/api/extract-text+api";
 import { classifyIntent } from "@/lib/ai/classifyIntent";
 import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
 import type { ExtractedTaskDraft, StructuredAction } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
+import { getLanguage, translate } from "@/lib/i18n";
 import { deleteAllMessages, fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supabaseSync";
 import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
 import { useCategoryStore } from "@/store/useCategoryStore";
@@ -19,11 +19,13 @@ import type { Task } from "@/types/task";
 
 const RECENT_TASK_LIMIT = 5;
 const HISTORY_TURNS = 6;
-const YES_PATTERN = /^(yes|yep|yeah|sure|do it|confirm|ok|okay|go ahead)\b/i;
-const NO_PATTERN = /^(no|nope|cancel|never ?mind|don'?t)\b/i;
+// English and French replies are both understood, whatever the app language.
+// A letter lookahead rather than \b, which doesn't treat accented letters as part of a word.
+const YES_PATTERN = /^(yes|yep|yeah|sure|do it|confirm|ok|okay|go ahead|oui|ouais|d'accord|vas-y|allez-y|confirme|confirmer)(?![a-zà-ÿ])/i;
+const NO_PATTERN = /^(no|nope|cancel|never ?mind|don'?t|non|annule|annuler|laisse tomber|pas maintenant)(?![a-zà-ÿ])/i;
 // Literal "undo" is intercepted here rather than sent to the AI — see
 // TASK_MANAGER_SYSTEM_PROMPT §6.2, which is written assuming this.
-const UNDO_PATTERN = /^(undo( (that|it))?|revert( (that|it))?)[.!]?$/i;
+const UNDO_PATTERN = /^(undo( (that|it))?|revert( (that|it))?|d[ée]faire( [çc]a)?|d[ée]fais( [çc]a)?)[.!]?$/i;
 
 // Invalidates any in-flight classifyIntent() call so its response is
 // dropped if the user signs out (or the store resets) before it resolves —
@@ -79,11 +81,13 @@ type ChatStore = {
   handleSignOut: () => Promise<void>;
 };
 
+// The chat screen shows the "welcome" message in the current app language
+// (see ChatBubble), so switching language updates it too.
 const initialMessages = (): ChatMessage[] => [
   {
     id: "welcome",
     role: "ai",
-    text: INBOX_WELCOME_MESSAGE,
+    text: translate().chat.welcome,
     createdAt: new Date().toISOString(),
   },
 ];
@@ -93,18 +97,18 @@ const initialMessages = (): ChatMessage[] => [
 // A bulk delete's confirmation also uses this on the real AI path — only the
 // app can count exactly how many tasks it's about to remove.
 function confirmationPrompt(action: StructuredAction, frozenTaskIds?: string[]): string {
+  const t = translate();
   switch (action.type) {
     case "CREATE_TASK":
       return action.drafts.length === 1
-        ? `I found 1 task: "${action.drafts[0].title}". Want me to add it?`
-        : `I found ${action.drafts.length} tasks: ${action.drafts.map((d) => `"${d.title}"`).join(", ")}. Want me to add them?`;
+        ? t.assistant.foundOne(action.drafts[0].title)
+        : t.assistant.foundMany(action.drafts.length, action.drafts.map((d) => `"${d.title}"`).join(", "));
     case "DELETE_TASKS": {
       const count = frozenTaskIds?.length ?? tasksInScope(useTaskStore.getState().tasks, action.scope).length;
-      const both = action.scope === "all" ? " (pending and completed)" : "";
-      return `This will delete ${describeTaskCount(count, action.scope)}${both}. Go ahead?`;
+      return t.assistant.confirmBulkDelete(describeTaskCount(count, action.scope), action.scope === "all");
     }
     default:
-      return "Want me to go ahead with that?";
+      return t.assistant.goAhead;
   }
 }
 
@@ -219,12 +223,13 @@ export const useChatStore = create<ChatStore>()(
         const immediate = actionable.filter((a) => !needsConfirmation(a));
 
         let lastTaskId: string | undefined;
+        const t = translate();
         const executedMessages: string[] = emptyBulkDeletes.map((a) =>
           a.type === "COMPLETE_TASKS"
-            ? "You don't have any pending tasks to mark as done."
+            ? t.assistant.noPendingToComplete
             : a.type === "DELETE_TASKS" && a.scope !== "all"
-              ? `You don't have any ${a.scope} tasks to delete.`
-              : "You don't have any tasks to delete.",
+              ? t.assistant.noScopedToDelete(a.scope)
+              : t.assistant.noTasksToDelete,
         );
         for (const action of immediate) {
           const result = executeAction(action);
@@ -245,7 +250,8 @@ export const useChatStore = create<ChatStore>()(
         }
 
         const fallbackMessage =
-          [...executedMessages, ...confirmRequired.map((action) => confirmationPrompt(action))].join(" ") || "Done.";
+          [...executedMessages, ...confirmRequired.map((action) => confirmationPrompt(action))].join(" ") ||
+          t.assistant.done;
         respondWith(emptyBulkDeletes.length > 0 ? fallbackMessage : narratedReply ?? fallbackMessage, lastTaskId);
       };
 
@@ -335,11 +341,13 @@ export const useChatStore = create<ChatStore>()(
             if (attachment) {
               try {
                 const base64 = await readFileAsBase64(attachment.uri);
-                const extracted = await apiPost<ExtractTextResponseBody>("/api/extract-text", {
+                const request: ExtractTextRequestBody = {
                   mimeType: resolveMimeType(attachment),
                   base64,
                   kind: attachment.kind,
-                });
+                  language: getLanguage(),
+                };
+                const extracted = await apiPost<ExtractTextResponseBody>("/api/extract-text", request);
                 if (generation !== signOutGeneration) return;
                 effectiveText = extracted.text.trim();
                 // Show what was actually heard/read instead of a generic
@@ -351,7 +359,7 @@ export const useChatStore = create<ChatStore>()(
               }
               if (!effectiveText) {
                 set({ pendingActions: [] });
-                respondWith(ATTACHMENT_REPLIES[attachment.kind]);
+                respondWith(translate().chat.attachmentReplies[attachment.kind]);
                 return;
               }
             }
@@ -473,13 +481,13 @@ export const useChatStore = create<ChatStore>()(
         cancelPendingActions: () => {
           if (get().pendingActions.length === 0) return;
           set({ pendingActions: [] });
-          respondWith("No worries — I won't make that change.");
+          respondWith(translate().assistant.wontChange);
         },
 
         undoLastAction: () => {
           const { lastUndo } = get();
           if (!lastUndo) {
-            respondWith("There's nothing to undo.");
+            respondWith(translate().assistant.nothingToUndo);
             return;
           }
           set({ lastUndo: null });
@@ -488,7 +496,7 @@ export const useChatStore = create<ChatStore>()(
           } else {
             lastUndo.snapshots.forEach(({ taskId, before }) => useTaskStore.getState().restoreTaskSnapshot(taskId, before));
           }
-          respondWith("Undone.");
+          respondWith(translate().assistant.undone);
         },
 
         clearRedirectToNext: () => set({ redirectToNext: null }),

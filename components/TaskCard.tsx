@@ -6,6 +6,7 @@ import { GemLogo } from "@/components/GemLogo";
 import { MetaPill } from "@/components/MetaPill";
 import { getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
 import { useCategory } from "@/store/useCategoryStore";
@@ -18,6 +19,7 @@ type TaskCardProps = {
 };
 
 export function TaskCard({ task, onPress, onToggle }: TaskCardProps) {
+  const t = useTranslation();
   const category = useCategory(task.category);
   const categoryTint = getCategoryTint(category.color);
   const due = getDueInfo(task);
@@ -59,7 +61,7 @@ export function TaskCard({ task, onPress, onToggle }: TaskCardProps) {
               <Ionicons name="checkmark-circle" size={18} color={colors.olive[500]} />
             ) : isOverdue ? (
               <View className="rounded bg-overdue-500 px-1.5 py-0.5">
-                <Text className="font-grotesk-bold text-[10px] tracking-wider text-cream-50">OVERDUE</Text>
+                <Text className="font-grotesk-bold text-[10px] tracking-wider text-cream-50">{t.tasks.overdueBadge}</Text>
               </View>
             ) : (
               <Feather name="chevron-right" size={18} color={colors.ink.creamMuted} />
@@ -71,7 +73,7 @@ export function TaskCard({ task, onPress, onToggle }: TaskCardProps) {
       {/* One wrapping row so every pill is the same size with the same gap
           between them, across and down. */}
       <View className="flex-row flex-wrap gap-2">
-        <MetaPill icon={<GemLogo size={13} />} label={`Score: ${task.priorityScore}`} />
+        <MetaPill icon={<GemLogo size={13} />} label={t.tasks.score(task.priorityScore)} />
         <MetaPill
           icon={<Feather name="calendar" size={13} color={colors.ink.creamMuted} />}
           label={isOverdue ? due.pillLabel : due.label}

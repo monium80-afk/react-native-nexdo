@@ -13,30 +13,42 @@ const CATEGORY_KEYWORDS: Record<Exclude<BuiltInCategoryId, "other">, RegExp> = {
 const LONG_TASK_KEYWORDS = /\b(write|study|prepare|build|plan|research|essay|report|presentation|thesis|revise|design)\b/i;
 const QUICK_TASK_KEYWORDS = /\b(call|email|text|book|order|pay|send|reply|buy|pick up|drop off|check|confirm)\b/i;
 
+// English and French — the inbox route reads stated importance straight off
+// the user's own words, whichever language they typed in.
 const HIGH_PRIORITY_KEYWORDS =
-  /\b(urgent|urgently|asap|immediately|critical|important|importance|high priority|top priority|emergency|overdue|exam|midterm|finals?|interview|deadline)\b/i;
+  /\b(urgent|urgently|asap|immediately|critical|important|importance|high priority|top priority|emergency|overdue|exam|midterm|finals?|interview|deadline|urgente?|prioritaire|critique|examen|entretien)\b/i;
 
 // An explicit length the user stated ("for two hours", "takes 45 min",
-// "1.5h"). "in 2 hours" / "2 hours ago" are deadlines, not durations, so the
-// word before and after the match is captured and checked.
+// "1.5h", "pendant deux heures"). "in 2 hours" / "2 hours ago" are deadlines,
+// not durations, so the word before and after the match is captured and checked.
 const DURATION_PATTERN =
-  /(?:\b(\w+)\s+)?\b(?:(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)|(an?|one|two|three|four|five|six|seven|eight|nine|ten)\s+(hrs?|hours?|mins?|minutes?))\b(\s+ago\b)?/gi;
+  /(?:\b(\w+)\s+)?\b(?:(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|heures?|m|mins?|minutes?)|(an?|one|two|three|four|five|six|seven|eight|nine|ten|une|deux|trois|quatre|cinq|sept|huit|neuf|dix)\s+(hrs?|hours?|heures?|mins?|minutes?))\b(\s+ago\b)?/gi;
 const DURATION_WORDS: Record<string, number> = {
   a: 1,
   an: 1,
   one: 1,
+  une: 1,
   two: 2,
+  deux: 2,
   three: 3,
+  trois: 3,
   four: 4,
+  quatre: 4,
   five: 5,
+  cinq: 5,
   six: 6,
   seven: 7,
+  sept: 7,
   eight: 8,
+  huit: 8,
   nine: 9,
+  neuf: 9,
   ten: 10,
+  dix: 10,
 };
+// Checked before the high-priority words — "pas urgent" contains "urgent".
 const LOW_PRIORITY_KEYWORDS =
-  /\b(someday|eventually|whenever|sometime|no rush|not urgent|not important|low priority|low importance|if i have time|maybe|at some point)\b/i;
+  /\b(someday|eventually|whenever|sometime|no rush|not urgent|not important|low priority|low importance|if i have time|maybe|at some point|pas urgente?|pas important|pas press|rien ne presse|un jour|quand j'ai le temps|si j'ai le temps|peut-[eê]tre|priorit[ée] basse)\b/i;
 
 const DEFAULT_MINUTES = 30;
 const LONG_TASK_MINUTES = 60;
@@ -89,7 +101,7 @@ export function guessCategory(text: string): BuiltInCategoryId {
 export function parseDurationMinutes(text: string): number | undefined {
   for (const match of text.matchAll(DURATION_PATTERN)) {
     const [, before, digits, digitUnit, words, wordUnit, ago] = match;
-    if (ago || /^(in|within)$/i.test(before ?? "")) continue;
+    if (ago || /^(in|within|dans)$/i.test(before ?? "")) continue;
     const amountText = (digits ?? words).toLowerCase();
     // "half an hour" — "half" lands in the word-before capture.
     const amount = /^half$/i.test(before ?? "") ? 0.5 : (DURATION_WORDS[amountText] ?? Number.parseFloat(amountText));

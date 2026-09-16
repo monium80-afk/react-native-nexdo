@@ -4,8 +4,8 @@ import { createJSONStorage, persist } from "zustand/middleware";
 
 import type { AppLanguage, ThemePreference } from "@/types/settings";
 
-// Saved preferences only for now: the app doesn't re-theme or translate
-// itself yet. Those land as their own features and will read these values.
+// "language" drives the interface copy (see lib/i18n.ts) and the language the
+// AI replies in. "theme" is saved but not applied yet.
 type SettingsStore = {
   theme: ThemePreference;
   language: AppLanguage;

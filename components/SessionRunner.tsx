@@ -11,6 +11,7 @@ import { SessionTimerCard } from "@/components/SessionTimerCard";
 import { StuckSheet } from "@/components/StuckSheet";
 import { colors } from "@/constants/theme";
 import { useSessionCountdown } from "@/hooks/useSessionCountdown";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
 import { useSessionStore } from "@/store/useSessionStore";
 import { useTaskStore } from "@/store/useTaskStore";
@@ -22,6 +23,7 @@ import { useTaskStore } from "@/store/useTaskStore";
  * this screen only has to render and advance it.
  */
 export function SessionRunner() {
+  const t = useTranslation();
   const router = useRouter();
 
   const session = useSessionStore((state) => state.session);
@@ -128,10 +130,10 @@ export function SessionRunner() {
             className="flex-row items-center gap-2 rounded-full bg-white/10 px-4 py-2"
           >
             <Feather name="arrow-left" size={15} color={colors.ink.charcoal} />
-            <Text className="font-grotesk-semibold text-sm text-ink-charcoal">Leave session</Text>
+            <Text className="font-grotesk-semibold text-sm text-ink-charcoal">{t.session.leave}</Text>
           </AnimatedPressable>
           <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">
-            Task {activeIndex + 1} of {sessionTasks.length}
+            {t.session.taskOf(activeIndex + 1, sessionTasks.length)}
           </Text>
         </View>
 
@@ -162,7 +164,7 @@ export function SessionRunner() {
           />
 
           <View className="gap-7">
-            <Text className="eyebrow text-orange-500">SESSION TASKS &amp; SUBTASKS</Text>
+            <Text className="eyebrow text-orange-500">{t.session.tasksHeading}</Text>
 
             <View>
               {sessionTasks.map((task, index) => (

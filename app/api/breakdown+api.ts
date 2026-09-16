@@ -1,7 +1,9 @@
 import { BREAKDOWN_SYSTEM_PROMPT } from "@/data/aiPrompts";
 import type { TaskContext } from "@/lib/ai/context";
 import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
+import { languageInstruction } from "@/lib/ai/language";
 import type { PlanStep } from "@/lib/ai/types";
+import type { AppLanguage } from "@/types/settings";
 
 export type BreakdownRequestBody = {
   task: TaskContext;
@@ -13,6 +15,8 @@ export type BreakdownRequestBody = {
   previousSuggestion: PlanStep[];
   /** The running session's time budget, if there is one. */
   availableMinutes?: number;
+  /** The app language — step titles come back in it. */
+  language?: AppLanguage;
 };
 
 export type BreakdownResponseBody = {
@@ -66,7 +70,7 @@ export async function POST(request: Request) {
 
   try {
     const result = await generateStructuredJson({
-      systemPrompt: BREAKDOWN_SYSTEM_PROMPT,
+      systemPrompt: `${BREAKDOWN_SYSTEM_PROMPT}${languageInstruction(body.language)}`,
       userContent: JSON.stringify({
         task: body.task,
         completedSteps: body.completedSteps ?? [],

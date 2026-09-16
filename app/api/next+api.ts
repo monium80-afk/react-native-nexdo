@@ -1,11 +1,15 @@
 import { EXECUTION_COACH_INTEGRATION_NOTES, EXECUTION_COACH_SYSTEM_PROMPT } from "@/data/aiPrompts";
-import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
 import type { TaskContext } from "@/lib/ai/context";
+import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
+import { aiUnavailableMessage, languageInstruction } from "@/lib/ai/language";
+import type { AppLanguage } from "@/types/settings";
 
 export type NextRequestBody = {
   task: TaskContext;
   existingPlan: { id: string; title: string; estimatedMinutes: number; status: string }[];
   availableMinutes?: number;
+  /** The app language — advice and step titles come back in it. */
+  language?: AppLanguage;
 };
 
 export type NextResponseBody = {
@@ -40,20 +44,22 @@ const RESPONSE_SCHEMA: GeminiJsonSchema = {
   required: ["complexity", "advice", "plan", "explanation"],
 };
 
-const FALLBACK_RESPONSE: NextResponseBody = {
-  complexity: "simple",
-  advice: "Sorry, I'm having trouble reaching the AI right now — try again in a moment.",
-  plan: [],
-  currentStepId: null,
-  explanation: "",
-};
+function fallbackResponse(language: AppLanguage | undefined): NextResponseBody {
+  return {
+    complexity: "simple",
+    advice: aiUnavailableMessage(language),
+    plan: [],
+    currentStepId: null,
+    explanation: "",
+  };
+}
 
 export async function POST(request: Request) {
   const body = (await request.json()) as NextRequestBody;
 
   try {
     const result = await generateStructuredJson({
-      systemPrompt: `${EXECUTION_COACH_SYSTEM_PROMPT}\n\n${EXECUTION_COACH_INTEGRATION_NOTES}`,
+      systemPrompt: `${EXECUTION_COACH_SYSTEM_PROMPT}\n\n${EXECUTION_COACH_INTEGRATION_NOTES}${languageInstruction(body.language)}`,
       userContent: JSON.stringify({
         task: body.task,
         existingPlan: body.existingPlan,
@@ -64,6 +70,6 @@ export async function POST(request: Request) {
     return Response.json(result as NextResponseBody);
   } catch (error) {
     console.error("[api/next]", error);
-    return Response.json(FALLBACK_RESPONSE);
+    return Response.json(fallbackResponse(body.language));
   }
 }

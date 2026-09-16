@@ -1,41 +1,30 @@
-export const INBOX_WELCOME_MESSAGE =
-  "Welcome to your Nexdo Inbox. Dump your thoughts, tasks, voice notes, or photos. You can also command your entire system here — tell me your situation ('I only have 30 minutes', 'I can't finish the project this weekend', or 'The dentist appointment is more important') and I will adapt your plan.";
-
+// The chips' labels (and the inbox welcome message and attachment replies)
+// live in the translations — see chat.starterSuggestions / chat.quickActions
+// in constants/translations — keyed by these ids.
 export type SuggestionPrompt = {
   id: string;
   emoji: string;
-  label: string;
-  command?: string;
 };
 
 // Grounded in the actual mock task list (data/tasks.ts) rather than generic
 // placeholders, so tapping one demonstrates a real capability of the app.
-// Tapping a chip sends its label or explicit command as real text through the intent pipeline —
+// Tapping a chip sends its label as real text through the intent pipeline —
 // see lib/ai/classifyIntent.ts — rather than echoing a canned reply.
 export const INBOX_STARTER_SUGGESTIONS: SuggestionPrompt[] = [
-  { id: "capacity-20", emoji: "⚡", label: "I only have 20 minutes right now" },
-  { id: "whats-next", emoji: "🔥", label: "What should I do next?" },
-  { id: "reschedule-overdue", emoji: "📮", label: "Reschedule everything overdue" },
-  { id: "brain-dump", emoji: "🎙️", label: "I need to finish my history essay by Friday and call the dentist tomorrow" },
+  { id: "capacity-20", emoji: "⚡" },
+  { id: "whats-next", emoji: "🔥" },
+  { id: "reschedule-overdue", emoji: "📮" },
+  { id: "brain-dump", emoji: "🎙️" },
 ];
 
 export const INBOX_QUICK_ACTIONS: SuggestionPrompt[] = [
-  { id: "whats-next", emoji: "⚡", label: "Add", command: "Add a task" },
-  { id: "breakdown-top", emoji: "📋", label: "Mark complete", command: "Mark the current task complete" },
-  { id: "quick-win", emoji: "⏱️", label: "Remove", command: "Remove the current task" },
-  { id: "overdue-catchup", emoji: "🚨", label: "Change", command: "Change the current task deadline" },
-  { id: "break-down", emoji: "🧩", label: "Break down", command: "Break down the current task into subtasks" },
-  { id: "prioritize", emoji: "🎯", label: "Prioritize", command: "Prioritize my tasks" },
+  { id: "whats-next", emoji: "⚡" },
+  { id: "breakdown-top", emoji: "📋" },
+  { id: "quick-win", emoji: "⏱️" },
+  { id: "overdue-catchup", emoji: "🚨" },
+  { id: "break-down", emoji: "🧩" },
+  { id: "prioritize", emoji: "🎯" },
 ];
-
-// Server-side extraction (app/api/extract-text+api.ts) runs on every attachment.
-// These only show up when that comes back empty — silence, a blank photo, an
-// unreadable file — never a "not built yet" placeholder.
-export const ATTACHMENT_REPLIES: Record<"photo" | "voice" | "document", string> = {
-  photo: "I couldn't find anything readable in that photo — try a clearer shot, or type it instead.",
-  voice: "I couldn't quite catch that recording — try again somewhere quieter, or type it instead.",
-  document: "I couldn't pull any text out of that file — try a different one, or type it instead.",
-};
 
 // Layer A — powers the /api/inbox route (AI Chat, the inbox, and Tasks-page
 // edits). Built from the full AI Inbox Input Taxonomy spec — every numbered
@@ -402,7 +391,8 @@ RULES
    step something that fits inside that session.
 5. Use the task's own specifics (the subject, deliverable, people or
    places named in the title/notes) in the step titles.
-6. Write the step titles in the same language as the task title.
+6. Write the step titles in the same language as the task title — unless
+   a RESPONSE LANGUAGE section below says otherwise, which wins.
 
 OUTPUT
 Only the JSON object — no prose, and never explain your reasoning:

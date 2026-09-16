@@ -8,16 +8,18 @@ import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { CategoryManager } from "@/components/CategoryManager";
 import { ProfileCard } from "@/components/ProfileCard";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { AppLanguage, ThemePreference } from "@/types/settings";
 
-const THEME_OPTIONS: { value: ThemePreference; label: string; icon: keyof typeof Feather.glyphMap }[] = [
-  { value: "light", label: "Light", icon: "sun" },
-  { value: "dark", label: "Dark", icon: "moon" },
-  { value: "system", label: "System", icon: "smartphone" },
+const THEME_OPTIONS: { value: ThemePreference; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: "light", icon: "sun" },
+  { value: "dark", icon: "moon" },
+  { value: "system", icon: "smartphone" },
 ];
 
 // Each language is listed in its own name, so it's recognizable to someone who reads it.
@@ -30,6 +32,7 @@ const LANGUAGE_OPTIONS: { value: AppLanguage; label: string }[] = [
 ];
 
 export default function Settings() {
+  const t = useTranslation();
   const { signOut } = useClerk();
   const handleChatSignOut = useChatStore((state) => state.handleSignOut);
   const handleTaskSignOut = useTaskStore((state) => state.handleSignOut);
@@ -37,6 +40,7 @@ export default function Settings() {
   const setTheme = useSettingsStore((state) => state.setTheme);
   const language = useSettingsStore((state) => state.language);
   const setLanguage = useSettingsStore((state) => state.setLanguage);
+  const relabelDefaultCategories = useCategoryStore((state) => state.relabelDefaults);
   const aiAutoMode = useSettingsStore((state) => state.aiAutoMode);
   const setAiAutoMode = useSettingsStore((state) => state.setAiAutoMode);
   const clearChatHistory = useChatStore((state) => state.clearHistory);
@@ -44,18 +48,25 @@ export default function Settings() {
   const [signOutError, setSignOutError] = useState<string | null>(null);
   const [historyStatus, setHistoryStatus] = useState<string | null>(null);
 
+  const handleSelectLanguage = (value: AppLanguage) => {
+    setLanguage(value);
+    // "School", "Work"… are app-provided names, so they follow the language too.
+    relabelDefaultCategories(value);
+    posthog.capture("language_changed", { language: value });
+  };
+
   const handleClearHistory = () => {
-    Alert.alert("Clear chat history?", "This removes every message in the AI chat. Your tasks won't be affected.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.settings.clearConfirmTitle, t.settings.clearConfirmBody, [
+      { text: t.common.cancel, style: "cancel" },
       {
-        text: "Clear",
+        text: t.settings.clear,
         style: "destructive",
         onPress: async () => {
           try {
             await clearChatHistory();
-            setHistoryStatus("Chat history cleared.");
+            setHistoryStatus(t.settings.historyCleared);
           } catch {
-            setHistoryStatus("Cleared on this device, but couldn't clear the synced copy. Try again.");
+            setHistoryStatus(t.settings.historyClearFailed);
           }
         },
       },
@@ -74,10 +85,10 @@ export default function Settings() {
         Promise.resolve().then(() => handleTaskSignOut()),
       ]);
       if (cleanupResults.some((result) => result.status === "rejected")) {
-        setSignOutError("Signed out, but local data cleanup needs attention.");
+        setSignOutError(t.settings.signOutCleanupError);
       }
     } catch {
-      setSignOutError("Couldn't sign out. Try again.");
+      setSignOutError(t.settings.signOutError);
     } finally {
       setIsSigningOut(false);
     }
@@ -91,24 +102,22 @@ export default function Settings() {
         keyboardShouldPersistTaps="handled"
         showsVerticalScrollIndicator={false}
       >
-        <Text className="text-title text-ink-charcoal">Settings</Text>
+        <Text className="text-title text-ink-charcoal">{t.settings.title}</Text>
 
         <ProfileCard />
 
         <View className="gap-3">
-          <Text className="eyebrow text-ink-charcoal-muted">NEXDO PREFERENCES</Text>
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.preferences}</Text>
           <CategoryManager />
         </View>
 
         <View className="gap-3">
-          <Text className="eyebrow text-ink-charcoal-muted">AI CHAT</Text>
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.aiChat}</Text>
           <View className="card card--charcoal gap-4 p-4">
             <View className="flex-row items-center gap-3">
               <View className="flex-1 gap-1">
-                <Text className="font-grotesk-semibold text-base text-ink-charcoal">Auto mode</Text>
-                <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">
-                  Add and update tasks right away, without asking you to confirm first.
-                </Text>
+                <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.autoMode}</Text>
+                <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">{t.settings.autoModeBody}</Text>
               </View>
               <Switch
                 value={aiAutoMode}
@@ -116,7 +125,7 @@ export default function Settings() {
                 trackColor={{ false: colors.charcoal[600], true: colors.orange[500] }}
                 thumbColor={colors.cream[50]}
                 ios_backgroundColor={colors.charcoal[600]}
-                accessibilityLabel="Auto mode"
+                accessibilityLabel={t.settings.autoMode}
               />
             </View>
 
@@ -124,7 +133,7 @@ export default function Settings() {
 
             <AnimatedPressable onPress={handleClearHistory} className="flex-row items-center gap-3">
               <Feather name="trash-2" size={18} color={colors.overdue[500]} />
-              <Text className="flex-1 font-grotesk-semibold text-base text-overdue-500">Clear chat history</Text>
+              <Text className="flex-1 font-grotesk-semibold text-base text-overdue-500">{t.settings.clearHistory}</Text>
             </AnimatedPressable>
 
             {historyStatus ? (
@@ -134,10 +143,10 @@ export default function Settings() {
         </View>
 
         <View className="gap-3">
-          <Text className="eyebrow text-ink-charcoal-muted">APPEARANCE</Text>
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.appearance}</Text>
           <View className="card card--charcoal gap-4 p-4">
             <View className="gap-3">
-              <Text className="font-grotesk-semibold text-base text-ink-charcoal">Theme</Text>
+              <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.theme}</Text>
               <View className="flex-row gap-2">
                 {THEME_OPTIONS.map((option) => {
                   const selected = theme === option.value;
@@ -165,7 +174,7 @@ export default function Settings() {
                             : "font-grotesk-medium text-sm text-ink-charcoal"
                         }
                       >
-                        {option.label}
+                        {t.settings.themes[option.value]}
                       </Text>
                     </AnimatedPressable>
                   );
@@ -176,14 +185,14 @@ export default function Settings() {
             <View className="h-px bg-white/10" />
 
             <View className="gap-3">
-              <Text className="font-grotesk-semibold text-base text-ink-charcoal">Language</Text>
+              <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.language}</Text>
               <View className="flex-row flex-wrap gap-2">
                 {LANGUAGE_OPTIONS.map((option) => {
                   const selected = language === option.value;
                   return (
                     <AnimatedPressable
                       key={option.value}
-                      onPress={() => setLanguage(option.value)}
+                      onPress={() => handleSelectLanguage(option.value)}
                       accessibilityRole="radio"
                       accessibilityState={{ selected }}
                       className={
@@ -218,7 +227,7 @@ export default function Settings() {
         >
           <Feather name="log-out" size={18} color={colors.overdue[500]} />
           <Text className="font-grotesk-semibold text-base text-overdue-500">
-            {isSigningOut ? "Signing out…" : "Sign out"}
+            {isSigningOut ? t.settings.signingOut : t.settings.signOut}
           </Text>
         </AnimatedPressable>
 

@@ -9,24 +9,10 @@ import type { Category } from "@/types/category";
 
 export type DeadlineValue = "today" | "tomorrow" | "friday" | "weekend" | "nextWeek" | "none";
 
-export const DURATION_OPTIONS: { label: string; minutes: number }[] = [
-  { label: "15m", minutes: 15 },
-  { label: "30m", minutes: 30 },
-  { label: "45m", minutes: 45 },
-  { label: "1h", minutes: 60 },
-  { label: "1.5h", minutes: 90 },
-  { label: "2h", minutes: 120 },
-  { label: "3h+", minutes: 180 },
-];
+// Chip labels live in the translations: form.durationOptions / form.deadlines.
+export const DURATION_OPTIONS: number[] = [15, 30, 45, 60, 90, 120, 180];
 
-export const DEADLINE_OPTIONS: { label: string; value: DeadlineValue }[] = [
-  { label: "Today", value: "today" },
-  { label: "Tomorrow", value: "tomorrow" },
-  { label: "This Friday", value: "friday" },
-  { label: "This Weekend", value: "weekend" },
-  { label: "Next Week", value: "nextWeek" },
-  { label: "No deadline", value: "none" },
-];
+export const DEADLINE_OPTIONS: DeadlineValue[] = ["today", "tomorrow", "friday", "weekend", "nextWeek", "none"];
 
 // "This Friday"/"This Weekend" resolve to the nearest upcoming Fri/Sat, today included.
 export function computeDeadlineDate(value: DeadlineValue): Date | undefined {

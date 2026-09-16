@@ -12,19 +12,20 @@ import { TaskEditPanel, type TaskEditChanges } from "@/components/TaskEditPanel"
 import { DeadlineChip, parseCustomDeadline } from "@/components/TaskFormFields";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { useTranslation } from "@/hooks/useTranslation";
 import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
 import { useCategory, useCategoryStore } from "@/store/useCategoryStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 
-type PostponeValue = "1d" | "3d" | "1w";
-
-const POSTPONE_OPTIONS: { label: string; value: PostponeValue; days: number }[] = [
-  { label: "+1 Day (Tomorrow)", value: "1d", days: 1 },
-  { label: "+3 Days", value: "3d", days: 3 },
-  { label: "+1 Week", value: "1w", days: 7 },
-];
+// Labels live in the translations (taskDetail.postpone).
+const POSTPONE_OPTIONS = [
+  { value: "oneDay", days: 1 },
+  { value: "threeDays", days: 3 },
+  { value: "oneWeek", days: 7 },
+] as const;
 
 function computePostponeDate(currentDueDate: string | undefined, days: number, now: Date): Date {
   const parsedDueDate = currentDueDate ? new Date(currentDueDate) : now;
@@ -34,6 +35,8 @@ function computePostponeDate(currentDueDate: string | undefined, days: number, n
 }
 
 export default function TaskDetail() {
+  const t = useTranslation();
+  const language = useSettingsStore((state) => state.language);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const task = useTaskStore((state) => state.tasks.find((t) => t.id === id));
@@ -67,17 +70,18 @@ export default function TaskDetail() {
     // Keyed on id/updatedAt (not the task object) — recalcAll gives every
     // pending task a fresh object identity whenever any task mutates, and
     // that would otherwise re-trigger a paid AI call on unrelated edits.
+    // language: the advice is re-asked for in the newly picked language.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, task?.updatedAt]);
+  }, [task?.id, task?.updatedAt, language]);
 
   if (!task) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }}>
         <View className="flex-1 items-center justify-center gap-3 px-6">
-          <Text className="text-title text-ink-cream">Task not found</Text>
+          <Text className="text-title text-ink-cream">{t.taskDetail.notFound}</Text>
           <AnimatedPressable onPress={() => router.back()} className="btn btn--secondary-cream flex-row gap-2 px-6">
             <Feather name="arrow-left" size={16} color={colors.ink.cream} />
-            <Text className="font-grotesk-semibold text-base text-ink-cream">Go back</Text>
+            <Text className="font-grotesk-semibold text-base text-ink-cream">{t.taskDetail.goBack}</Text>
           </AnimatedPressable>
         </View>
       </SafeAreaView>
@@ -138,10 +142,10 @@ export default function TaskDetail() {
   };
 
   const handleDelete = () => {
-    Alert.alert("Delete this task?", "This can't be undone.", [
-      { text: "Cancel", style: "cancel" },
+    Alert.alert(t.taskDetail.deleteConfirmTitle, t.taskDetail.deleteConfirmBody, [
+      { text: t.common.cancel, style: "cancel" },
       {
-        text: "Delete",
+        text: t.common.delete,
         style: "destructive",
         onPress: () => {
           deleteTask(task.id);
@@ -157,7 +161,7 @@ export default function TaskDetail() {
         <View className="flex-row items-center justify-between">
           <View className="flex-row items-center gap-2">
             <GemLogo size={18} />
-            <Text className="eyebrow text-ink-cream">TASK DETAILS</Text>
+            <Text className="eyebrow text-ink-cream">{t.taskDetail.eyebrow}</Text>
           </View>
           <AnimatedPressable onPress={() => router.back()} hitSlop={8} className="h-9 w-9 items-center justify-center">
             <Feather name="x" size={22} color={colors.ink.cream} />
@@ -167,7 +171,8 @@ export default function TaskDetail() {
           <View className="flex-row items-center gap-1.5 rounded-2xl border border-orange-500 px-3 py-1.5">
             <GemLogo size={12} />
             <Text className="font-grotesk-semibold text-xs text-orange-600">
-              Score: <Text className="font-grotesk-bold">{task.priorityScore}</Text>
+              {t.taskDetail.scoreLabel}
+              <Text className="font-grotesk-bold">{task.priorityScore}</Text>
             </Text>
           </View>
         </View>
@@ -187,9 +192,9 @@ export default function TaskDetail() {
                 <Feather name="calendar" size={18} color={colors.orange[500]} />
               </View>
               <View className="flex-1 gap-1">
-                <Text className="font-grotesk-bold text-sm text-ink-cream">POSTPONE TASK</Text>
+                <Text className="font-grotesk-bold text-sm text-ink-cream">{t.taskDetail.postponeTitle}</Text>
                 <Text className="font-grotesk-regular text-xs text-ink-cream-muted">
-                  Current deadline: &quot;{due.label}&quot;. Push to a later date:
+                  {t.taskDetail.currentDeadline(due.label)}
                 </Text>
               </View>
             </View>
@@ -197,13 +202,13 @@ export default function TaskDetail() {
               {POSTPONE_OPTIONS.map((option) => (
                 <DeadlineChip
                   key={option.value}
-                  label={option.label}
+                  label={t.taskDetail.postpone[option.value]}
                   selected={false}
                   onPress={() => handlePostpone(option.days)}
                 />
               ))}
               <DeadlineChip
-                label="Custom Date..."
+                label={t.taskDetail.customDate}
                 selected={customPostponeOpen}
                 onPress={() => setCustomPostponeOpen((open) => !open)}
               />
@@ -213,7 +218,7 @@ export default function TaskDetail() {
                 <TextInput
                   value={customPostponeText}
                   onChangeText={setCustomPostponeText}
-                  placeholder="YYYY-MM-DD HH:mm"
+                  placeholder={t.form.dateFormat}
                   placeholderTextColor={colors.ink.creamMuted}
                   className="font-grotesk-regular text-sm text-ink-cream"
                 />
@@ -222,7 +227,7 @@ export default function TaskDetail() {
                   disabled={!customPostponeText.trim()}
                   className="self-start rounded-2xl bg-orange-500 px-4 py-1.5"
                 >
-                  <Text className="font-grotesk-semibold text-xs text-cream-50">Set date</Text>
+                  <Text className="font-grotesk-semibold text-xs text-cream-50">{t.taskDetail.setDate}</Text>
                 </AnimatedPressable>
               </View>
             ) : null}
@@ -238,7 +243,7 @@ export default function TaskDetail() {
                   onPress={() => setEditing(true)}
                   hitSlop={8}
                   accessibilityRole="button"
-                  accessibilityLabel="Edit task"
+                  accessibilityLabel={t.taskDetail.editTask}
                   className="pt-1"
                 >
                   <Feather name="edit-2" size={18} color={colors.ink.creamMuted} />
@@ -252,12 +257,12 @@ export default function TaskDetail() {
                 </View>
                 <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
                   <Feather name="calendar" size={13} color={colors.ink.creamMuted} />
-                  <Text className="font-grotesk-medium text-xs text-ink-cream">Due: {due.label}</Text>
+                  <Text className="font-grotesk-medium text-xs text-ink-cream">{t.taskDetail.due(due.label)}</Text>
                 </View>
                 <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
                   <Feather name="clock" size={13} color={colors.orange[500]} />
                   <Text className="font-grotesk-semibold text-xs text-orange-600">
-                    Est: {formatDuration(task.estimatedMinutes)}
+                    {t.taskDetail.estimate(formatDuration(task.estimatedMinutes))}
                   </Text>
                 </View>
               </View>
@@ -267,24 +272,24 @@ export default function TaskDetail() {
           <View className="gap-2 rounded-2xl bg-cream-200 p-5">
             <View className="flex-row items-center gap-2">
               <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
-              <Text className="font-grotesk-semibold text-sm text-orange-500">AI priority rationale</Text>
+              <Text className="font-grotesk-semibold text-sm text-orange-500">{t.taskDetail.rationaleTitle}</Text>
             </View>
             <Text className="text-quote text-ink-cream">
-              {advice ? `"${advice}"` : "Generating advice..."}
+              {advice ? `"${advice}"` : t.taskDetail.generatingAdvice}
             </Text>
           </View>
 
           <View className="gap-3">
             <View className="flex-row items-center justify-between">
               <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
-                Subtasks ({completedSubtaskCount}/{orderedSubtasks.length})
+                {t.taskDetail.subtasks(completedSubtaskCount, orderedSubtasks.length)}
               </Text>
               <AnimatedPressable
                 onPress={() => regeneratePlan(task.id)}
                 className="flex-row items-center gap-1.5 rounded-2xl border border-orange-500 px-3 py-1.5"
               >
                 <Feather name="list" size={13} color={colors.orange[500]} />
-                <Text className="font-grotesk-semibold text-xs text-orange-500">AI plan</Text>
+                <Text className="font-grotesk-semibold text-xs text-orange-500">{t.taskDetail.aiPlan}</Text>
               </AnimatedPressable>
             </View>
 
@@ -327,7 +332,7 @@ export default function TaskDetail() {
                 value={subtaskDraft}
                 onChangeText={setSubtaskDraft}
                 onSubmitEditing={handleAddSubtask}
-                placeholder="Add subtask..."
+                placeholder={t.taskDetail.addSubtask}
                 placeholderTextColor={colors.ink.creamMuted}
                 returnKeyType="done"
                 className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
@@ -345,7 +350,7 @@ export default function TaskDetail() {
 
           {task.notes ? (
             <View className="gap-2">
-              <Text className="eyebrow text-ink-cream">NOTES</Text>
+              <Text className="eyebrow text-ink-cream">{t.taskDetail.notes}</Text>
               <Text className="text-body text-ink-cream-muted">{task.notes}</Text>
             </View>
           ) : null}
@@ -353,11 +358,9 @@ export default function TaskDetail() {
           <View className="gap-3 rounded-2xl border border-cream-300 bg-cream-50 p-4">
             <View className="flex-row items-center gap-2">
               <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
-              <Text className="eyebrow text-ink-cream">ADD CONTEXT FOR AI</Text>
+              <Text className="eyebrow text-ink-cream">{t.taskDetail.contextTitle}</Text>
             </View>
-            <Text className="font-grotesk-regular text-xs text-ink-cream-muted">
-              The AI reads these notes when it gives advice on this task or breaks it down.
-            </Text>
+            <Text className="font-grotesk-regular text-xs text-ink-cream-muted">{t.taskDetail.contextBody}</Text>
             {contextNotes.map((entry, index) => (
               <ContextNoteCard
                 key={`${index}-${entry}`}
@@ -370,7 +373,7 @@ export default function TaskDetail() {
               <TextInput
                 value={note}
                 onChangeText={setNote}
-                placeholder="e.g. I already finished the research."
+                placeholder={t.taskDetail.contextPlaceholder}
                 placeholderTextColor={colors.ink.creamMuted}
                 multiline
                 style={{ textAlignVertical: "top", maxHeight: 120 }}
@@ -391,7 +394,7 @@ export default function TaskDetail() {
         <View className="flex-row items-center justify-between border-t border-cream-300 bg-cream-50 px-6 py-4">
           <AnimatedPressable onPress={handleDelete} hitSlop={8} className="flex-row items-center gap-2">
             <Feather name="trash-2" size={17} color={colors.overdue[500]} />
-            <Text className="font-grotesk-semibold text-sm text-overdue-500">Delete Task</Text>
+            <Text className="font-grotesk-semibold text-sm text-overdue-500">{t.taskDetail.deleteTask}</Text>
           </AnimatedPressable>
           <AnimatedPressable
             onPress={() => toggleTaskStatus(task.id)}
@@ -403,7 +406,7 @@ export default function TaskDetail() {
                 isCompleted ? "font-grotesk-bold text-sm text-ink-cream" : "font-grotesk-bold text-sm text-cream-50"
               }
             >
-              {isCompleted ? "Reopen task" : "Mark Complete"}
+              {isCompleted ? t.taskDetail.reopen : t.taskDetail.markComplete}
             </Text>
           </AnimatedPressable>
         </View>

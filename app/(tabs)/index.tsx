@@ -11,6 +11,7 @@ import { SessionRunner } from "@/components/SessionRunner";
 import { SessionTaskCard } from "@/components/SessionTaskCard";
 import { TaskPickerSheet } from "@/components/TaskPickerSheet";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
 import { buildSessionPlan, ENERGY_LEVELS, sumEstimatedMinutes, TIME_OPTIONS, type EnergyLevel } from "@/lib/sessionPlan";
@@ -24,6 +25,7 @@ const ENERGY_ICONS: Record<EnergyLevel, keyof typeof Feather.glyphMap> = {
 };
 
 export default function Next() {
+  const t = useTranslation();
   const router = useRouter();
   const { minutes: incomingMinutes } = useLocalSearchParams<{ minutes?: string }>();
   const tasks = useTaskStore((state) => state.tasks);
@@ -117,13 +119,11 @@ export default function Next() {
       <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
         <View className="flex-1 items-center justify-center gap-3 bg-cream-100 px-6">
           <Ionicons name="checkmark-done-circle" size={40} color={colors.orange[500]} />
-          <Text className="text-card-title text-ink-cream">All caught up</Text>
-          <Text className="text-body text-center text-ink-cream-muted">
-            You&apos;ve completed everything on your list. Add a new task to keep going.
-          </Text>
+          <Text className="text-card-title text-ink-cream">{t.next.allCaughtUp}</Text>
+          <Text className="text-body text-center text-ink-cream-muted">{t.next.allCaughtUpBody}</Text>
           <AnimatedPressable onPress={() => router.push("/add")} className="btn btn--primary mt-2 flex-row gap-2 px-6">
             <Feather name="plus" size={16} color={colors.cream[50]} />
-            <Text className="font-grotesk-bold text-base text-cream-50">Add a task</Text>
+            <Text className="font-grotesk-bold text-base text-cream-50">{t.next.addATask}</Text>
           </AnimatedPressable>
         </View>
       </SafeAreaView>
@@ -140,12 +140,12 @@ export default function Next() {
         <View className="gap-2.5 bg-charcoal-900 px-6 pb-4 pt-2">
           <View className="flex-row items-center gap-2">
             <Feather name="zap" size={12} color={colors.orange[500]} />
-            <Text className="font-grotesk-bold text-xs tracking-[0.11em] text-orange-500">NEXDO NOW</Text>
+            <Text className="font-grotesk-bold text-xs tracking-[0.11em] text-orange-500">{t.next.eyebrow}</Text>
           </View>
           <View className="flex-row items-center gap-2.5">
             <GemLogo size={26} onDark />
             <Text className="flex-1 font-grotesk-bold text-lg leading-[1.2] tracking-tight text-ink-charcoal">
-              What can you do right now?
+              {t.next.heading}
             </Text>
           </View>
         </View>
@@ -154,7 +154,7 @@ export default function Next() {
           <View className="card card--cream gap-4 p-5">
             <View className="flex-row items-center gap-2">
               <Feather name="clock" size={14} color={colors.ink.cream} />
-              <Text className="eyebrow flex-shrink text-ink-cream">HOW MUCH TIME HAVE YOU GOT?</Text>
+              <Text className="eyebrow flex-shrink text-ink-cream">{t.next.timeQuestion}</Text>
             </View>
 
             <View className="gap-2">
@@ -178,7 +178,7 @@ export default function Next() {
                             : "font-grotesk-medium text-sm text-ink-cream"
                         }
                       >
-                        {minutes} min
+                        {t.next.minutesOption(minutes)}
                       </Text>
                     </AnimatedPressable>
                   );
@@ -203,7 +203,7 @@ export default function Next() {
                           selected ? "font-grotesk-bold text-sm text-cream-50" : "font-grotesk-medium text-sm text-ink-cream"
                         }
                       >
-                        {minutes} min
+                        {t.next.minutesOption(minutes)}
                       </Text>
                     </AnimatedPressable>
                   );
@@ -226,7 +226,7 @@ export default function Next() {
                         : "font-grotesk-medium text-sm text-ink-cream-muted"
                     }
                   >
-                    Custom...
+                    {t.next.custom}
                   </Text>
                 </AnimatedPressable>
               </View>
@@ -237,24 +237,24 @@ export default function Next() {
                 <TextInput
                   value={customMinutesText}
                   onChangeText={handleCustomMinutesChange}
-                  placeholder="Minutes, e.g. 50"
+                  placeholder={t.next.minutesPlaceholder}
                   placeholderTextColor={colors.ink.creamMuted}
                   keyboardType="number-pad"
                   className="flex-1 font-grotesk-regular text-sm text-ink-cream"
                 />
-                <Text className="font-grotesk-medium text-xs text-ink-cream-muted">min</Text>
+                <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.next.minutesUnit}</Text>
               </View>
             ) : null}
 
             <View className="h-px bg-cream-300" />
-            <Text className="font-grotesk-semibold text-sm text-ink-cream">Energy &amp; focus level:</Text>
+            <Text className="font-grotesk-semibold text-sm text-ink-cream">{t.next.energyLabel}</Text>
             <View className="flex-row gap-2">
               {ENERGY_LEVELS.map((level) => {
-                const selected = energy === level.value;
+                const selected = energy === level;
                 return (
                   <AnimatedPressable
-                    key={level.value}
-                    onPress={() => handleSelectEnergy(level.value)}
+                    key={level}
+                    onPress={() => handleSelectEnergy(level)}
                     className={
                       selected
                         ? "choice choice--selected-charcoal flex-1 flex-row items-center justify-center gap-1 px-1 py-3"
@@ -262,7 +262,7 @@ export default function Next() {
                     }
                   >
                     <Feather
-                      name={ENERGY_ICONS[level.value]}
+                      name={ENERGY_ICONS[level]}
                       size={13}
                       color={selected ? colors.orange[500] : colors.ink.creamMuted}
                     />
@@ -276,7 +276,7 @@ export default function Next() {
                           : "font-grotesk-medium text-xs text-ink-cream"
                       }
                     >
-                      {level.label}
+                      {t.next.energy[level]}
                     </Text>
                   </AnimatedPressable>
                 );
@@ -289,15 +289,13 @@ export default function Next() {
               <View className="flex-1 flex-row items-center gap-2">
                 <Feather name="zap" size={14} color={colors.orange[500]} />
                 <Text className="eyebrow flex-shrink text-ink-cream">
-                  SESSION PLAN{" "}
-                  <Text className="text-ink-cream-muted">
-                    • {sessionTasks.length} {sessionTasks.length === 1 ? "task" : "tasks"}
-                  </Text>
+                  {t.next.sessionPlan}{" "}
+                  <Text className="text-ink-cream-muted">• {t.format.taskCount(sessionTasks.length)}</Text>
                 </Text>
               </View>
               <View className="shrink-0 rounded-2xl bg-cream-200 px-3 py-1">
                 <Text className="font-grotesk-semibold text-xs text-ink-cream">
-                  {formatDuration(totalMinutes)} total
+                  {t.next.total(formatDuration(totalMinutes))}
                 </Text>
               </View>
             </View>
@@ -318,12 +316,12 @@ export default function Next() {
           >
             <Feather name="play" size={18} color={colors.cream[50]} />
             <Text className="font-grotesk-bold text-lg text-cream-50">
-              Start session ({formatDuration(totalMinutes)})
+              {t.next.startSession(formatDuration(totalMinutes))}
             </Text>
           </AnimatedPressable>
 
           <AnimatedPressable onPress={handleOpenPicker} className="mx-auto flex-row items-center gap-1.5">
-            <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">Swap or pick different tasks</Text>
+            <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">{t.next.swapTasks}</Text>
             <Feather name="chevron-right" size={16} color={colors.ink.creamMuted} />
           </AnimatedPressable>
         </View>

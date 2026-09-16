@@ -4,6 +4,7 @@ import { Text, TextInput, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /** One note the AI reads when it advises on or breaks down this task. */
 export function ContextNoteCard({
@@ -15,6 +16,7 @@ export function ContextNoteCard({
   onSave: (note: string) => void;
   onDelete: () => void;
 }) {
+  const t = useTranslation();
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note);
 
@@ -36,7 +38,7 @@ export function ContextNoteCard({
         <TextInput
           value={draft}
           onChangeText={setDraft}
-          placeholder="What should the AI know about this task?"
+          placeholder={t.taskDetail.notePlaceholder}
           placeholderTextColor={colors.ink.creamMuted}
           multiline
           autoFocus
@@ -45,7 +47,7 @@ export function ContextNoteCard({
         />
         <View className="flex-row items-center justify-end gap-4">
           <AnimatedPressable onPress={() => setEditing(false)} hitSlop={8} accessibilityRole="button">
-            <Text className="font-grotesk-semibold text-xs text-ink-cream-muted">Cancel</Text>
+            <Text className="font-grotesk-semibold text-xs text-ink-cream-muted">{t.common.cancel}</Text>
           </AnimatedPressable>
           <AnimatedPressable
             onPress={handleSave}
@@ -53,7 +55,7 @@ export function ContextNoteCard({
             accessibilityRole="button"
             className="rounded-full bg-orange-500 px-3.5 py-1.5"
           >
-            <Text className="font-grotesk-semibold text-xs text-cream-50">Save</Text>
+            <Text className="font-grotesk-semibold text-xs text-cream-50">{t.common.save}</Text>
           </AnimatedPressable>
         </View>
       </View>
@@ -64,10 +66,10 @@ export function ContextNoteCard({
     <View className="flex-row items-start gap-3 rounded-xl border border-cream-300 bg-cream-100 py-3 pl-3.5 pr-3">
       <Text className="flex-1 text-body text-ink-cream">{note}</Text>
       <View className="flex-row items-center gap-3.5 pt-0.5">
-        <AnimatedPressable onPress={handleStartEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit note">
+        <AnimatedPressable onPress={handleStartEdit} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.taskDetail.editNote}>
           <Feather name="edit-2" size={14} color={colors.ink.creamMuted} />
         </AnimatedPressable>
-        <AnimatedPressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel="Delete note">
+        <AnimatedPressable onPress={onDelete} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.taskDetail.deleteNote}>
           <Feather name="trash-2" size={14} color={colors.ink.creamMuted} />
         </AnimatedPressable>
       </View>

@@ -6,12 +6,14 @@ import { ActivityIndicator, Image, Text, TextInput, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 
 /**
  * Photo and name live on the Clerk user, not in local storage, so they follow
  * the account to every device it signs in on.
  */
 export function ProfileCard() {
+  const t = useTranslation();
   const { user } = useUser();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [editingName, setEditingName] = useState(false);
@@ -42,7 +44,7 @@ export function ProfileCard() {
       await user.reload();
     } catch (uploadError) {
       console.warn("[ProfileCard] photo upload failed", uploadError);
-      setError("Couldn't update your photo. Try again.");
+      setError(t.profile.photoError);
     } finally {
       setUploadingPhoto(false);
     }
@@ -58,7 +60,7 @@ export function ProfileCard() {
   const handleSaveName = async () => {
     if (!user) return;
     if (!firstName.trim()) {
-      setError("Add at least a first name.");
+      setError(t.profile.nameRequired);
       return;
     }
     setSavingName(true);
@@ -68,7 +70,7 @@ export function ProfileCard() {
       setEditingName(false);
     } catch (saveError) {
       console.warn("[ProfileCard] name update failed", saveError);
-      setError("Couldn't save your name. Try again.");
+      setError(t.profile.nameError);
     } finally {
       setSavingName(false);
     }
@@ -81,7 +83,7 @@ export function ProfileCard() {
           onPress={handleChangePhoto}
           disabled={uploadingPhoto}
           accessibilityRole="button"
-          accessibilityLabel="Change profile photo"
+          accessibilityLabel={t.profile.changePhoto}
           className="h-16 w-16"
         >
           {user?.hasImage ? (
@@ -109,7 +111,7 @@ export function ProfileCard() {
                 : "font-grotesk-semibold text-base text-ink-charcoal-muted"
             }
           >
-            {displayName || "Add your name"}
+            {displayName || t.profile.addName}
           </Text>
           <Text numberOfLines={1} className="font-grotesk-regular text-sm text-ink-charcoal-muted">
             {user?.primaryEmailAddress?.emailAddress ?? ""}
@@ -117,7 +119,7 @@ export function ProfileCard() {
         </View>
 
         {editingName ? null : (
-          <AnimatedPressable onPress={handleStartEditName} hitSlop={8} accessibilityRole="button" accessibilityLabel="Edit name">
+          <AnimatedPressable onPress={handleStartEditName} hitSlop={8} accessibilityRole="button" accessibilityLabel={t.profile.editName}>
             <Feather name="edit-2" size={16} color={colors.ink.charcoalMuted} />
           </AnimatedPressable>
         )}
@@ -128,7 +130,7 @@ export function ProfileCard() {
           <TextInput
             value={firstName}
             onChangeText={setFirstName}
-            placeholder="First name"
+            placeholder={t.profile.firstName}
             placeholderTextColor={colors.ink.charcoalMuted}
             autoFocus
             autoComplete="given-name"
@@ -137,14 +139,14 @@ export function ProfileCard() {
           <TextInput
             value={lastName}
             onChangeText={setLastName}
-            placeholder="Last name"
+            placeholder={t.profile.lastName}
             placeholderTextColor={colors.ink.charcoalMuted}
             autoComplete="family-name"
             className="rounded-xl border border-charcoal-600 bg-charcoal-900 px-3.5 py-2.5 font-grotesk-medium text-sm text-ink-charcoal"
           />
           <View className="flex-row items-center justify-end gap-4">
             <AnimatedPressable onPress={() => setEditingName(false)} hitSlop={8} accessibilityRole="button">
-              <Text className="font-grotesk-semibold text-sm text-ink-charcoal-muted">Cancel</Text>
+              <Text className="font-grotesk-semibold text-sm text-ink-charcoal-muted">{t.common.cancel}</Text>
             </AnimatedPressable>
             <AnimatedPressable
               onPress={handleSaveName}
@@ -153,7 +155,7 @@ export function ProfileCard() {
               className="rounded-full bg-orange-500 px-4 py-2"
               style={savingName ? { opacity: 0.6 } : undefined}
             >
-              <Text className="font-grotesk-bold text-sm text-cream-50">{savingName ? "Saving…" : "Save"}</Text>
+              <Text className="font-grotesk-bold text-sm text-cream-50">{savingName ? t.profile.saving : t.common.save}</Text>
             </AnimatedPressable>
           </View>
         </View>

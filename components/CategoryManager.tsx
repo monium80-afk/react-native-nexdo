@@ -6,10 +6,12 @@ import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { ManageCategoriesSheet } from "@/components/ManageCategoriesSheet";
 import { getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useCategoryStore } from "@/store/useCategoryStore";
 
 /** The "Task categories" row under Settings → Nexdo Preferences; opens Manage Categories. */
 export function CategoryManager() {
+  const t = useTranslation();
   const categories = useCategoryStore((state) => state.categories);
   const [open, setOpen] = useState(false);
 
@@ -25,7 +27,7 @@ export function CategoryManager() {
           <Feather name="tag" size={16} color={colors.orange[500]} />
         </View>
         <View className="flex-1 gap-1">
-          <Text className="font-grotesk-semibold text-base text-ink-charcoal">Task categories</Text>
+          <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.categories.managerTitle}</Text>
           <View className="flex-row items-center gap-2">
             <View className="flex-row gap-1">
               {categories.slice(0, 6).map((category) => (
@@ -37,7 +39,7 @@ export function CategoryManager() {
               ))}
             </View>
             <Text className="font-grotesk-regular text-xs text-ink-charcoal-muted">
-              {categories.length} {categories.length === 1 ? "category" : "categories"}
+              {t.categories.count(categories.length)}
             </Text>
           </View>
         </View>

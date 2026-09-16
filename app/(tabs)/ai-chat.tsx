@@ -12,11 +12,13 @@ import { InboxInput } from "@/components/InboxInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
 import { TaskConfirmationCard } from "@/components/TaskConfirmationCard";
 import { colors } from "@/constants/theme";
-import type { ExtractTextResponseBody } from "@/app/api/extract-text+api";
-import { ATTACHMENT_REPLIES, INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import type { ExtractTextRequestBody, ExtractTextResponseBody } from "@/app/api/extract-text+api";
+import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import { useTranslation } from "@/hooks/useTranslation";
 import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
 import { apiPost } from "@/lib/api";
+import { translate } from "@/lib/i18n";
 import { posthog } from "@/lib/posthog";
 import { uploadAttachment } from "@/lib/supabaseStorage";
 import { useCategoryStore } from "@/store/useCategoryStore";
@@ -39,8 +41,8 @@ const QUICK_ACTION_ICONS: Record<string, ReactNode> = {
   prioritize: <Feather name="target" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.prioritize} />,
 };
 
-function formatTime(iso: string) {
-  return new Date(iso).toLocaleTimeString("en-US", {
+function formatTime(iso: string, locale: string) {
+  return new Date(iso).toLocaleTimeString(locale, {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -48,6 +50,8 @@ function formatTime(iso: string) {
 }
 
 function ChatBubble({ message }: { message: ChatMessage }) {
+  const t = useTranslation();
+
   if (message.role === "ai") {
     return (
       <Animated.View entering={FadeInUp.duration(240)} className="flex-row items-start gap-2.5 pr-1">
@@ -55,9 +59,10 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           <GemLogo size={16} />
         </View>
         <View className="card card--cream-elevated flex-1 gap-2.5 p-4">
-          <Text className="text-quote text-ink-cream">{message.text}</Text>
+          {/* The welcome message is app copy, so it follows the current language. */}
+          <Text className="text-quote text-ink-cream">{message.id === "welcome" ? t.chat.welcome : message.text}</Text>
           <Text className="self-end font-grotesk-medium text-xs text-ink-cream-muted">
-            {formatTime(message.createdAt)}
+            {formatTime(message.createdAt, t.locale)}
           </Text>
         </View>
       </Animated.View>
@@ -69,7 +74,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
       <View className="flex-1 rounded-2xl bg-charcoal-900 px-4 py-3">
         <Text className="font-grotesk-medium text-sm text-ink-charcoal">{message.text}</Text>
         <Text className="mt-1 self-end font-grotesk-medium text-xs text-ink-charcoal-muted">
-          {formatTime(message.createdAt)}
+          {formatTime(message.createdAt, t.locale)}
         </Text>
       </View>
       <View className="h-8 w-8 items-center justify-center rounded-full bg-charcoal-900">
@@ -80,19 +85,22 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 }
 
 function TypingBubble() {
+  const t = useTranslation();
+
   return (
     <Animated.View entering={FadeInUp.duration(200)} className="flex-row items-center gap-2.5 pr-1">
       <View className="h-8 w-8 items-center justify-center rounded-full bg-cream-200">
         <GemLogo size={16} />
       </View>
       <View className="card card--cream-elevated px-4 py-3.5">
-        <Text className="text-quote text-ink-cream-muted">Typing…</Text>
+        <Text className="text-quote text-ink-cream-muted">{t.chat.typing}</Text>
       </View>
     </Animated.View>
   );
 }
 
 function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: string; mode?: string; availableMinutes?: number }) {
+  const t = useTranslation();
   const router = useRouter();
   const { user } = useUser();
   const messages = useChatStore((state) => state.messages);
@@ -132,10 +140,8 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
     let cancelled = false;
     generateAdvice(task, useCategoryStore.getState().categories, availableMinutes).then((advice) => {
       if (cancelled) return;
-      seedMessage(
-        `Here's my read on "${task.title}" — it's a ${task.complexity} task. ${adviceToText(advice)}`,
-        task.id,
-      );
+      const copy = translate().chat;
+      seedMessage(copy.taskRead(task.title, copy.complexity[task.complexity], adviceToText(advice)), task.id);
     });
     return () => {
       cancelled = true;
@@ -171,20 +177,21 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
       setIsTranscribing(true);
       try {
         const base64 = await readFileAsBase64(attachment.uri);
-        const { text } = await apiPost<ExtractTextResponseBody>("/api/extract-text", {
+        const request: ExtractTextRequestBody = {
           mimeType: resolveMimeType(attachment),
           base64,
           kind: attachment.kind,
-        });
+        };
+        const { text } = await apiPost<ExtractTextResponseBody>("/api/extract-text", request);
         const transcript = text.trim();
         if (transcript) {
           setDraft((current) => (current.trim() ? `${current.trimEnd()} ${transcript}` : transcript));
         } else {
-          Alert.alert("Couldn't catch that", ATTACHMENT_REPLIES.voice);
+          Alert.alert(t.chat.couldntCatch, t.chat.attachmentReplies.voice);
         }
       } catch (error) {
         console.warn("[ai-chat] voice transcription failed", error);
-        Alert.alert("Couldn't transcribe", ATTACHMENT_REPLIES.voice);
+        Alert.alert(t.chat.couldntTranscribe, t.chat.attachmentReplies.voice);
       } finally {
         setIsTranscribing(false);
       }
@@ -218,14 +225,15 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
         </View>
         <View className="flex-1">
           <Text className="text-card-title text-ink-cream">
-            {contextTask ? contextTask.title : "Nexdo Inbox"}
+            {contextTask ? contextTask.title : t.chat.inboxTitle}
           </Text>
           <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
             {contextTask ? (
-              "Ask me to analyze, adjust, or update this task."
+              t.chat.contextSubtitle
             ) : (
               <>
-                <Text className="font-grotesk-bold text-ink-cream">{pendingCount}</Text> active tasks in queue
+                <Text className="font-grotesk-bold text-ink-cream">{pendingCount}</Text>
+                {t.chat.activeTasksSuffix}
               </>
             )}
           </Text>
@@ -270,13 +278,13 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                     className="flex-row items-center justify-center gap-2 self-end rounded-full bg-orange-500 px-4 py-2.5"
                   >
                     <Feather name="check-circle" size={16} color={colors.cream[50]} />
-                    <Text className="font-grotesk-bold text-sm text-cream-50">Add all {pendingDraftCount} tasks</Text>
+                    <Text className="font-grotesk-bold text-sm text-cream-50">{t.chat.addAll(pendingDraftCount)}</Text>
                   </AnimatedPressable>
                 ) : null}
                 {pendingActions.some((pending) => pending.action.type !== "CREATE_TASK") ? (
                   <View className="flex-row gap-2">
-                    <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingActions} />
-                    <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingActions} />
+                    <SuggestionChip emoji="✅" label={t.chat.yesDoIt} onPress={confirmPendingActions} />
+                    <SuggestionChip emoji="✕" label={t.common.cancel} onPress={cancelPendingActions} />
                   </View>
                 ) : null}
               </View>
@@ -285,7 +293,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
 
           {redirectToNext ? (
             <Animated.View entering={FadeInUp.duration(240)} className="flex-row gap-2 pr-8">
-              <SuggestionChip emoji="🎯" label={`Open Next (${redirectToNext.minutes} min)`} onPress={handleOpenNext} />
+              <SuggestionChip emoji="🎯" label={t.chat.openNext(redirectToNext.minutes)} onPress={handleOpenNext} />
             </Animated.View>
           ) : null}
 
@@ -295,9 +303,9 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                 <Animated.View key={suggestion.id} entering={FadeInUp.delay(index * 60).duration(240)}>
                   <SuggestionChip
                     emoji={suggestion.emoji}
-                    label={suggestion.label}
+                    label={t.chat.starterSuggestions[suggestion.id]}
                     fullWidth
-                    onPress={() => handleSend(suggestion.label)}
+                    onPress={() => handleSend(t.chat.starterSuggestions[suggestion.id])}
                   />
                 </Animated.View>
               ))}
@@ -316,9 +324,9 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                 <SuggestionChip
                   key={action.id}
                   emoji={action.emoji}
-                  label={action.label}
+                  label={t.chat.quickActions[action.id]}
                   icon={QUICK_ACTION_ICONS[action.id]}
-                  onPress={() => handleQuickAction(action.label)}
+                  onPress={() => handleQuickAction(t.chat.quickActions[action.id])}
                 />
               ))}
             </ScrollView>

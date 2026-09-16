@@ -9,8 +9,16 @@ import {
     isBuiltInCategoryId,
     resolveCategoryId,
 } from "@/constants/categories";
+import { ALL_TRANSLATIONS, getTranslations, translate } from "@/lib/i18n";
 import { useTaskStore } from "@/store/useTaskStore";
+import type { AppLanguage } from "@/types/settings";
 import type { Category, CategoryColor } from "@/types/category";
+
+/** The built-in categories, named in the current app language. */
+function defaultCategories(): Category[] {
+  const labels = translate().categories.defaults;
+  return DEFAULT_CATEGORIES.map((category) => ({ ...category, label: labels[category.id] }));
+}
 
 function createCategoryId(): string {
   return `category-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
@@ -34,6 +42,8 @@ type CategoryStore = {
   deleteCategory: (id: string) => void;
   setDefaultCategory: (id: string) => void;
   resetDefaults: () => void;
+  /** Renames built-in categories into a new app language — unless the user renamed them. */
+  relabelDefaults: (language: AppLanguage) => void;
 };
 
 export const useCategoryStore = create<CategoryStore>()(
@@ -72,8 +82,22 @@ export const useCategoryStore = create<CategoryStore>()(
       setDefaultCategory: (id) => set({ defaultCategoryId: id }),
 
       resetDefaults: () => {
-        set({ categories: DEFAULT_CATEGORIES, defaultCategoryId: DEFAULT_CATEGORY_ID });
-        moveOrphanedTasks(DEFAULT_CATEGORIES);
+        const categories = defaultCategories();
+        set({ categories, defaultCategoryId: DEFAULT_CATEGORY_ID });
+        moveOrphanedTasks(categories);
+      },
+
+      relabelDefaults: (language) => {
+        const labels = getTranslations(language).categories.defaults;
+        set((state) => ({
+          categories: state.categories.map((category) => {
+            const id = category.id;
+            if (!isBuiltInCategoryId(id)) return category;
+            // Still named exactly as the app named it in some language → it's safe to rename.
+            const isUntouched = ALL_TRANSLATIONS.some((t) => t.categories.defaults[id] === category.label);
+            return isUntouched ? { ...category, label: labels[id] } : category;
+          }),
+        }));
       },
     }),
     {

@@ -12,6 +12,7 @@ import { Alert, Text, TextInput, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import type { ChatAttachment } from "@/types/chat";
 
 export type AttachmentKind = "photo" | "voice" | "document";
@@ -32,6 +33,7 @@ function formatDurationLabel(totalSeconds: number) {
 }
 
 export function InboxInput({ value, onChangeText, onSend, onAttachment, isTranscribing = false }: InboxInputProps) {
+  const t = useTranslation();
   // Recording state (isRecording, durationMillis) is polled by this hook, not stored locally —
   // the recorder instance itself is the source of truth.
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -46,7 +48,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
       if (audioRecorder.uri) {
         onAttachment({
           kind: "voice",
-          label: `Voice note (${formatDurationLabel(seconds)})`,
+          label: t.chat.voiceNoteLabel(formatDurationLabel(seconds)),
           uri: audioRecorder.uri,
           durationSeconds: seconds,
           mimeType: "audio/aac",
@@ -57,10 +59,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
 
     const permission = await requestRecordingPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        "Microphone access needed",
-        "Nexdo needs microphone access to record voice notes. You can enable it in Settings.",
-      );
+      Alert.alert(t.chat.micPermissionTitle, t.chat.micPermissionBody);
       return;
     }
 
@@ -72,10 +71,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
   const handleCameraPress = async () => {
     const permission = await ImagePicker.requestCameraPermissionsAsync();
     if (!permission.granted) {
-      Alert.alert(
-        "Camera access needed",
-        "Nexdo needs camera access to capture photos. You can enable it in Settings.",
-      );
+      Alert.alert(t.chat.cameraPermissionTitle, t.chat.cameraPermissionBody);
       return;
     }
 
@@ -84,7 +80,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
     const asset = result.assets[0];
     onAttachment({
       kind: "photo",
-      label: "Photo attached",
+      label: t.chat.photoLabel,
       uri: asset.uri,
       mimeType: asset.mimeType,
       width: asset.width,
@@ -111,7 +107,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
       <AnimatedPressable
         onPress={handleMicPress}
         accessibilityRole="button"
-        accessibilityLabel={isRecording ? "Stop recording" : "Record voice note"}
+        accessibilityLabel={isRecording ? t.chat.stopRecording : t.chat.recordVoice}
         disabled={isTranscribing}
         hitSlop={8}
         style={{ opacity: isTranscribing ? 0.35 : 1 }}
@@ -122,7 +118,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
       <AnimatedPressable
         onPress={handleCameraPress}
         accessibilityRole="button"
-        accessibilityLabel="Take a photo"
+        accessibilityLabel={t.chat.takePhoto}
         disabled={isRecording}
         hitSlop={8}
         style={{ opacity: isRecording ? 0.35 : 1 }}
@@ -133,7 +129,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
       <AnimatedPressable
         onPress={handleAttachPress}
         accessibilityRole="button"
-        accessibilityLabel="Attach a document"
+        accessibilityLabel={t.chat.attachDocument}
         disabled={isRecording}
         hitSlop={8}
         style={{ opacity: isRecording ? 0.35 : 1 }}
@@ -146,18 +142,18 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
         <View className="flex-1 flex-row items-center gap-2 py-2.5">
           <View className="h-2 w-2 rounded-full bg-overdue-500" />
           <Text className="font-grotesk-medium text-sm text-ink-cream">
-            Recording… {formatDurationLabel(Math.round(recorderState.durationMillis / 1000))}
+            {t.chat.recording(formatDurationLabel(Math.round(recorderState.durationMillis / 1000)))}
           </Text>
         </View>
       ) : isTranscribing ? (
         <View className="flex-1 py-2.5">
-          <Text className="font-grotesk-medium text-sm text-ink-cream-muted">Transcribing…</Text>
+          <Text className="font-grotesk-medium text-sm text-ink-cream-muted">{t.chat.transcribing}</Text>
         </View>
       ) : (
         <TextInput
           value={value}
           onChangeText={onChangeText}
-          placeholder="Type, speak, or take a picture of tasks..."
+          placeholder={t.chat.inputPlaceholder}
           placeholderTextColor={colors.ink.creamMuted}
           multiline
           style={{ textAlignVertical: "center", maxHeight: 100, paddingVertical: 8 }}
@@ -168,7 +164,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment, isTransc
       <AnimatedPressable
         onPress={isRecording ? handleMicPress : onSend}
         accessibilityRole="button"
-        accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
+        accessibilityLabel={isRecording ? t.chat.stopRecording : t.chat.send}
         disabled={isTranscribing || (!isRecording && !canSend)}
         hitSlop={4}
         className="mr-2 h-11 w-11 items-center justify-center rounded-2xl bg-orange-500"

@@ -5,6 +5,7 @@ import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Te
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { CATEGORY_COLOR_OPTIONS, getCategoryTint, isBuiltInCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { Category, CategoryColor } from "@/types/category";
@@ -26,6 +27,7 @@ function CategoryForm({
   onSubmit: (label: string, color: CategoryColor) => string | null;
   onCancel?: () => void;
 }) {
+  const t = useTranslation();
   const [label, setLabel] = useState(initialLabel);
   const [color, setColor] = useState<CategoryColor>(initialColor);
   const [error, setError] = useState<string | null>(null);
@@ -49,7 +51,7 @@ function CategoryForm({
           setLabel(text);
           setError(null);
         }}
-        placeholder="e.g. Fitness, Health, Client Work, Side Projects"
+        placeholder={t.manageCategories.namePlaceholder}
         placeholderTextColor={colors.ink.creamSubtle}
         maxLength={24}
         returnKeyType="done"
@@ -58,7 +60,7 @@ function CategoryForm({
       />
 
       <View className="gap-3">
-        <Text className="font-grotesk-semibold text-[15px] text-ink-cream-muted">Color Theme</Text>
+        <Text className="font-grotesk-semibold text-[15px] text-ink-cream-muted">{t.manageCategories.colorTheme}</Text>
         {swatchRows.map((row) => (
           <View key={row[0].value} className="flex-row gap-2">
             {row.map((option) => {
@@ -69,7 +71,7 @@ function CategoryForm({
                   onPress={() => setColor(option.value)}
                   accessibilityRole="radio"
                   accessibilityState={{ selected }}
-                  accessibilityLabel={option.label}
+                  accessibilityLabel={t.categories.colors[option.value]}
                   className={
                     selected
                       ? "flex-1 flex-row items-center gap-1.5 rounded-full border-2 border-charcoal-900 bg-cream-50 px-2.5 py-2"
@@ -81,7 +83,7 @@ function CategoryForm({
                     style={{ backgroundColor: getCategoryTint(option.value)[500] }}
                   />
                   <Text numberOfLines={1} className="flex-1 font-grotesk-medium text-sm text-ink-cream">
-                    {option.label}
+                    {t.categories.colors[option.value]}
                   </Text>
                 </AnimatedPressable>
               );
@@ -95,7 +97,7 @@ function CategoryForm({
       <View className="flex-row items-center justify-end gap-4">
         {onCancel ? (
           <AnimatedPressable onPress={onCancel} hitSlop={8} accessibilityRole="button" className="px-2 py-3">
-            <Text className="font-grotesk-semibold text-[15px] text-ink-cream-muted">Cancel</Text>
+            <Text className="font-grotesk-semibold text-[15px] text-ink-cream-muted">{t.common.cancel}</Text>
           </AnimatedPressable>
         ) : null}
         <AnimatedPressable
@@ -113,6 +115,7 @@ function CategoryForm({
 
 /** Settings → Task categories: rename, recolor, star a default, add, delete, reset. */
 export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
+  const t = useTranslation();
   const categories = useCategoryStore((state) => state.categories);
   const defaultCategoryId = useCategoryStore((state) => state.defaultCategoryId);
   const addCategory = useCategoryStore((state) => state.addCategory);
@@ -131,12 +134,15 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
 
   const validate = (label: string, exceptId?: string): string | null => {
     const trimmed = label.trim();
-    if (!trimmed) return "Give the category a name.";
+    if (!trimmed) return t.manageCategories.nameRequired;
     const duplicate = categories.some(
       (category) => category.id !== exceptId && category.label.toLowerCase() === trimmed.toLowerCase(),
     );
-    return duplicate ? `You already have a category called "${trimmed}".` : null;
+    return duplicate ? t.manageCategories.duplicate(trimmed) : null;
   };
+
+  // Where orphaned tasks go — "Other", under whatever name it has right now.
+  const fallbackLabel = categories.find((category) => category.id === "other")?.label ?? t.categories.defaults.other;
 
   const handleAdd = (label: string, color: CategoryColor) => {
     const error = validate(label);
@@ -157,25 +163,26 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
   const handleDelete = (category: Category) => {
     const taskCount = tasks.filter((task) => task.category === category.id).length;
     Alert.alert(
-      `Delete "${category.label}"?`,
+      t.manageCategories.deleteTitle(category.label),
       taskCount > 0
-        ? `${taskCount} ${taskCount === 1 ? "task" : "tasks"} in it will move to Other.`
-        : "No tasks use this category.",
+        ? t.manageCategories.deleteBodyTasks(taskCount, fallbackLabel)
+        : t.manageCategories.deleteBodyEmpty,
       [
-        { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => deleteCategory(category.id) },
+        { text: t.common.cancel, style: "cancel" },
+        { text: t.common.delete, style: "destructive", onPress: () => deleteCategory(category.id) },
       ],
     );
   };
 
   const handleReset = () => {
+    const { school, work, personal, other } = t.categories.defaults;
     Alert.alert(
-      "Reset categories?",
-      "This restores School, Work, Personal and Other with their original names and colors. Tasks in categories you created move to Other.",
+      t.manageCategories.resetTitle,
+      t.manageCategories.resetBody(`${school}, ${work}, ${personal} ${t.manageCategories.and} ${other}`, other),
       [
-        { text: "Cancel", style: "cancel" },
+        { text: t.common.cancel, style: "cancel" },
         {
-          text: "Reset",
+          text: t.manageCategories.reset,
           style: "destructive",
           onPress: () => {
             resetDefaults();
@@ -201,17 +208,15 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
           <View className="flex-row items-start gap-4 px-6 pt-7">
             <View className="flex-1 gap-1.5">
               <Text className="font-grotesk-bold text-[26px] leading-tight tracking-tight text-ink-cream">
-                Manage Categories
+                {t.manageCategories.title}
               </Text>
-              <Text className="font-grotesk-regular text-base text-ink-cream-muted">
-                Customize categories and colors for your tasks
-              </Text>
+              <Text className="font-grotesk-regular text-base text-ink-cream-muted">{t.manageCategories.subtitle}</Text>
             </View>
             <AnimatedPressable
               onPress={onClose}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Close"
+              accessibilityLabel={t.common.close}
               className="pt-2"
             >
               <Feather name="x" size={24} color={colors.ink.creamMuted} />
@@ -226,10 +231,12 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
           >
             <View className="flex-row items-center justify-between gap-3">
               <Text className="font-grotesk-bold text-[15px] tracking-[0.04em] text-ink-cream">
-                ACTIVE CATEGORIES ({categories.length})
+                {t.manageCategories.activeHeading(categories.length)}
               </Text>
               <AnimatedPressable onPress={handleReset} hitSlop={8} accessibilityRole="button">
-                <Text className="font-grotesk-medium text-[15px] text-ink-cream-muted underline">Reset defaults</Text>
+                <Text className="font-grotesk-medium text-[15px] text-ink-cream-muted underline">
+                  {t.manageCategories.resetDefaults}
+                </Text>
               </AnimatedPressable>
             </View>
 
@@ -245,7 +252,7 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
                       <CategoryForm
                         initialLabel={category.label}
                         initialColor={category.color}
-                        submitLabel="Save"
+                        submitLabel={t.common.save}
                         onSubmit={(label, color) => handleUpdate(category.id, label, color)}
                         onCancel={() => setEditingId(null)}
                       />
@@ -270,11 +277,13 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
 
                     <View className="flex-1 items-start gap-1">
                       <Text numberOfLines={1} className="font-grotesk-regular text-[15px] text-ink-cream-muted">
-                        {activeCount(category.id)} active
+                        {t.manageCategories.activeCount(activeCount(category.id))}
                       </Text>
                       {isDefault ? (
                         <View className="rounded-md bg-orange-100 px-2 py-0.5">
-                          <Text className="font-grotesk-semibold text-xs text-orange-600">Default</Text>
+                          <Text className="font-grotesk-semibold text-xs text-orange-600">
+                            {t.manageCategories.defaultBadge}
+                          </Text>
                         </View>
                       ) : null}
                     </View>
@@ -283,7 +292,11 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
                       <AnimatedPressable
                         onPress={() => setDefaultCategory(category.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={isDefault ? `${category.label} is the default` : `Make ${category.label} the default`}
+                        accessibilityLabel={
+                          isDefault
+                            ? t.manageCategories.isDefault(category.label)
+                            : t.manageCategories.makeDefault(category.label)
+                        }
                         className={
                           isDefault
                             ? "h-9 w-9 items-center justify-center rounded-lg bg-orange-100"
@@ -299,7 +312,7 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
                       <AnimatedPressable
                         onPress={() => setEditingId(category.id)}
                         accessibilityRole="button"
-                        accessibilityLabel={`Edit ${category.label}`}
+                        accessibilityLabel={t.manageCategories.edit(category.label)}
                         className="h-9 w-9 items-center justify-center"
                       >
                         <Feather name="edit-2" size={19} color={colors.ink.creamMuted} />
@@ -308,7 +321,7 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
                         onPress={() => handleDelete(category)}
                         disabled={!canDelete}
                         accessibilityRole="button"
-                        accessibilityLabel={`Delete ${category.label}`}
+                        accessibilityLabel={t.manageCategories.delete(category.label)}
                         className="h-9 w-9 items-center justify-center"
                         style={canDelete ? undefined : { opacity: 0.35 }}
                       >
@@ -323,12 +336,12 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
             <View className="mt-6 gap-4 rounded-2xl border border-cream-300 bg-cream-200/60 p-5">
               <View className="flex-row items-center gap-2.5">
                 <Feather name="plus" size={20} color={colors.orange[500]} />
-                <Text className="font-grotesk-semibold text-[17px] text-ink-cream">Add New Category</Text>
+                <Text className="font-grotesk-semibold text-[17px] text-ink-cream">{t.manageCategories.addNew}</Text>
               </View>
               <CategoryForm
                 key={addFormKey}
                 initialColor={suggestedColor}
-                submitLabel="Add Category"
+                submitLabel={t.manageCategories.addCategory}
                 onSubmit={handleAdd}
               />
             </View>

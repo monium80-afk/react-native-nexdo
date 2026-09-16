@@ -64,6 +64,124 @@ const MONTH_ALTERNATIVES = [
 
 type TimeOfDay = { hour: number; minute: number };
 
+// French deadline wording ("vendredi prochain à 19h", "dans trois jours") is
+// rewritten into the English phrasing the rules below already understand,
+// rather than maintaining a second parser. The AI is asked to send English
+// phrases already — this covers the user's own words, which the inbox route
+// re-reads when the model leaves a deadline out.
+const LETTER = "a-zà-ÿœæ";
+
+function frenchWord(pattern: string): RegExp {
+  // \b doesn't treat accented letters as word characters, so the boundary is spelled out.
+  return new RegExp(`(^|[^${LETTER}])(?:${pattern})(?![${LETTER}])`, "g");
+}
+
+const FRENCH_UNITS: Record<string, string> = { jour: "day", semaine: "week", mois: "month", heure: "hour", minute: "minute" };
+
+const FRENCH_WEEKDAYS: Record<string, string> = {
+  lundi: "monday",
+  mardi: "tuesday",
+  mercredi: "wednesday",
+  jeudi: "thursday",
+  vendredi: "friday",
+  samedi: "saturday",
+  dimanche: "sunday",
+};
+
+const FRENCH_MONTHS: Record<string, string> = {
+  janvier: "january",
+  "f[ée]vrier": "february",
+  mars: "march",
+  avril: "april",
+  mai: "may",
+  juin: "june",
+  juillet: "july",
+  "ao[uû]t": "august",
+  septembre: "september",
+  octobre: "october",
+  novembre: "november",
+  "d[ée]cembre": "december",
+};
+
+// "sept" is left out on purpose — it's also the English "sept 20".
+const FRENCH_NUMBERS: Record<string, string> = {
+  une: "1",
+  un: "1",
+  deux: "2",
+  trois: "3",
+  quatre: "4",
+  cinq: "5",
+  huit: "8",
+  neuf: "9",
+  dix: "10",
+  onze: "11",
+  douze: "12",
+};
+
+const FRENCH_PHRASES: [string, string][] = [
+  ["apr[èe]s[- ]demain", "day after tomorrow"],
+  ["demain", "tomorrow"],
+  ["aujourd['’]hui", "today"],
+  ["avant[- ]hier", "2 days ago"],
+  ["hier", "yesterday"],
+  ["ce soir", "tonight"],
+  ["ce matin", "this morning"],
+  ["cet apr[èe]s[- ]midi", "this afternoon"],
+  ["d[èe]s que possible|au plus vite|imm[ée]diatement|tout de suite", "asap"],
+  ["(?:la |en )?fin de (?:la )?semaine", "end of week"],
+  ["(?:la |en )?fin du mois", "end of month"],
+  ["(?:le )?week[- ]end prochain", "next weekend"],
+  ["(?:ce )?week[- ]end", "weekend"],
+  ["(?:la )?semaine prochaine", "next week"],
+  ["(?:la )?semaine derni[èe]re", "last week"],
+  ["cette semaine", "this week"],
+  ["(?:le )?mois prochain", "next month"],
+  ["(?:le )?mois dernier", "last month"],
+  // Before "midi" — "après-midi" contains it.
+  ["apr[èe]s[- ]midi", "afternoon"],
+  ["midi", "noon"],
+  ["minuit", "midnight"],
+  ["matin", "morning"],
+  ["soir(?:[ée]e)?", "evening"],
+];
+
+function normalizeFrenchDatePhrase(lower: string): string {
+  let text = lower;
+
+  for (const [word, digits] of Object.entries(FRENCH_NUMBERS)) {
+    text = text.replace(frenchWord(word), `$1${digits}`);
+  }
+  // "à 19h", "vers 7h30", "à 18 h 45" — always with minutes, so "at 7:00"
+  // stays 7am instead of being read as a bare evening "at 7".
+  text = text.replace(/(^|\s)(?:à|vers)\s*(\d{1,2})\s*h\s*(\d{2})?(?![0-9a-z])/g, (_, lead: string, hour: string, minute?: string) =>
+    `${lead}at ${hour}:${minute ?? "00"}`,
+  );
+  text = text.replace(/(\d{1,2})er(?![a-z])/g, "$1");
+  text = text.replace(
+    /(?:dans|d['’]ici)\s+(\d+)\s+(jour|semaine|mois|heure|minute)s?/g,
+    (_, count: string, unit: string) => `in ${count} ${FRENCH_UNITS[unit]}s`,
+  );
+  text = text.replace(
+    /il y a\s+(\d+)\s+(jour|semaine|mois|heure|minute)s?/g,
+    (_, count: string, unit: string) => `${count} ${FRENCH_UNITS[unit]}s ago`,
+  );
+
+  for (const [french, english] of FRENCH_PHRASES) {
+    text = text.replace(frenchWord(french), `$1${english}`);
+  }
+  for (const [french, english] of Object.entries(FRENCH_WEEKDAYS)) {
+    text = text
+      .replace(frenchWord(`${french} prochain`), `$1next ${english}`)
+      .replace(frenchWord(`${french} dernier`), `$1last ${english}`)
+      .replace(frenchWord(french), `$1${english}`);
+  }
+  for (const [french, english] of Object.entries(FRENCH_MONTHS)) {
+    text = text.replace(frenchWord(french), `$1${english}`);
+  }
+
+  return text;
+}
+
 // "7pm", "7 pm", "7 p.m.", "7:30am" — voice transcription writes the dotted form.
 const MERIDIEM_PATTERN = /\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/;
 const EXPLICIT_TIME_PATTERN = /\b(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?![a-z])|at\s+\d{1,2}(?::\d{2})?\b|\d{1,2}:\d{2}\b|noon\b|midday\b|midnight\b)/;
@@ -72,7 +190,7 @@ const EXPLICIT_TIME_PATTERN = /\b(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?
 // used so a deadline only shows a time when one was really said, rather
 // than the DEFAULT_HOUR filled in for a bare date.
 export function hasExplicitTime(text: string): boolean {
-  return EXPLICIT_TIME_PATTERN.test(text.toLowerCase());
+  return EXPLICIT_TIME_PATTERN.test(normalizeFrenchDatePhrase(text.toLowerCase()));
 }
 
 function toCount(word: string | undefined): number | undefined {
@@ -116,7 +234,7 @@ function extractTimeOfDay(lower: string): TimeOfDay | undefined {
 }
 
 export function parseDatePhrase(text: string, now: Date = new Date()): string | undefined {
-  const lower = text.toLowerCase();
+  const lower = normalizeFrenchDatePhrase(text.toLowerCase());
   const time = extractTimeOfDay(lower);
 
   const resolve = (date: Date, fallbackHour = DEFAULT_HOUR): string | undefined => {

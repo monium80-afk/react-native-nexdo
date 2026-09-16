@@ -8,6 +8,7 @@ import { analyzeTaskComplexity } from "@/lib/ai/analyzeComplexity";
 import { applyContextToTask } from "@/lib/ai/applyContext";
 import { generatePlan } from "@/lib/ai/generatePlan";
 import type { PlanStep, StructuredAction } from "@/lib/ai/types";
+import { translate } from "@/lib/i18n";
 import { PRIORITY_LEVEL_IMPORTANCE, createSkipRecord, recalcTask } from "@/lib/scoring";
 import { deleteTaskRow, fetchTasks, subscribeToTasks, upsertTaskRow } from "@/lib/supabaseSync";
 import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
@@ -572,6 +573,8 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       applyStructuredAction: (action) => {
+        // Named "copy" rather than "t" — "t" is already the loop variable for a task below.
+        const copy = translate().assistant;
         switch (action.type) {
           case "CREATE_TASK": {
             const ids = action.drafts.map((draft) =>
@@ -585,8 +588,8 @@ export const useTaskStore = create<TaskStore>()(
             );
             const message =
               action.drafts.length === 1
-                ? `Added "${action.drafts[0].title}" to your tasks.`
-                : `Added ${action.drafts.length} tasks: ${action.drafts.map((d) => d.title).join(", ")}.`;
+                ? copy.added(action.drafts[0].title)
+                : copy.addedMany(action.drafts.length, action.drafts.map((d) => d.title).join(", "));
             return { message, taskId: ids[0], taskIds: ids };
           }
           case "UPDATE_TASK": {
@@ -594,54 +597,54 @@ export const useTaskStore = create<TaskStore>()(
             get().updateTask(action.taskId, action.changes);
             const updatedTask = get().tasks.find((t) => t.id === action.taskId);
             return {
-              message: `Updated "${action.changes.title ?? updatedTask?.title ?? task?.title ?? "task"}".`,
+              message: copy.updated(action.changes.title ?? updatedTask?.title ?? task?.title ?? copy.fallbackTask),
               taskId: action.taskId,
             };
           }
           case "COMPLETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().completeTask(action.taskId);
-            return { message: `Marked "${task?.title ?? "task"}" as done.`, taskId: action.taskId };
+            return { message: copy.markedDone(task?.title ?? copy.fallbackTask), taskId: action.taskId };
           }
           case "COMPLETE_TASKS": {
             const pending = tasksInScope(get().tasks, "pending");
             pending.forEach((task) => get().completeTask(task.id));
-            return { message: `Marked ${describeTaskCount(pending.length, "all")} as done.` };
+            return { message: copy.markedAllDone(describeTaskCount(pending.length, "all")) };
           }
           case "DELETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().deleteTask(action.taskId);
-            return { message: `Deleted "${task?.title ?? "task"}".` };
+            return { message: copy.deleted(task?.title ?? copy.fallbackTask) };
           }
           case "DELETE_TASKS": {
             const matching = action.taskIds
               ? get().tasks.filter((task) => action.taskIds?.includes(task.id))
               : tasksInScope(get().tasks, action.scope);
             get().deleteTasks(matching.map((task) => task.id));
-            return { message: `Deleted ${describeTaskCount(matching.length, action.scope)}.` };
+            return { message: copy.deletedMany(describeTaskCount(matching.length, action.scope)) };
           }
           case "ADD_TASK_CONTEXT": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().addContext(action.taskId, action.note, action.estimatedMinutes);
-            return { message: `Got it — logged that on "${task?.title ?? "your task"}".`, taskId: action.taskId };
+            return { message: copy.loggedContext(task?.title ?? copy.fallbackYourTask), taskId: action.taskId };
           }
           case "RESCHEDULE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().updateTask(action.taskId, { dueDate: action.newDueDate });
-            return { message: `Rescheduled "${task?.title ?? "task"}".`, taskId: action.taskId };
+            return { message: copy.rescheduled(task?.title ?? copy.fallbackTask), taskId: action.taskId };
           }
           case "SKIP_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().skipTask(action.taskId, action.reason);
-            return { message: `Got it — I'll hold off suggesting "${task?.title ?? "that"}" for a bit.`, taskId: action.taskId };
+            return { message: copy.skipped(task?.title ?? copy.fallbackThat), taskId: action.taskId };
           }
           case "BREAKDOWN_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().applyPlanSteps(action.taskId, action.steps);
-            return { message: `Broke "${task?.title ?? "that"}" into ${action.steps.length} steps.`, taskId: action.taskId };
+            return { message: copy.brokeDown(task?.title ?? copy.fallbackThat, action.steps.length), taskId: action.taskId };
           }
           case "REDIRECT_NEXT":
-            return { message: `Set up the Next page for ${action.availableMinutes} minutes.` };
+            return { message: copy.redirectNext(action.availableMinutes) };
           case "QUERY":
             return { message: action.answer };
           case "CLARIFY":
