@@ -1,8 +1,8 @@
 import { useUser } from "@clerk/expo";
-import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
+import { Feather, Ionicons, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
@@ -13,7 +13,7 @@ import { SuggestionChip } from "@/components/SuggestionChip";
 import { TaskConfirmationCard } from "@/components/TaskConfirmationCard";
 import { colors } from "@/constants/theme";
 import type { ExtractTextRequestBody, ExtractTextResponseBody } from "@/app/api/extract-text+api";
-import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import { INBOX_QUICK_ACTIONS } from "@/data/aiPrompts";
 import { useTranslation } from "@/hooks/useTranslation";
 import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
@@ -49,6 +49,21 @@ function formatTime(iso: string, locale: string) {
   });
 }
 
+/** The signed-in account's photo, or a person icon when there isn't one. */
+function AccountAvatar({ size }: { size: "sm" | "md" }) {
+  const { user } = useUser();
+  const boxClass = size === "md" ? "h-11 w-11 rounded-full" : "h-8 w-8 rounded-full";
+
+  if (user?.hasImage) {
+    return <Image source={{ uri: user.imageUrl }} className={boxClass} />;
+  }
+  return (
+    <View className={`${boxClass} items-center justify-center bg-charcoal-900`}>
+      <Feather name="user" size={size === "md" ? 20 : 16} color={colors.ink.charcoal} />
+    </View>
+  );
+}
+
 function ChatBubble({ message }: { message: ChatMessage }) {
   const t = useTranslation();
 
@@ -77,9 +92,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
           {formatTime(message.createdAt, t.locale)}
         </Text>
       </View>
-      <View className="h-8 w-8 items-center justify-center rounded-full bg-charcoal-900">
-        <Feather name="user" size={16} color={colors.ink.charcoal} />
-      </View>
+      <AccountAvatar size="sm" />
     </Animated.View>
   );
 }
@@ -112,6 +125,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const confirmPendingActions = useChatStore((state) => state.confirmPendingActions);
   const confirmPendingDraft = useChatStore((state) => state.confirmPendingDraft);
   const confirmAllPendingDrafts = useChatStore((state) => state.confirmAllPendingDrafts);
+  const dismissPendingDraft = useChatStore((state) => state.dismissPendingDraft);
   const cancelPendingActions = useChatStore((state) => state.cancelPendingActions);
   const updatePendingDraft = useChatStore((state) => state.updatePendingDraft);
   const redirectToNext = useChatStore((state) => state.redirectToNext);
@@ -130,8 +144,6 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const aiAutoMode = useSettingsStore((state) => state.aiAutoMode);
   const analysisSeededFor = useRef<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
-
-  const hasUserReplied = messages.some((message) => message.role === "user");
 
   useEffect(() => {
     if (!contextTaskId || analysisSeededFor.current === contextTaskId) return;
@@ -220,8 +232,8 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.cream[100] }} edges={["top"]}>
       <View className="flex-row items-center gap-3 border-b border-cream-300 bg-cream-100 px-6 pb-4 pt-2">
-        <View className="h-11 w-11 items-center justify-center rounded-full bg-orange-100">
-          <GemLogo size={22} />
+        <View className="h-11 w-11 items-center justify-center rounded-full bg-orange-500">
+          <Ionicons name="chatbubbles" size={21} color={colors.cream[50]} />
         </View>
         <View className="flex-1">
           <Text className="text-card-title text-ink-cream">
@@ -238,6 +250,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
             )}
           </Text>
         </View>
+        <AccountAvatar size="md" />
       </View>
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === "ios" ? "padding" : undefined}>
@@ -266,7 +279,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                           key={`${index}-${draftIndex}`}
                           draft={draft}
                           onAdd={() => confirmPendingDraft(index, draftIndex)}
-                          onDismiss={cancelPendingActions}
+                          onDismiss={() => dismissPendingDraft(index, draftIndex)}
                           onChange={(patch) => updatePendingDraft(index, draftIndex, patch)}
                         />
                       ))
@@ -295,21 +308,6 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
             <Animated.View entering={FadeInUp.duration(240)} className="flex-row gap-2 pr-8">
               <SuggestionChip emoji="🎯" label={t.chat.openNext(redirectToNext.minutes)} onPress={handleOpenNext} />
             </Animated.View>
-          ) : null}
-
-          {!hasUserReplied && !contextTask ? (
-            <View className="gap-2.5 pr-8">
-              {INBOX_STARTER_SUGGESTIONS.map((suggestion, index) => (
-                <Animated.View key={suggestion.id} entering={FadeInUp.delay(index * 60).duration(240)}>
-                  <SuggestionChip
-                    emoji={suggestion.emoji}
-                    label={t.chat.starterSuggestions[suggestion.id]}
-                    fullWidth
-                    onPress={() => handleSend(t.chat.starterSuggestions[suggestion.id])}
-                  />
-                </Animated.View>
-              ))}
-            </View>
           ) : null}
         </ScrollView>
 

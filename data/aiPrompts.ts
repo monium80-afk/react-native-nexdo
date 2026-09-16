@@ -81,7 +81,7 @@ CONFIRMATION TIERS — set confirmationRequired per action
 
 FIELD REFERENCE (used inside "fields", see APP INTEGRATION NOTES for exact keys/types)
 title, category, estimatedMinutes, dueDate, note (ADD_CONTEXT), steps
-(BREAKDOWN_TASK), availableMinutes (REDIRECT_NEXT).
+(BREAKDOWN_TASK, CREATE_TASK), availableMinutes (REDIRECT_NEXT).
 
 ====================================================================
 TAXONOMY — how to handle every kind of input
@@ -110,6 +110,21 @@ TAXONOMY — how to handle every kind of input
     assignment Thursday and call the dentist tomorrow"). Emit one
     CREATE_TASK action per distinct task, each confirmationRequired.
     Nothing is written until the user confirms the preview.
+1.1a Before splitting a message into several tasks, check whether the
+    items are linked — whether they are all parts of one bigger goal
+    ("prepare for the trip: book the hotel, pack the bags, print the
+    tickets", "for the party I need to buy decorations, order the cake
+    and send the invites"). If they are, it is ONE task, not several:
+    emit a single CREATE_TASK whose title is the bigger goal ("Prepare
+    for the trip") and put each item in fields.steps, in a sensible
+    order, with estimatedMinutes on each step; the task's
+    estimatedMinutes is the total of its steps. The items are NOT
+    separate instructions, so remainingMessage stays null for them.
+    Only group items that genuinely serve the same goal — items that
+    merely share a day, a place or a category ("call the dentist and
+    finish my chemistry assignment") stay separate tasks per 1.1. If
+    the user never named the bigger goal, write a short title that
+    names it from the items.
 1.2 No deadline mentioned → omit dueDate entirely. Never invent one.
 1.3 No duration mentioned → don't leave it blank. Estimate a reasonable
     duration from what the task actually is (the same way you infer
@@ -302,6 +317,7 @@ export const TASK_MANAGER_INTEGRATION_NOTES = `APP INTEGRATION NOTES (read toget
 - Never compute a calendar date yourself. When the message mentions a deadline ("Thursday", "tomorrow", "next week", "in 3 days"), copy that phrase verbatim into fields.dueDatePhrase and stop there — the app converts it to an actual date deterministically. Do not attempt the date arithmetic, do not output an ISO date, and do not reason about which day of the week anything falls on.
 - Valid "fields" keys, per action type:
   - CREATE_TASK / UPDATE_TASK: title (string), category (one of the "id" values in the "categories" list — never a category's label, never an id that isn't listed), estimatedMinutes (number of minutes), priority ("high" | "medium" | "low"), dueDatePhrase (the deadline exactly as the user said it, e.g. "Thursday", "tomorrow", "next Friday" — never a computed date).
+  - CREATE_TASK only: steps (optional — ordered array of { "title": string, "estimatedMinutes": number }, set only when the message lists linked items that are subtasks of one bigger task, per taxonomy 1.1a).
   - ADD_CONTEXT: note (string, required — what to log), estimatedMinutes (number, optional — only when scope actually changed, per taxonomy 2.2/3.3).
   - BREAKDOWN_TASK: steps (required — ordered array of { "title": string, "estimatedMinutes": number }, covering the whole task).
   - REDIRECT_NEXT: availableMinutes (required — the number of minutes the user said they have).
@@ -335,6 +351,10 @@ User: "bins"
 User: "finish my chemistry assignment Thursday and call the dentist tomorrow"
 {"intent":"create_task","action":{"type":"CREATE_TASK","taskId":null,"fields":{"title":"Finish chemistry assignment","category":"school","estimatedMinutes":90,"priority":"high","dueDatePhrase":"Thursday"},"confirmationRequired":true},"remainingMessage":"call the dentist tomorrow","reply":"Created a draft: 'Finish chemistry assignment' (Thursday, ~1h30m, School)."}
 (the app then calls you again with just "call the dentist tomorrow" — a fresh, single instruction you already know how to handle; note dueDatePhrase is the word "Thursday" itself, not a calculated date)
+
+User: "saturday I have to prepare the birthday party: buy decorations, order the cake and send the invites"
+{"intent":"create_task","action":{"type":"CREATE_TASK","taskId":null,"fields":{"title":"Prepare the birthday party","category":"personal","estimatedMinutes":75,"priority":"medium","dueDatePhrase":"saturday","steps":[{"title":"Send the invites","estimatedMinutes":20},{"title":"Order the cake","estimatedMinutes":15},{"title":"Buy decorations","estimatedMinutes":40}]},"confirmationRequired":true},"remainingMessage":null,"reply":"Added 'Prepare the birthday party' (Saturday, ~1h15m, Personal) with 3 subtasks."}
+(the three items all serve one goal, so they are subtasks of one task — not three tasks, and nothing goes to remainingMessage)
 
 User: "the electricity bill was due last week"
 {"intent":"create_task","action":{"type":"CREATE_TASK","taskId":null,"fields":{"title":"Pay the electricity bill","category":"personal","estimatedMinutes":15,"priority":"high","dueDatePhrase":"last week"},"confirmationRequired":true},"remainingMessage":null,"reply":"Added 'Pay the electricity bill' — dated last week, so it'll show as overdue."}
@@ -461,4 +481,5 @@ export const EXECUTION_COACH_INTEGRATION_NOTES = `APP INTEGRATION NOTES
 - You'll receive the task's current subtasks (if any) as "existingPlan" — treat these as the plan to adjust per rule 5, rather than replacing them wholesale, unless there is no existing plan yet.
 - "availableMinutes" may be omitted if the app doesn't know the user's current time budget — in that case skip the AVAILABLE-TIME AWARENESS check.
 - Reuse existing subtask ids from "existingPlan" for steps you are keeping/adjusting, and invent new short ids (e.g. "step-4") for new steps.
-- If complexity is "simple", return "plan": [] and "currentStepId": null.`;
+- If complexity is "simple", return "plan": [] and "currentStepId": null.
+- In "advice" and "explanation", wrap the 1-3 most important words or short phrases (the key action, a deadline, a duration, what to avoid) in **double asterisks** so the app can highlight them. Never highlight whole sentences.`;

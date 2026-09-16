@@ -17,8 +17,7 @@ export function ProfileCard() {
   const { user } = useUser();
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [editingName, setEditingName] = useState(false);
-  const [firstName, setFirstName] = useState("");
-  const [lastName, setLastName] = useState("");
+  const [username, setUsername] = useState("");
   const [savingName, setSavingName] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -51,22 +50,23 @@ export function ProfileCard() {
   };
 
   const handleStartEditName = () => {
-    setFirstName(user?.firstName ?? "");
-    setLastName(user?.lastName ?? "");
+    setUsername(displayName ?? "");
     setError(null);
     setEditingName(true);
   };
 
   const handleSaveName = async () => {
     if (!user) return;
-    if (!firstName.trim()) {
+    if (!username.trim()) {
       setError(t.profile.nameRequired);
       return;
     }
     setSavingName(true);
     setError(null);
     try {
-      await user.update({ firstName: firstName.trim(), lastName: lastName.trim() });
+      // The username is kept in Clerk's firstName — it works on every Clerk
+      // instance, unlike the `username` attribute which must be enabled first.
+      await user.update({ firstName: username.trim(), lastName: "" });
       setEditingName(false);
     } catch (saveError) {
       console.warn("[ProfileCard] name update failed", saveError);
@@ -128,20 +128,13 @@ export function ProfileCard() {
       {editingName ? (
         <View className="card card--charcoal-inset gap-3 p-3.5">
           <TextInput
-            value={firstName}
-            onChangeText={setFirstName}
-            placeholder={t.profile.firstName}
+            value={username}
+            onChangeText={setUsername}
+            placeholder={t.profile.username}
             placeholderTextColor={colors.ink.charcoalMuted}
             autoFocus
-            autoComplete="given-name"
-            className="rounded-xl border border-charcoal-600 bg-charcoal-900 px-3.5 py-2.5 font-grotesk-medium text-sm text-ink-charcoal"
-          />
-          <TextInput
-            value={lastName}
-            onChangeText={setLastName}
-            placeholder={t.profile.lastName}
-            placeholderTextColor={colors.ink.charcoalMuted}
-            autoComplete="family-name"
+            autoCapitalize="none"
+            autoComplete="username"
             className="rounded-xl border border-charcoal-600 bg-charcoal-900 px-3.5 py-2.5 font-grotesk-medium text-sm text-ink-charcoal"
           />
           <View className="flex-row items-center justify-end gap-4">

@@ -66,6 +66,7 @@ function mapSingleAction(action: InboxAction, fallbackNote: string, categories: 
           dueDate: action.fields.dueDate,
           dueHasTime: action.fields.dueHasTime,
           priorityLevel,
+          steps: action.fields.steps,
         },
       ],
       confirmationTier: "confirm-required",

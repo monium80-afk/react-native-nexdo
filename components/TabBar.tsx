@@ -41,7 +41,7 @@ function TabIcon({
     case "tasks":
       return <Feather name="clipboard" size={size} color={color} />;
     case "ai-chat":
-      return <Feather name="archive" size={size} color={color} />;
+      return <Feather name="message-circle" size={size} color={color} />;
     case "settings":
       return <Feather name="settings" size={size} color={color} />;
   }

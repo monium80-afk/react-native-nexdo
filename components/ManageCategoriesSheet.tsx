@@ -1,16 +1,15 @@
-import { Feather, Ionicons } from "@expo/vector-icons";
+import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { CATEGORY_COLOR_OPTIONS, getCategoryTint, isBuiltInCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { useTranslation } from "@/hooks/useTranslation";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { Category, CategoryColor } from "@/types/category";
-
-const SWATCH_ROW_SIZE = 4;
 
 /** Name + color picker, shared by "Add New Category" and editing an existing row. */
 function CategoryForm({
@@ -31,11 +30,6 @@ function CategoryForm({
   const [label, setLabel] = useState(initialLabel);
   const [color, setColor] = useState<CategoryColor>(initialColor);
   const [error, setError] = useState<string | null>(null);
-
-  const swatchRows: (typeof CATEGORY_COLOR_OPTIONS)[] = [];
-  for (let i = 0; i < CATEGORY_COLOR_OPTIONS.length; i += SWATCH_ROW_SIZE) {
-    swatchRows.push(CATEGORY_COLOR_OPTIONS.slice(i, i + SWATCH_ROW_SIZE));
-  }
 
   const handleSubmit = () => {
     const message = onSubmit(label, color);
@@ -61,35 +55,7 @@ function CategoryForm({
 
       <View className="gap-3">
         <Text className="font-grotesk-semibold text-[15px] text-ink-cream-muted">{t.manageCategories.colorTheme}</Text>
-        {swatchRows.map((row) => (
-          <View key={row[0].value} className="flex-row gap-2">
-            {row.map((option) => {
-              const selected = color === option.value;
-              return (
-                <AnimatedPressable
-                  key={option.value}
-                  onPress={() => setColor(option.value)}
-                  accessibilityRole="radio"
-                  accessibilityState={{ selected }}
-                  accessibilityLabel={t.categories.colors[option.value]}
-                  className={
-                    selected
-                      ? "flex-1 flex-row items-center gap-1.5 rounded-full border-2 border-charcoal-900 bg-cream-50 px-2.5 py-2"
-                      : "flex-1 flex-row items-center gap-1.5 rounded-full border-2 border-cream-300 bg-cream-50 px-2.5 py-2"
-                  }
-                >
-                  <View
-                    className="h-3 w-3 rounded-full"
-                    style={{ backgroundColor: getCategoryTint(option.value)[500] }}
-                  />
-                  <Text numberOfLines={1} className="flex-1 font-grotesk-medium text-sm text-ink-cream">
-                    {t.categories.colors[option.value]}
-                  </Text>
-                </AnimatedPressable>
-              );
-            })}
-          </View>
-        ))}
+        <ColorSwatchPicker selected={color} onSelect={setColor} />
       </View>
 
       {error ? <Text className="font-grotesk-medium text-sm text-overdue-500">{error}</Text> : null}
@@ -113,15 +79,13 @@ function CategoryForm({
   );
 }
 
-/** Settings → Task categories: rename, recolor, star a default, add, delete, reset. */
+/** Settings → Task categories: rename, recolor, add, delete, reset. */
 export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; onClose: () => void }) {
   const t = useTranslation();
   const categories = useCategoryStore((state) => state.categories);
-  const defaultCategoryId = useCategoryStore((state) => state.defaultCategoryId);
   const addCategory = useCategoryStore((state) => state.addCategory);
   const updateCategory = useCategoryStore((state) => state.updateCategory);
   const deleteCategory = useCategoryStore((state) => state.deleteCategory);
-  const setDefaultCategory = useCategoryStore((state) => state.setDefaultCategory);
   const resetDefaults = useCategoryStore((state) => state.resetDefaults);
   const tasks = useTaskStore((state) => state.tasks);
 
@@ -243,7 +207,6 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
             <View className="mt-4 gap-3">
               {categories.map((category) => {
                 const tint = getCategoryTint(category.color);
-                const isDefault = category.id === defaultCategoryId;
                 const canDelete = categories.length > 1 && !isBuiltInCategoryId(category.id);
 
                 if (editingId === category.id) {
@@ -279,36 +242,9 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
                       <Text numberOfLines={1} className="font-grotesk-regular text-[15px] text-ink-cream-muted">
                         {t.manageCategories.activeCount(activeCount(category.id))}
                       </Text>
-                      {isDefault ? (
-                        <View className="rounded-md bg-orange-100 px-2 py-0.5">
-                          <Text className="font-grotesk-semibold text-xs text-orange-600">
-                            {t.manageCategories.defaultBadge}
-                          </Text>
-                        </View>
-                      ) : null}
                     </View>
 
                     <View className="flex-row items-center">
-                      <AnimatedPressable
-                        onPress={() => setDefaultCategory(category.id)}
-                        accessibilityRole="button"
-                        accessibilityLabel={
-                          isDefault
-                            ? t.manageCategories.isDefault(category.label)
-                            : t.manageCategories.makeDefault(category.label)
-                        }
-                        className={
-                          isDefault
-                            ? "h-9 w-9 items-center justify-center rounded-lg bg-orange-100"
-                            : "h-9 w-9 items-center justify-center rounded-lg"
-                        }
-                      >
-                        {isDefault ? (
-                          <Ionicons name="star" size={20} color={colors.orange[500]} />
-                        ) : (
-                          <Feather name="star" size={19} color={colors.ink.creamMuted} />
-                        )}
-                      </AnimatedPressable>
                       <AnimatedPressable
                         onPress={() => setEditingId(category.id)}
                         accessibilityRole="button"

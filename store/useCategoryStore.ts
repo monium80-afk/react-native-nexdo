@@ -36,7 +36,8 @@ type CategoryStore = {
   categories: Category[];
   /** Pre-selected for new tasks — the starred category in Manage Categories. */
   defaultCategoryId: string;
-  addCategory: (label: string, color: CategoryColor) => void;
+  /** Returns the new category's id, or undefined when the label is empty. */
+  addCategory: (label: string, color: CategoryColor) => string | undefined;
   updateCategory: (id: string, changes: Pick<Category, "label" | "color">) => void;
   /** The last remaining category can't be deleted; a deleted category's tasks move to "Other". */
   deleteCategory: (id: string) => void;
@@ -54,8 +55,10 @@ export const useCategoryStore = create<CategoryStore>()(
 
       addCategory: (label, color) => {
         const trimmed = label.trim();
-        if (!trimmed) return;
-        set((state) => ({ categories: [...state.categories, { id: createCategoryId(), label: trimmed, color }] }));
+        if (!trimmed) return undefined;
+        const id = createCategoryId();
+        set((state) => ({ categories: [...state.categories, { id, label: trimmed, color }] }));
+        return id;
       },
 
       updateCategory: (id, changes) => {

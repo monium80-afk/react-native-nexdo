@@ -6,34 +6,44 @@ import { KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } fro
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { ColorSwatchPicker } from "@/components/ColorSwatchPicker";
 import { GemLogo } from "@/components/GemLogo";
 import {
-  CategoryPicker,
-  computeDeadlineDate,
-  DEADLINE_OPTIONS,
-  DeadlineChip,
-  DURATION_OPTIONS,
-  DurationChip,
-  parseCustomDeadline,
-  PriorityCard,
-  SectionHeader,
-  type DeadlineValue,
+    CategoryPicker,
+    computeDeadlineDate,
+    DEADLINE_OPTIONS,
+    DeadlineChip,
+    DeadlineDatePicker,
+    DURATION_OPTIONS,
+    DurationChip,
+    PriorityCard,
+    SectionHeader,
+    type DeadlineValue,
 } from "@/components/TaskFormFields";
-import { resolveCategoryId } from "@/constants/categories";
+import { CATEGORY_COLOR_OPTIONS, resolveCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { useTranslation } from "@/hooks/useTranslation";
-import { formatDuration } from "@/lib/formatDuration";
+import { useVoiceTranscription } from "@/hooks/useVoiceTranscription";
 import { posthog } from "@/lib/posthog";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
-import type { TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
+import type { CategoryColor } from "@/types/category";
+import type { TaskCategory, TaskPriorityLevel } from "@/types/task";
 
 const PRIORITY_OPTIONS: TaskPriorityLevel[] = ["high", "medium", "low"];
 
-const STEP_DURATIONS = [15, 30, 45, 60, 90, 120];
+// Steps have no time of their own — the task's duration is split between them on save.
+type StepDraft = { id: string; label: string };
 
 function createStepId(): string {
   return `step-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
+}
+
+function defaultCustomDeadline(): Date {
+  const date = new Date();
+  date.setDate(date.getDate() + 1);
+  date.setHours(18, 0, 0, 0);
+  return date;
 }
 
 export default function Add() {
@@ -42,14 +52,20 @@ export default function Add() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const addTask = useTaskStore((state) => state.addTask);
+  const categories = useCategoryStore((state) => state.categories);
+  const addCategory = useCategoryStore((state) => state.addCategory);
 
   const [title, setTitle] = useState("");
   const [titleTouched, setTitleTouched] = useState(false);
-  // Starts on the category starred as default in Settings → Manage Categories.
   const [category, setCategory] = useState<TaskCategory>(() => {
     const { categories, defaultCategoryId } = useCategoryStore.getState();
     return resolveCategoryId(categories, defaultCategoryId);
   });
+
+  const [newCategoryOpen, setNewCategoryOpen] = useState(false);
+  const [newCategoryLabel, setNewCategoryLabel] = useState("");
+  const [newCategoryColor, setNewCategoryColor] = useState<CategoryColor>("terracotta");
+  const [newCategoryError, setNewCategoryError] = useState<string | null>(null);
 
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [customDurationOpen, setCustomDurationOpen] = useState(false);
@@ -58,14 +74,17 @@ export default function Add() {
 
   const [deadlineValue, setDeadlineValue] = useState<DeadlineValue>("tomorrow");
   const [customDeadlineOpen, setCustomDeadlineOpen] = useState(false);
-  const [customDeadlineText, setCustomDeadlineText] = useState("");
-  const [customDeadlineError, setCustomDeadlineError] = useState(false);
+  const [customDeadline, setCustomDeadline] = useState<Date>(defaultCustomDeadline);
 
   const [priorityLevel, setPriorityLevel] = useState<TaskPriorityLevel>("high");
 
-  const [steps, setSteps] = useState<TaskStep[]>([]);
+  const [steps, setSteps] = useState<StepDraft[]>([]);
   const [stepDraftLabel, setStepDraftLabel] = useState("");
-  const [stepDraftMinutes, setStepDraftMinutes] = useState(15);
+
+  // What was said lands in the step input, so it can be checked before adding.
+  const voice = useVoiceTranscription((transcript) =>
+    setStepDraftLabel((current) => (current.trim() ? `${current.trimEnd()} ${transcript}` : transcript)),
+  );
 
   const [notes, setNotes] = useState("");
 
@@ -79,17 +98,42 @@ export default function Add() {
     setCustomDurationError(false);
   };
 
-  const handleCycleStepDuration = () => {
-    setStepDraftMinutes((current) => {
-      const index = STEP_DURATIONS.indexOf(current);
-      return STEP_DURATIONS[(index + 1) % STEP_DURATIONS.length];
-    });
+  const handleToggleNewCategory = () => {
+    if (!newCategoryOpen) {
+      // Suggest a color no category uses yet.
+      const usedColors = categories.map((item) => item.color);
+      const unused = CATEGORY_COLOR_OPTIONS.find((option) => !usedColors.includes(option.value));
+      setNewCategoryColor(unused?.value ?? "terracotta");
+    }
+    setNewCategoryOpen((open) => !open);
+    setNewCategoryError(null);
+  };
+
+  const handleAddCategory = () => {
+    const label = newCategoryLabel.trim();
+    if (!label) {
+      setNewCategoryError(t.manageCategories.nameRequired);
+      return;
+    }
+    if (categories.some((item) => item.label.toLowerCase() === label.toLowerCase())) {
+      setNewCategoryError(t.manageCategories.duplicate(label));
+      return;
+    }
+    const id = addCategory(label, newCategoryColor);
+    if (id) setCategory(id);
+    setNewCategoryLabel("");
+    setNewCategoryOpen(false);
+  };
+
+  const handleToggleCustomDeadline = () => {
+    if (!customDeadlineOpen) setCustomDeadline(computeDeadlineDate(deadlineValue) ?? defaultCustomDeadline());
+    setCustomDeadlineOpen((open) => !open);
   };
 
   const handleAddStep = () => {
     const label = stepDraftLabel.trim();
     if (!label) return;
-    setSteps((current) => [...current, { id: createStepId(), label, estimatedMinutes: stepDraftMinutes }]);
+    setSteps((current) => [...current, { id: createStepId(), label }]);
     setStepDraftLabel("");
   };
 
@@ -126,17 +170,21 @@ export default function Add() {
     const estimatedMinutes = customDurationOpen && /^\d+$/.test(customDurationText.trim())
       ? Number.parseInt(customDurationText, 10)
       : durationMinutes;
-    if (customDurationOpen && (!Number.isInteger(estimatedMinutes) || estimatedMinutes <= 0)) {
+    if (
+      !Number.isInteger(estimatedMinutes) ||
+      estimatedMinutes <= 0 ||
+      (steps.length > 0 && estimatedMinutes < steps.length)
+    ) {
       setCustomDurationError(true);
       return;
     }
 
-    const customDeadline = customDeadlineOpen ? parseCustomDeadline(customDeadlineText) : undefined;
-    if (customDeadlineOpen && !customDeadline) {
-      setCustomDeadlineError(true);
-      return;
-    }
     const dueDate = (customDeadlineOpen ? customDeadline : computeDeadlineDate(deadlineValue))?.toISOString();
+
+    // Subtasks still need minutes behind the scenes (the remaining-time math
+    // runs on them), so the task's duration is shared out evenly.
+    const minutesPerStep = steps.length > 0 ? Math.floor(estimatedMinutes / steps.length) : 0;
+    const remainderMinutes = steps.length > 0 ? estimatedMinutes % steps.length : 0;
 
     addTask({
       title: trimmedTitle,
@@ -145,7 +193,10 @@ export default function Add() {
       dueDate,
       priorityLevel,
       notes,
-      steps,
+      steps: steps.map((step, index) => ({
+        ...step,
+        estimatedMinutes: minutesPerStep + (index < remainderMinutes ? 1 : 0),
+      })),
     });
 
     posthog.capture("task_created", {
@@ -213,8 +264,38 @@ export default function Add() {
               </View>
 
               <View className="gap-3">
-                <Text className="eyebrow text-ink-cream">{t.form.category}</Text>
+                <SectionHeader
+                  icon={<Feather name="tag" size={14} color={colors.orange[500]} />}
+                  label={t.form.category}
+                  action={{ label: newCategoryOpen ? t.common.cancel : `+ ${t.form.newCategory}`, onPress: handleToggleNewCategory }}
+                />
                 <CategoryPicker selectedId={category} onSelect={setCategory} />
+                {newCategoryOpen ? (
+                  <View className="gap-3 rounded-2xl border border-cream-300 bg-cream-100 p-4">
+                    <TextInput
+                      value={newCategoryLabel}
+                      onChangeText={(text) => {
+                        setNewCategoryLabel(text);
+                        setNewCategoryError(null);
+                      }}
+                      placeholder={t.manageCategories.namePlaceholder}
+                      placeholderTextColor={colors.ink.creamMuted}
+                      maxLength={24}
+                      autoFocus
+                      returnKeyType="done"
+                      onSubmitEditing={handleAddCategory}
+                      className="rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
+                    />
+                    <ColorSwatchPicker selected={newCategoryColor} onSelect={setNewCategoryColor} />
+                    {newCategoryError ? (
+                      <Text className="font-grotesk-medium text-xs text-overdue-500">{newCategoryError}</Text>
+                    ) : null}
+                    <AnimatedPressable onPress={handleAddCategory} className="btn btn--primary flex-row gap-2 py-3">
+                      <Feather name="plus" size={16} color={colors.cream[50]} />
+                      <Text className="font-grotesk-bold text-sm text-cream-50">{t.manageCategories.addCategory}</Text>
+                    </AnimatedPressable>
+                  </View>
+                ) : null}
               </View>
 
               <View className="gap-3">
@@ -258,7 +339,7 @@ export default function Add() {
                 <SectionHeader
                   icon={<Feather name="calendar" size={14} color={colors.orange[500]} />}
                   label={t.form.deadline}
-                  action={{ label: t.form.specificDate, onPress: () => setCustomDeadlineOpen((open) => !open) }}
+                  action={{ label: t.form.pickDate, onPress: handleToggleCustomDeadline }}
                 />
                 <View className="flex-row flex-wrap gap-2">
                   {DEADLINE_OPTIONS.map((value) => (
@@ -274,22 +355,7 @@ export default function Add() {
                   ))}
                 </View>
                 {customDeadlineOpen ? (
-                  <View className="gap-1.5 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3">
-                    <TextInput
-                      value={customDeadlineText}
-                      onChangeText={(text) => {
-                        setCustomDeadlineText(text);
-                        setCustomDeadlineError(false);
-                      }}
-                      placeholder={t.form.dateFormat}
-                      placeholderTextColor={colors.ink.creamMuted}
-                      className="font-grotesk-regular text-sm text-ink-cream"
-                    />
-                    <Text className="font-grotesk-medium text-xs text-ink-cream-muted">{t.form.dateExample}</Text>
-                  </View>
-                ) : null}
-                {customDeadlineError ? (
-                  <Text className="font-grotesk-medium text-xs text-overdue-500">{t.form.dateError}</Text>
+                  <DeadlineDatePicker value={customDeadline} onChange={setCustomDeadline} />
                 ) : null}
               </View>
 
@@ -302,6 +368,7 @@ export default function Add() {
                   {PRIORITY_OPTIONS.map((level) => (
                     <PriorityCard
                       key={level}
+                      level={level}
                       title={t.form.priorities[level]}
                       selected={priorityLevel === level}
                       onPress={() => setPriorityLevel(level)}
@@ -320,19 +387,41 @@ export default function Add() {
                 </View>
 
                 <View className="flex-row items-center gap-2">
-                  <TextInput
-                    value={stepDraftLabel}
-                    onChangeText={setStepDraftLabel}
-                    placeholder={t.form.stepPlaceholder}
-                    placeholderTextColor={colors.ink.creamMuted}
-                    className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
-                  />
+                  {voice.isRecording || voice.isTranscribing ? (
+                    <View className="flex-1 flex-row items-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3">
+                      {voice.isRecording ? <View className="h-2 w-2 rounded-full bg-overdue-500" /> : null}
+                      <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
+                        {voice.isRecording ? t.chat.recording(voice.durationLabel) : t.chat.transcribing}
+                      </Text>
+                    </View>
+                  ) : (
+                    <TextInput
+                      value={stepDraftLabel}
+                      onChangeText={setStepDraftLabel}
+                      onSubmitEditing={handleAddStep}
+                      returnKeyType="done"
+                      placeholder={t.form.stepPlaceholder}
+                      placeholderTextColor={colors.ink.creamMuted}
+                      className="flex-1 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3 font-grotesk-regular text-sm text-ink-cream"
+                    />
+                  )}
                   <AnimatedPressable
-                    onPress={handleCycleStepDuration}
-                    className="flex-row items-center gap-1 rounded-2xl border border-cream-300 bg-cream-50 px-3 py-3"
+                    onPress={voice.toggleRecording}
+                    disabled={voice.isTranscribing}
+                    accessibilityRole="button"
+                    accessibilityLabel={voice.isRecording ? t.chat.stopRecording : t.chat.recordVoice}
+                    className={
+                      voice.isRecording
+                        ? "h-11 w-11 items-center justify-center rounded-2xl border border-overdue-500 bg-overdue-100"
+                        : "h-11 w-11 items-center justify-center rounded-2xl border border-cream-300 bg-cream-50"
+                    }
+                    style={{ opacity: voice.isTranscribing ? 0.4 : 1 }}
                   >
-                    <Text className="font-grotesk-medium text-sm text-ink-cream">{t.form.stepMinutes(stepDraftMinutes)}</Text>
-                    <Feather name="chevron-down" size={14} color={colors.ink.creamMuted} />
+                    <Feather
+                      name={voice.isRecording ? "square" : "mic"}
+                      size={voice.isRecording ? 15 : 18}
+                      color={voice.isRecording ? colors.overdue[500] : colors.ink.cream}
+                    />
                   </AnimatedPressable>
                   <AnimatedPressable
                     onPress={handleAddStep}
@@ -358,9 +447,6 @@ export default function Add() {
                         <Text className="font-grotesk-bold text-xs text-ink-cream-muted">{index + 1}.</Text>
                         <Text className="flex-1 font-grotesk-medium text-sm text-ink-cream" numberOfLines={1}>
                           {step.label}
-                        </Text>
-                        <Text className="font-grotesk-medium text-xs text-ink-cream-muted">
-                          {formatDuration(step.estimatedMinutes)}
                         </Text>
                         <AnimatedPressable onPress={() => handleRemoveStep(step.id)} hitSlop={8}>
                           <Feather name="x" size={14} color={colors.ink.creamMuted} />

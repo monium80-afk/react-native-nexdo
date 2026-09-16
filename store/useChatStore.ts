@@ -74,6 +74,7 @@ type ChatStore = {
   confirmPendingActions: () => void;
   confirmPendingDraft: (actionIndex: number, draftIndex: number) => void;
   confirmAllPendingDrafts: () => void;
+  dismissPendingDraft: (actionIndex: number, draftIndex: number) => void;
   cancelPendingActions: () => void;
   undoLastAction: () => void;
   clearRedirectToNext: () => void;
@@ -476,6 +477,18 @@ export const useChatStore = create<ChatStore>()(
 
           const result = executeAction({ type: "CREATE_TASK", drafts, confirmationTier: "confirm-required" });
           respondWith(result.message, result.taskId);
+        },
+
+        // "Cancel" on one card drops only that card's draft — the other
+        // drafts stay queued.
+        dismissPendingDraft: (actionIndex, draftIndex) => {
+          set((state) => ({
+            pendingActions: state.pendingActions.flatMap((item, index) => {
+              if (index !== actionIndex || item.action.type !== "CREATE_TASK") return [item];
+              const remainingDrafts = item.action.drafts.filter((_, i) => i !== draftIndex);
+              return remainingDrafts.length > 0 ? [{ ...item, action: { ...item.action, drafts: remainingDrafts } }] : [];
+            }),
+          }));
         },
 
         cancelPendingActions: () => {

@@ -1,11 +1,15 @@
-import type { ReactNode } from "react";
-import { Text, View } from "react-native";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useState, type ReactNode } from "react";
+import { Platform, Text, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import type { Category } from "@/types/category";
+import type { TaskPriorityLevel } from "@/types/task";
 
 export type DeadlineValue = "today" | "tomorrow" | "friday" | "weekend" | "nextWeek" | "none";
 
@@ -187,25 +191,148 @@ export function DeadlineChip({ label, selected, onPress }: { label: string; sele
   );
 }
 
-export function PriorityCard({ title, selected, onPress }: { title: string; selected: boolean; onPress: () => void }) {
+// Each level keeps its own color whether picked or not, so the three read
+// apart at a glance: high = overdue red, medium = amber, low = olive.
+const PRIORITY_STYLES: Record<TaskPriorityLevel, { idle: string; selected: string; text: string; color: string }> = {
+  high: {
+    idle: "flex-1 gap-2 rounded-2xl border border-overdue-500/40 bg-overdue-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-overdue-500 bg-overdue-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-overdue-500",
+    color: colors.overdue[500],
+  },
+  medium: {
+    idle: "flex-1 gap-2 rounded-2xl border border-amber-500/40 bg-amber-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-amber-500 bg-amber-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-amber-500",
+    color: colors.amber[500],
+  },
+  low: {
+    idle: "flex-1 gap-2 rounded-2xl border border-olive-500/40 bg-olive-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-olive-500 bg-olive-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-olive-500",
+    color: colors.olive[500],
+  },
+};
+
+const PRIORITY_ICONS: Record<TaskPriorityLevel, keyof typeof Ionicons.glyphMap> = {
+  high: "flame",
+  medium: "alert-circle",
+  low: "leaf",
+};
+
+export function PriorityCard({
+  level,
+  title,
+  selected,
+  onPress,
+}: {
+  level: TaskPriorityLevel;
+  title: string;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const style = PRIORITY_STYLES[level];
+
   return (
     <AnimatedPressable
       onPress={onPress}
       accessibilityRole="radio"
       accessibilityState={{ selected }}
-      className={
-        selected
-          ? "flex-1 rounded-2xl border border-orange-500 bg-orange-100 p-3.5"
-          : "flex-1 rounded-2xl border border-cream-300 bg-cream-100 p-3.5"
-      }
+      className={selected ? style.selected : style.idle}
     >
-      <Text
-        className={
-          selected ? "font-grotesk-bold text-sm text-orange-600" : "font-grotesk-bold text-sm text-ink-cream"
-        }
-      >
-        {title}
-      </Text>
+      <Ionicons name={PRIORITY_ICONS[level]} size={18} color={selected ? colors.cream[50] : style.color} />
+      <Text className={selected ? "font-grotesk-bold text-sm text-cream-50" : style.text}>{title}</Text>
     </AnimatedPressable>
+  );
+}
+
+/**
+ * A calendar for the deadline. iOS shows it inline; Android opens its native
+ * date dialog, then the time dialog, and shows the result as a tappable row.
+ */
+export function DeadlineDatePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
+  const t = useTranslation();
+  // Android opens onto the date dialog immediately and only commits once a valid
+  // time has been picked. Keep the selected date pending until the final deadline
+  // is valid, so cancelling the time picker leaves the current value alone.
+  const [androidPicker, setAndroidPicker] = useState<"date" | "time" | null>("date");
+  const [pendingDate, setPendingDate] = useState<Date | null>(null);
+
+  const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
+    const mode = androidPicker;
+    if (Platform.OS === "android") setAndroidPicker(null);
+    if (event.type === "dismissed" || !selected) {
+      if (Platform.OS === "android") {
+        setPendingDate(null);
+      }
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      const baseDate = pendingDate ?? value;
+
+      if (mode === "date") {
+        const nextPending = new Date(baseDate);
+        nextPending.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+        setPendingDate(nextPending);
+        setAndroidPicker("time");
+        return;
+      }
+
+      const next = new Date(baseDate);
+      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      if (next.getTime() < Date.now()) {
+        setPendingDate(null);
+        return;
+      }
+
+      setPendingDate(null);
+      onChange(next);
+      return;
+    }
+
+    const next = new Date(value);
+    next.setTime(selected.getTime());
+    onChange(next);
+  };
+
+  if (Platform.OS === "ios") {
+    return (
+      <View className="overflow-hidden rounded-2xl border border-cream-300 bg-cream-50 px-2">
+        <DateTimePicker
+          value={value}
+          mode="datetime"
+          display="inline"
+          minimumDate={new Date()}
+          accentColor={colors.orange[500]}
+          themeVariant="light"
+          onChange={handleChange}
+        />
+      </View>
+    );
+  }
+
+  const label = `${value.toLocaleDateString(t.locale, { weekday: "short", month: "short", day: "numeric" })} · ${value.toLocaleTimeString(t.locale, { hour: "2-digit", minute: "2-digit" })}`;
+
+  return (
+    <>
+      <AnimatedPressable
+        onPress={() => setAndroidPicker("date")}
+        className="flex-row items-center gap-3 rounded-2xl border border-orange-500 bg-orange-100 px-4 py-3.5"
+      >
+        <Feather name="calendar" size={16} color={colors.orange[600]} />
+        <Text className="flex-1 font-grotesk-semibold text-sm text-orange-600">{label}</Text>
+        <Text className="font-grotesk-semibold text-xs text-orange-600">{t.form.changeDate}</Text>
+      </AnimatedPressable>
+      {androidPicker ? (
+        <DateTimePicker
+          value={pendingDate ?? value}
+          mode={androidPicker}
+          display="default"
+          minimumDate={androidPicker === "date" ? new Date() : undefined}
+          onChange={handleChange}
+        />
+      ) : null}
+    </>
   );
 }

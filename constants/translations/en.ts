@@ -24,7 +24,7 @@ export const en = {
   tabs: {
     next: "Next",
     tasks: "Tasks",
-    inbox: "Inbox",
+    inbox: "Assistant",
     settings: "Settings",
     addTask: "Add task",
   },
@@ -109,6 +109,9 @@ export const en = {
     swapTasks: "Swap or pick different tasks",
     stepsCompleted: (done: number, total: number) => `${done}/${total} steps completed`,
     details: "Details",
+    swipeHint: "Swipe left or right for another task",
+    position: (index: number, total: number) => `${index} / ${total}`,
+    startTaskSession: "Start session",
     pickTasks: "PICK YOUR TASKS",
     useRecommended: "Use recommended",
   },
@@ -198,6 +201,8 @@ export const en = {
     subtasks: (done: number, total: number) => `Subtasks (${done}/${total})`,
     aiPlan: "AI plan",
     addSubtask: "Add subtask...",
+    editSubtask: (label: string) => `Edit ${label}`,
+    deleteSubtask: (label: string) => `Delete ${label}`,
     notes: "NOTES",
     contextTitle: "ADD CONTEXT FOR AI",
     contextBody: "The AI reads these notes when it gives advice on this task or breaks it down.",
@@ -219,6 +224,7 @@ export const en = {
     titlePlaceholder: "e.g. Complete Organic Chemistry lab writeup",
     titleRequired: "Task title is required.",
     category: "CATEGORY",
+    newCategory: "New category",
     duration: "ESTIMATED DURATION",
     customDuration: "Custom duration",
     minutesPlaceholder: "Minutes, e.g. 50",
@@ -226,6 +232,8 @@ export const en = {
     durationError: "Enter a positive whole number of minutes.",
     deadline: "DEADLINE",
     specificDate: "Specific date / time",
+    pickDate: "Pick on calendar",
+    changeDate: "Change",
     dateFormat: "YYYY-MM-DD HH:mm",
     dateExample: "e.g. 2026-09-15 14:30",
     dateError: "Enter a valid date and time.",
@@ -261,8 +269,8 @@ export const en = {
 
   chat: {
     welcome:
-      "Welcome to your Nexdo Inbox. Dump your thoughts, tasks, voice notes, or photos. You can also command your entire system here — tell me your situation ('I only have 30 minutes', 'I can't finish the project this weekend', or 'The dentist appointment is more important') and I will adapt your plan.",
-    inboxTitle: "Nexdo Inbox",
+      "Welcome to your Nexdo Assistant. Dump your thoughts, tasks, voice notes, or photos. You can also command your entire system here — tell me your situation ('I only have 30 minutes', 'I can't finish the project this weekend', or 'The dentist appointment is more important') and I will adapt your plan.",
+    inboxTitle: "Nexdo Assistant",
     contextSubtitle: "Ask me to analyze, adjust, or update this task.",
     activeTasksSuffix: " active tasks in queue",
     typing: "Typing…",
@@ -383,15 +391,14 @@ export const en = {
   },
 
   profile: {
-    addName: "Add your name",
+    addName: "Add a username",
     changePhoto: "Change profile photo",
-    editName: "Edit name",
-    firstName: "First name",
-    lastName: "Last name",
+    editName: "Edit username",
+    username: "Username",
     saving: "Saving…",
     photoError: "Couldn't update your photo. Try again.",
-    nameRequired: "Add at least a first name.",
-    nameError: "Couldn't save your name. Try again.",
+    nameRequired: "Add a username.",
+    nameError: "Couldn't save your username. Try again.",
   },
 
   manageCategories: {

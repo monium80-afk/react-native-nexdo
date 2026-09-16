@@ -22,7 +22,7 @@ export const fr: Translations = {
   tabs: {
     next: "Maintenant",
     tasks: "Tâches",
-    inbox: "Boîte de réception",
+    inbox: "Assistant",
     settings: "Réglages",
     addTask: "Ajouter une tâche",
   },
@@ -105,6 +105,9 @@ export const fr: Translations = {
     swapTasks: "Changer ou choisir d'autres tâches",
     stepsCompleted: (done: number, total: number) => `${done}/${total} ${plural(done, "étape terminée", "étapes terminées")}`,
     details: "Détails",
+    swipeHint: "Balayez à gauche ou à droite pour une autre tâche",
+    position: (index: number, total: number) => `${index} / ${total}`,
+    startTaskSession: "Démarrer la session",
     pickTasks: "CHOISISSEZ VOS TÂCHES",
     useRecommended: "Utiliser la recommandation",
   },
@@ -195,6 +198,8 @@ export const fr: Translations = {
     subtasks: (done: number, total: number) => `Sous-tâches (${done}/${total})`,
     aiPlan: "Plan IA",
     addSubtask: "Ajouter une sous-tâche...",
+    editSubtask: (label: string) => `Modifier ${label}`,
+    deleteSubtask: (label: string) => `Supprimer ${label}`,
     notes: "NOTES",
     contextTitle: "AJOUTER DU CONTEXTE POUR L'IA",
     contextBody: "L'IA lit ces notes lorsqu'elle donne des conseils sur cette tâche ou la découpe.",
@@ -216,6 +221,7 @@ export const fr: Translations = {
     titlePlaceholder: "ex. Rédiger le compte rendu de TP de chimie",
     titleRequired: "Le titre de la tâche est obligatoire.",
     category: "CATÉGORIE",
+    newCategory: "Nouvelle catégorie",
     duration: "DURÉE ESTIMÉE",
     customDuration: "Durée personnalisée",
     minutesPlaceholder: "Minutes, ex. 50",
@@ -223,6 +229,8 @@ export const fr: Translations = {
     durationError: "Saisissez un nombre entier de minutes supérieur à zéro.",
     deadline: "ÉCHÉANCE",
     specificDate: "Date / heure précise",
+    pickDate: "Choisir dans le calendrier",
+    changeDate: "Modifier",
     dateFormat: "AAAA-MM-JJ HH:mm",
     dateExample: "ex. 2026-09-15 14:30",
     dateError: "Saisissez une date et une heure valides.",
@@ -255,8 +263,8 @@ export const fr: Translations = {
 
   chat: {
     welcome:
-      "Bienvenue dans votre boîte Nexdo. Déposez-y vos pensées, tâches, notes vocales ou photos. Vous pouvez aussi piloter tout votre système ici — décrivez-moi votre situation (« Je n'ai que 30 minutes », « Je ne peux pas finir le projet ce week-end » ou « Le rendez-vous chez le dentiste est plus important ») et j'adapterai votre plan.",
-    inboxTitle: "Boîte Nexdo",
+      "Bienvenue dans votre Assistant Nexdo. Déposez-y vos pensées, tâches, notes vocales ou photos. Vous pouvez aussi piloter tout votre système ici — décrivez-moi votre situation (« Je n'ai que 30 minutes », « Je ne peux pas finir le projet ce week-end » ou « Le rendez-vous chez le dentiste est plus important ») et j'adapterai votre plan.",
+    inboxTitle: "Assistant Nexdo",
     contextSubtitle: "Demandez-moi d'analyser, d'ajuster ou de mettre à jour cette tâche.",
     activeTasksSuffix: " tâches actives en file",
     typing: "Écrit…",
@@ -380,15 +388,14 @@ export const fr: Translations = {
   },
 
   profile: {
-    addName: "Ajoutez votre nom",
+    addName: "Ajoutez un nom d'utilisateur",
     changePhoto: "Changer la photo de profil",
-    editName: "Modifier le nom",
-    firstName: "Prénom",
-    lastName: "Nom",
+    editName: "Modifier le nom d'utilisateur",
+    username: "Nom d'utilisateur",
     saving: "Enregistrement…",
     photoError: "Impossible de mettre à jour votre photo. Réessayez.",
-    nameRequired: "Ajoutez au moins un prénom.",
-    nameError: "Impossible d'enregistrer votre nom. Réessayez.",
+    nameRequired: "Ajoutez un nom d'utilisateur.",
+    nameError: "Impossible d'enregistrer votre nom d'utilisateur. Réessayez.",
   },
 
   manageCategories: {

@@ -5,6 +5,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { BreakdownSheet } from "@/components/BreakdownSheet";
+import { HighlightedText } from "@/components/HighlightedText";
 import { colors } from "@/constants/theme";
 import { useTaskAiAssist } from "@/hooks/useTaskAiAssist";
 import { useTranslation } from "@/hooks/useTranslation";
@@ -271,14 +272,18 @@ export function SessionRunTaskCard({
             {advice.status === "ready" ? (
               <View className="gap-2">
                 {advice.data.headline ? (
-                  <Text className="font-grotesk-semibold text-[15px] leading-6 text-ink-charcoal">
-                    {advice.data.headline}
-                  </Text>
+                  <HighlightedText
+                    text={advice.data.headline}
+                    className="font-grotesk-semibold text-[15px] leading-6 text-ink-charcoal"
+                    highlightClassName="font-grotesk-bold text-orange-500"
+                  />
                 ) : null}
                 {advice.data.detail ? (
-                  <Text className="font-grotesk-regular text-[15px] leading-6 text-ink-charcoal/80">
-                    {advice.data.detail}
-                  </Text>
+                  <HighlightedText
+                    text={advice.data.detail}
+                    className="font-grotesk-regular text-[15px] leading-6 text-ink-charcoal/80"
+                    highlightClassName="font-grotesk-bold text-orange-500"
+                  />
                 ) : null}
               </View>
             ) : null}

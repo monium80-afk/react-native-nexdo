@@ -150,6 +150,10 @@ type TaskStore = {
   reopenTask: (id: string) => void;
   completeStep: (taskId: string, stepId: string) => void;
   addSubtask: (taskId: string, label: string) => void;
+  /** Renames a subtask from Task Details. */
+  updateSubtask: (taskId: string, subtaskId: string, label: string) => void;
+  /** Removes a subtask and hands "current" to the next unfinished one if needed. */
+  deleteSubtask: (taskId: string, subtaskId: string) => void;
   addContext: (taskId: string, note: string, estimatedMinutesOverride?: number) => void;
   /** Replaces the task's AI context notes as-is — the Task Details note cards add, edit and remove through this. */
   setContextNotes: (taskId: string, notes: string[]) => void;
@@ -390,6 +394,66 @@ export const useTaskStore = create<TaskStore>()(
         if (updated) syncUpsert(updated, get().syncUserId);
       },
 
+      updateSubtask: (taskId, subtaskId, label) => {
+        const trimmed = label.trim();
+        if (!trimmed) return;
+        const now = new Date();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks?.map((subtask) =>
+                    subtask.id === subtaskId ? { ...subtask, label: trimmed } : subtask,
+                  ),
+                  updatedAt: now.toISOString(),
+                }
+              : t,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
+      deleteSubtask: (taskId, subtaskId) => {
+        const now = new Date();
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task?.subtasks) return;
+
+        const remaining = task.subtasks
+          .filter((subtask) => subtask.id !== subtaskId)
+          .sort((a, b) => a.order - b.order);
+        const hasCurrent = remaining.some((subtask) => subtask.status === "current");
+        const nextCurrentId = hasCurrent
+          ? undefined
+          : remaining.find((subtask) => subtask.status === "pending")?.id;
+        const subtasks: Subtask[] = remaining.map((subtask, index) => ({
+          ...subtask,
+          order: index,
+          status: subtask.id === nextCurrentId ? "current" : subtask.status,
+        }));
+        const hasUnfinished = subtasks.some((subtask) => subtask.status !== "completed");
+
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks,
+                    currentStepId: subtasks.find((subtask) => subtask.status === "current")?.id,
+                    estimatedMinutes: hasUnfinished ? remainingMinutes(subtasks) : t.estimatedMinutes,
+                    updatedAt: now.toISOString(),
+                  }
+                : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
       addContext: (taskId, note, estimatedMinutesOverride) => {
         const now = new Date();
         const task = get().tasks.find((t) => t.id === taskId);
@@ -584,6 +648,11 @@ export const useTaskStore = create<TaskStore>()(
                 estimatedMinutes: draft.estimatedMinutes,
                 dueDate: draft.dueDate,
                 priorityLevel: draft.priorityLevel,
+                steps: draft.steps?.map((step, index) => ({
+                  id: `subtask-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+                  label: step.title,
+                  estimatedMinutes: step.estimatedMinutes,
+                })),
               }),
             );
             const message =

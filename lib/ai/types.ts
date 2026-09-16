@@ -19,6 +19,9 @@ export type ExtractedTaskDraft = {
   // landed on medium, which — combined with no deadline — pinned every
   // AI-created task to the same priority score.
   priorityLevel: TaskPriorityLevel;
+  // Set when the message listed linked items that belong to this one task
+  // (taxonomy 1.1a) — they're saved as its subtasks instead of separate tasks.
+  steps?: PlanStep[];
 };
 
 export type ComplexityAnalysis = {

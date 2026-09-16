@@ -9,8 +9,13 @@ import type { Task } from "@/types/task";
 /** A short, bold takeaway plus the reasoning behind it — shown as two lines of different weight. */
 export type TaskAdvice = { headline: string; detail: string };
 
+/** Plain text for places that don't render highlights (the chat) — drops the **markers**. */
 export function adviceToText(advice: TaskAdvice): string {
-  return `${advice.headline} ${advice.detail}`.trim();
+  return `${advice.headline} ${advice.detail}`.replace(/\*\*/g, "").replace(/\\\*/g, "*").trim();
+}
+
+function escapeAdviceText(text: string): string {
+  return text.replace(/\*/g, "\\*");
 }
 
 // Layer B (Execution Coach) — see data/aiPrompts.ts and app/api/next+api.ts.
@@ -44,9 +49,10 @@ function generateAdviceHeuristic(task: Task): TaskAdvice {
   const t = translate();
   const currentSubtask = task.subtasks?.find((subtask) => subtask.status === "current");
 
+  // **markers** highlight the key words on the AI advice card, like the AI's own advice.
   const headline = currentSubtask
-    ? t.assistant.adviceDoNow(currentSubtask.label, formatDuration(currentSubtask.estimatedMinutes))
-    : t.assistant.adviceJustDo(task.title, formatDuration(task.estimatedMinutes));
+    ? t.assistant.adviceDoNow(`**${escapeAdviceText(currentSubtask.label)}**`, `**${formatDuration(currentSubtask.estimatedMinutes)}**`)
+    : t.assistant.adviceJustDo(`**${escapeAdviceText(task.title)}**`, `**${formatDuration(task.estimatedMinutes)}**`);
 
   const urgencyPhrase =
     task.priorityScore >= 85

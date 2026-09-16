@@ -1,6 +1,6 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from "react-native";
 import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -13,11 +13,9 @@ import { DeadlineChip, parseCustomDeadline } from "@/components/TaskFormFields";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
 import { useTranslation } from "@/hooks/useTranslation";
-import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
-import { useCategory, useCategoryStore } from "@/store/useCategoryStore";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { useCategory } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 
 // Labels live in the translations (taskDetail.postpone).
@@ -36,7 +34,6 @@ function computePostponeDate(currentDueDate: string | undefined, days: number, n
 
 export default function TaskDetail() {
   const t = useTranslation();
-  const language = useSettingsStore((state) => state.language);
   const router = useRouter();
   const { id } = useLocalSearchParams<{ id: string }>();
   const task = useTaskStore((state) => state.tasks.find((t) => t.id === id));
@@ -44,8 +41,9 @@ export default function TaskDetail() {
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const completeStep = useTaskStore((state) => state.completeStep);
   const addSubtask = useTaskStore((state) => state.addSubtask);
+  const updateSubtask = useTaskStore((state) => state.updateSubtask);
+  const deleteSubtask = useTaskStore((state) => state.deleteSubtask);
   const setContextNotes = useTaskStore((state) => state.setContextNotes);
-  const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
   const category = useCategory(task?.category ?? "");
   const enterStyle = useScreenEnterAnimation();
@@ -55,24 +53,8 @@ export default function TaskDetail() {
   const [editing, setEditing] = useState(false);
   const [customPostponeOpen, setCustomPostponeOpen] = useState(false);
   const [customPostponeText, setCustomPostponeText] = useState("");
-
-  const [advice, setAdvice] = useState("");
-
-  useEffect(() => {
-    if (!task) return;
-    let cancelled = false;
-    generateAdvice(task, useCategoryStore.getState().categories).then((result) => {
-      if (!cancelled) setAdvice(adviceToText(result));
-    });
-    return () => {
-      cancelled = true;
-    };
-    // Keyed on id/updatedAt (not the task object) — recalcAll gives every
-    // pending task a fresh object identity whenever any task mutates, and
-    // that would otherwise re-trigger a paid AI call on unrelated edits.
-    // language: the advice is re-asked for in the newly picked language.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, task?.updatedAt, language]);
+  const [editingSubtaskId, setEditingSubtaskId] = useState<string | null>(null);
+  const [editingSubtaskText, setEditingSubtaskText] = useState("");
 
   if (!task) {
     return (
@@ -118,6 +100,17 @@ export default function TaskDetail() {
     if (!trimmed) return;
     addSubtask(task.id, trimmed);
     setSubtaskDraft("");
+  };
+
+  const handleStartEditSubtask = (subtaskId: string, label: string) => {
+    setEditingSubtaskId(subtaskId);
+    setEditingSubtaskText(label);
+  };
+
+  const handleSaveSubtask = () => {
+    if (!editingSubtaskId || !editingSubtaskText.trim()) return;
+    updateSubtask(task.id, editingSubtaskId, editingSubtaskText);
+    setEditingSubtaskId(null);
   };
 
   const handleSendNote = () => {
@@ -269,59 +262,105 @@ export default function TaskDetail() {
             </>
           )}
 
-          <View className="gap-2 rounded-2xl bg-cream-200 p-5">
-            <View className="flex-row items-center gap-2">
-              <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
-              <Text className="font-grotesk-semibold text-sm text-orange-500">{t.taskDetail.rationaleTitle}</Text>
-            </View>
-            <Text className="text-quote text-ink-cream">
-              {advice ? `"${advice}"` : t.taskDetail.generatingAdvice}
-            </Text>
-          </View>
-
           <View className="gap-3">
-            <View className="flex-row items-center justify-between">
-              <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
-                {t.taskDetail.subtasks(completedSubtaskCount, orderedSubtasks.length)}
-              </Text>
-              <AnimatedPressable
-                onPress={() => regeneratePlan(task.id)}
-                className="flex-row items-center gap-1.5 rounded-2xl border border-orange-500 px-3 py-1.5"
-              >
-                <Feather name="list" size={13} color={colors.orange[500]} />
-                <Text className="font-grotesk-semibold text-xs text-orange-500">{t.taskDetail.aiPlan}</Text>
-              </AnimatedPressable>
-            </View>
+            <Text className="font-grotesk-medium text-sm text-ink-cream-muted">
+              {t.taskDetail.subtasks(completedSubtaskCount, orderedSubtasks.length)}
+            </Text>
 
             {orderedSubtasks.length > 0 ? (
               <View className="gap-2">
                 {orderedSubtasks.map((subtask) => {
                   const done = subtask.status === "completed";
-                  return (
-                    <AnimatedPressable
-                      key={subtask.id}
-                      onPress={() => task.status === "pending" && subtask.status === "current" && completeStep(task.id, subtask.id)}
-                      className="flex-row items-center gap-3 rounded-2xl bg-cream-200 px-4 py-3.5"
-                    >
+
+                  if (editingSubtaskId === subtask.id) {
+                    return (
                       <View
-                        className={
-                          done
-                            ? "h-6 w-6 items-center justify-center rounded-lg bg-orange-500"
-                            : "h-6 w-6 rounded-lg border-2 border-cream-300"
-                        }
+                        key={subtask.id}
+                        className="flex-row items-center gap-2 rounded-2xl border border-orange-500 bg-cream-50 py-1.5 pl-4 pr-1.5"
                       >
-                        {done ? <Feather name="check" size={14} color={colors.cream[50]} /> : null}
+                        <TextInput
+                          value={editingSubtaskText}
+                          onChangeText={setEditingSubtaskText}
+                          onSubmitEditing={handleSaveSubtask}
+                          returnKeyType="done"
+                          autoFocus
+                          className="flex-1 py-2 font-grotesk-semibold text-sm text-ink-cream"
+                        />
+                        <AnimatedPressable
+                          onPress={() => setEditingSubtaskId(null)}
+                          hitSlop={6}
+                          accessibilityRole="button"
+                          accessibilityLabel={t.common.cancel}
+                          className="h-9 w-9 items-center justify-center"
+                        >
+                          <Feather name="x" size={17} color={colors.ink.creamMuted} />
+                        </AnimatedPressable>
+                        <AnimatedPressable
+                          onPress={handleSaveSubtask}
+                          disabled={!editingSubtaskText.trim()}
+                          accessibilityRole="button"
+                          accessibilityLabel={t.common.save}
+                          className="h-9 w-9 items-center justify-center rounded-xl bg-orange-500"
+                        >
+                          <Feather name="check" size={17} color={colors.cream[50]} />
+                        </AnimatedPressable>
                       </View>
-                      <Text
-                        className={
-                          done
-                            ? "flex-1 font-grotesk-medium text-sm text-ink-cream-muted line-through"
-                            : "flex-1 font-grotesk-semibold text-sm text-ink-cream"
-                        }
+                    );
+                  }
+
+                  return (
+                    <View key={subtask.id} className="flex-row items-center gap-1 rounded-2xl bg-cream-200 py-1.5 pl-4 pr-1.5">
+                      <AnimatedPressable
+                        onPress={() => task.status === "pending" && subtask.status === "current" && completeStep(task.id, subtask.id)}
+                        className="flex-1 flex-row items-center gap-3 py-2"
                       >
-                        {subtask.label}
-                      </Text>
-                    </AnimatedPressable>
+                        <View
+                          className={
+                            done
+                              ? "h-6 w-6 items-center justify-center rounded-lg bg-orange-500"
+                              : "h-6 w-6 rounded-lg border-2 border-cream-300"
+                          }
+                        >
+                          {done ? <Feather name="check" size={14} color={colors.cream[50]} /> : null}
+                        </View>
+                        <Text
+                          className={
+                            done
+                              ? "flex-1 font-grotesk-medium text-sm text-ink-cream-muted line-through"
+                              : "flex-1 font-grotesk-semibold text-sm text-ink-cream"
+                          }
+                        >
+                          {subtask.label}
+                        </Text>
+                      </AnimatedPressable>
+                      <AnimatedPressable
+                        onPress={() => handleStartEditSubtask(subtask.id, subtask.label)}
+                        hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.taskDetail.editSubtask(subtask.label)}
+                        className="h-9 w-9 items-center justify-center"
+                      >
+                        <Feather name="edit-2" size={15} color={colors.ink.creamMuted} />
+                      </AnimatedPressable>
+                      <AnimatedPressable
+                        onPress={() =>
+                          Alert.alert(t.taskDetail.deleteConfirmTitle, t.taskDetail.deleteConfirmBody, [
+                            { text: t.common.cancel, style: "cancel" },
+                            {
+                              text: t.common.delete,
+                              style: "destructive",
+                              onPress: () => deleteSubtask(task.id, subtask.id),
+                            },
+                          ])
+                        }
+                        hitSlop={4}
+                        accessibilityRole="button"
+                        accessibilityLabel={t.taskDetail.deleteSubtask(subtask.label)}
+                        className="h-9 w-9 items-center justify-center"
+                      >
+                        <Feather name="trash-2" size={15} color={colors.ink.creamMuted} />
+                      </AnimatedPressable>
+                    </View>
                   );
                 })}
               </View>
