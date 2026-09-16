@@ -12,6 +12,9 @@ export type ExtractedTaskDraft = {
   category: TaskCategory;
   estimatedMinutes: number;
   dueDate?: string;
+  // True only when the user said a clock time ("at 7 p.m.") — otherwise
+  // dueDate's hour is just a default and the preview shows the date alone.
+  dueHasTime?: boolean;
   // Feeds `importance` in lib/scoring.ts. Without it every extracted task
   // landed on medium, which — combined with no deadline — pinned every
   // AI-created task to the same priority score.
@@ -34,6 +37,9 @@ export type StructuredAction =
       confirmationTier: ConfirmationTier;
     }
   | { type: "COMPLETE_TASK"; taskId: string; confirmationTier: "immediate" }
+  // "Mark all my tasks as done" — every pending task, resolved on-device.
+  // Applied immediately: it's reversible with undo, unlike a bulk delete.
+  | { type: "COMPLETE_TASKS"; confirmationTier: "immediate" }
   // Deletion is a direct, unambiguous command per the input taxonomy — it
   // executes immediately; ambiguity is handled by asking which task
   // (CLARIFY) rather than by a confirmation step.
@@ -41,7 +47,7 @@ export type StructuredAction =
   // Bulk removal ("remove all my completed tasks"). The scope is resolved
   // against the full task list on-device, and it's always confirmed first
   // since one message can wipe out every task.
-  | { type: "DELETE_TASKS"; scope: TaskScope; confirmationTier: "confirm-required" }
+  | { type: "DELETE_TASKS"; scope: TaskScope; taskIds?: string[]; confirmationTier: "confirm-required" }
   // estimatedMinutes is set alongside a note when added context changes the
   // task's scope (taxonomy 2.2) or shrinks it via partial progress (3.3).
   | { type: "ADD_TASK_CONTEXT"; taskId: string; note: string; estimatedMinutes?: number; confirmationTier: "safe" }

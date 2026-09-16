@@ -158,6 +158,11 @@ export async function upsertMessageRow(message: ChatMessage, userId: string): Pr
   if (error) throw error;
 }
 
+export async function deleteAllMessages(userId: string): Promise<void> {
+  const { error } = await supabase.from("chat_messages").delete().eq("user_id", userId);
+  if (error) throw error;
+}
+
 export function subscribeToMessages(userId: string, onChange: (message: ChatMessage, event: "INSERT" | "UPDATE") => void): RealtimeChannel {
   return supabase
     .channel(`chat_messages:${userId}`)

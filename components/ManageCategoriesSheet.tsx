@@ -1,9 +1,9 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useState } from "react";
-import { Alert, Modal, Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Modal, Platform, Pressable, ScrollView, Text, TextInput, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
-import { CATEGORY_COLOR_OPTIONS, getCategoryTint } from "@/constants/categories";
+import { CATEGORY_COLOR_OPTIONS, getCategoryTint, isBuiltInCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
@@ -192,11 +192,12 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="scrim flex-1 justify-center px-4 py-10" onPress={onClose}>
-        <Pressable
-          onPress={() => {}}
-          className="overflow-hidden rounded-3xl border border-cream-300 bg-cream-50"
-          style={{ maxHeight: "100%" }}
-        >
+        <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined}>
+          <Pressable
+            onPress={() => {}}
+            className="overflow-hidden rounded-3xl border border-cream-300 bg-cream-50"
+            style={{ maxHeight: "100%" }}
+          >
           <View className="flex-row items-start gap-4 px-6 pt-7">
             <View className="flex-1 gap-1.5">
               <Text className="font-grotesk-bold text-[26px] leading-tight tracking-tight text-ink-cream">
@@ -236,7 +237,7 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
               {categories.map((category) => {
                 const tint = getCategoryTint(category.color);
                 const isDefault = category.id === defaultCategoryId;
-                const canDelete = categories.length > 1;
+                const canDelete = categories.length > 1 && !isBuiltInCategoryId(category.id);
 
                 if (editingId === category.id) {
                   return (
@@ -332,7 +333,8 @@ export function ManageCategoriesSheet({ visible, onClose }: { visible: boolean; 
               />
             </View>
           </ScrollView>
-        </Pressable>
+          </Pressable>
+        </KeyboardAvoidingView>
       </Pressable>
     </Modal>
   );

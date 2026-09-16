@@ -1,4 +1,4 @@
-import { parseDatePhrase } from "@/lib/ai/parseDate";
+import { hasExplicitTime, parseDatePhrase } from "@/lib/ai/parseDate";
 import type { ExtractedTaskDraft } from "@/lib/ai/types";
 import type { BuiltInCategoryId, TaskPriorityLevel } from "@/types/task";
 
@@ -13,8 +13,30 @@ const CATEGORY_KEYWORDS: Record<Exclude<BuiltInCategoryId, "other">, RegExp> = {
 const LONG_TASK_KEYWORDS = /\b(write|study|prepare|build|plan|research|essay|report|presentation|thesis|revise|design)\b/i;
 const QUICK_TASK_KEYWORDS = /\b(call|email|text|book|order|pay|send|reply|buy|pick up|drop off|check|confirm)\b/i;
 
-const HIGH_PRIORITY_KEYWORDS = /\b(urgent|urgently|asap|immediately|critical|important|emergency|overdue|exam|midterm|finals?|interview|deadline)\b/i;
-const LOW_PRIORITY_KEYWORDS = /\b(someday|eventually|whenever|sometime|no rush|not urgent|if i have time|maybe|at some point)\b/i;
+const HIGH_PRIORITY_KEYWORDS =
+  /\b(urgent|urgently|asap|immediately|critical|important|importance|high priority|top priority|emergency|overdue|exam|midterm|finals?|interview|deadline)\b/i;
+
+// An explicit length the user stated ("for two hours", "takes 45 min",
+// "1.5h"). "in 2 hours" / "2 hours ago" are deadlines, not durations, so the
+// word before and after the match is captured and checked.
+const DURATION_PATTERN =
+  /(?:\b(\w+)\s+)?\b(?:(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?)|(an?|one|two|three|four|five|six|seven|eight|nine|ten)\s+(hrs?|hours?|mins?|minutes?))\b(\s+ago\b)?/gi;
+const DURATION_WORDS: Record<string, number> = {
+  a: 1,
+  an: 1,
+  one: 1,
+  two: 2,
+  three: 3,
+  four: 4,
+  five: 5,
+  six: 6,
+  seven: 7,
+  eight: 8,
+  nine: 9,
+  ten: 10,
+};
+const LOW_PRIORITY_KEYWORDS =
+  /\b(someday|eventually|whenever|sometime|no rush|not urgent|not important|low priority|low importance|if i have time|maybe|at some point)\b/i;
 
 const DEFAULT_MINUTES = 30;
 const LONG_TASK_MINUTES = 60;
@@ -52,7 +74,7 @@ const QUESTION_PATTERN =
 const EXPLICIT_ADD_PATTERN = /\b(add|create|remind me|new task|put)\b/i;
 const CHITCHAT_PATTERN = /^\s*(hi|hey|hello|yo|thanks|thank you|ok|okay|cool|nice|sure|yes|no|nope|yep|help)\b[\s!.?]*$/i;
 
-function guessCategory(text: string): BuiltInCategoryId {
+export function guessCategory(text: string): BuiltInCategoryId {
   for (const [category, pattern] of Object.entries(CATEGORY_KEYWORDS) as [
     Exclude<BuiltInCategoryId, "other">,
     RegExp,
@@ -64,7 +86,22 @@ function guessCategory(text: string): BuiltInCategoryId {
 
 // Exported so app/api/inbox+api.ts can fill the same gaps when the model
 // leaves a field out.
+export function parseDurationMinutes(text: string): number | undefined {
+  for (const match of text.matchAll(DURATION_PATTERN)) {
+    const [, before, digits, digitUnit, words, wordUnit, ago] = match;
+    if (ago || /^(in|within)$/i.test(before ?? "")) continue;
+    const amountText = (digits ?? words).toLowerCase();
+    // "half an hour" — "half" lands in the word-before capture.
+    const amount = /^half$/i.test(before ?? "") ? 0.5 : (DURATION_WORDS[amountText] ?? Number.parseFloat(amountText));
+    if (!Number.isFinite(amount) || amount <= 0) continue;
+    return Math.round(/^h/i.test(digitUnit ?? wordUnit) ? amount * 60 : amount);
+  }
+  return undefined;
+}
+
 export function guessDuration(text: string): number {
+  const stated = parseDurationMinutes(text);
+  if (stated) return stated;
   if (LONG_TASK_KEYWORDS.test(text)) return LONG_TASK_MINUTES;
   if (QUICK_TASK_KEYWORDS.test(text)) return QUICK_TASK_MINUTES;
   return DEFAULT_MINUTES;
@@ -73,8 +110,9 @@ export function guessDuration(text: string): number {
 // Importance only — the deadline is scored separately as urgency in
 // lib/scoring.ts, so it must not leak in here too.
 export function guessPriorityLevel(text: string): TaskPriorityLevel {
-  if (HIGH_PRIORITY_KEYWORDS.test(text)) return "high";
+  // Low first — "not urgent" and "low priority" contain high-priority words.
   if (LOW_PRIORITY_KEYWORDS.test(text)) return "low";
+  if (HIGH_PRIORITY_KEYWORDS.test(text)) return "high";
   return "medium";
 }
 
@@ -121,13 +159,16 @@ export function extractTasks(text: string, now: Date = new Date()): ExtractedTas
       // With a single task in the message, a deadline anywhere in it belongs
       // to that task — including in a clause dropped as a continuation
       // ("pay the electricity bill, it was due last week").
-      const dueDate = parseDatePhrase(fragment, now) ?? (fragments.length === 1 ? parseDatePhrase(text, now) : undefined);
+      const ownDueDate = parseDatePhrase(fragment, now);
+      const dueDate = ownDueDate ?? (fragments.length === 1 ? parseDatePhrase(text, now) : undefined);
+      const dueHasTime = dueDate ? hasExplicitTime(ownDueDate ? fragment : text) : undefined;
       const title = cleanTitle(fragment);
       return {
         title,
         category: guessCategory(fragment),
         estimatedMinutes: guessDuration(fragment),
         dueDate,
+        dueHasTime,
         priorityLevel: guessPriorityLevel(fragment),
       };
     })

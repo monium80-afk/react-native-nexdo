@@ -1,7 +1,7 @@
 import { useClerk } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
-import { ScrollView, Text, View } from "react-native";
+import { Alert, ScrollView, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
@@ -37,8 +37,30 @@ export default function Settings() {
   const setTheme = useSettingsStore((state) => state.setTheme);
   const language = useSettingsStore((state) => state.language);
   const setLanguage = useSettingsStore((state) => state.setLanguage);
+  const aiAutoMode = useSettingsStore((state) => state.aiAutoMode);
+  const setAiAutoMode = useSettingsStore((state) => state.setAiAutoMode);
+  const clearChatHistory = useChatStore((state) => state.clearHistory);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<string | null>(null);
+
+  const handleClearHistory = () => {
+    Alert.alert("Clear chat history?", "This removes every message in the AI chat. Your tasks won't be affected.", [
+      { text: "Cancel", style: "cancel" },
+      {
+        text: "Clear",
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await clearChatHistory();
+            setHistoryStatus("Chat history cleared.");
+          } catch {
+            setHistoryStatus("Cleared on this device, but couldn't clear the synced copy. Try again.");
+          }
+        },
+      },
+    ]);
+  };
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -76,6 +98,39 @@ export default function Settings() {
         <View className="gap-3">
           <Text className="eyebrow text-ink-charcoal-muted">NEXDO PREFERENCES</Text>
           <CategoryManager />
+        </View>
+
+        <View className="gap-3">
+          <Text className="eyebrow text-ink-charcoal-muted">AI CHAT</Text>
+          <View className="card card--charcoal gap-4 p-4">
+            <View className="flex-row items-center gap-3">
+              <View className="flex-1 gap-1">
+                <Text className="font-grotesk-semibold text-base text-ink-charcoal">Auto mode</Text>
+                <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">
+                  Add and update tasks right away, without asking you to confirm first.
+                </Text>
+              </View>
+              <Switch
+                value={aiAutoMode}
+                onValueChange={setAiAutoMode}
+                trackColor={{ false: colors.charcoal[600], true: colors.orange[500] }}
+                thumbColor={colors.cream[50]}
+                ios_backgroundColor={colors.charcoal[600]}
+                accessibilityLabel="Auto mode"
+              />
+            </View>
+
+            <View className="h-px bg-white/10" />
+
+            <AnimatedPressable onPress={handleClearHistory} className="flex-row items-center gap-3">
+              <Feather name="trash-2" size={18} color={colors.overdue[500]} />
+              <Text className="flex-1 font-grotesk-semibold text-base text-overdue-500">Clear chat history</Text>
+            </AnimatedPressable>
+
+            {historyStatus ? (
+              <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">{historyStatus}</Text>
+            ) : null}
+          </View>
         </View>
 
         <View className="gap-3">

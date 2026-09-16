@@ -3,10 +3,11 @@ import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 
 import {
-  DEFAULT_CATEGORIES,
-  DEFAULT_CATEGORY_ID,
-  findCategory,
-  resolveCategoryId,
+    DEFAULT_CATEGORIES,
+    DEFAULT_CATEGORY_ID,
+    findCategory,
+    isBuiltInCategoryId,
+    resolveCategoryId,
 } from "@/constants/categories";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { Category, CategoryColor } from "@/types/category";
@@ -59,7 +60,7 @@ export const useCategoryStore = create<CategoryStore>()(
 
       deleteCategory: (id) => {
         const { categories, defaultCategoryId } = get();
-        if (categories.length <= 1) return;
+        if (categories.length <= 1 || isBuiltInCategoryId(id)) return;
         const remaining = categories.filter((category) => category.id !== id);
         set({
           categories: remaining,

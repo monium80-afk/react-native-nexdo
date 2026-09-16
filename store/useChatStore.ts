@@ -9,9 +9,10 @@ import { classifyIntent } from "@/lib/ai/classifyIntent";
 import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
 import type { ExtractedTaskDraft, StructuredAction } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
-import { fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supabaseSync";
+import { deleteAllMessages, fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supabaseSync";
 import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
 import { useCategoryStore } from "@/store/useCategoryStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import type { Task } from "@/types/task";
@@ -41,7 +42,9 @@ function createMessageId(role: "user" | "ai" | "seed"): string {
   return `message-${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
-type PendingAction = { action: StructuredAction; label: string };
+const AUTO_MODE_ACTION_TYPES: StructuredAction["type"][] = ["CREATE_TASK", "UPDATE_TASK", "BREAKDOWN_TASK"];
+
+type PendingAction = { action: StructuredAction; label: string; taskIds?: string[] };
 
 // Single-slot "undo the most recent action" (taxonomy 6.2). A create is
 // undone by deleting the task(s) it made; anything else is undone by
@@ -67,9 +70,12 @@ type ChatStore = {
   updateMessageText: (messageId: string, text: string) => void;
   updatePendingDraft: (actionIndex: number, draftIndex: number, patch: Partial<ExtractedTaskDraft>) => void;
   confirmPendingActions: () => void;
+  confirmPendingDraft: (actionIndex: number, draftIndex: number) => void;
+  confirmAllPendingDrafts: () => void;
   cancelPendingActions: () => void;
   undoLastAction: () => void;
   clearRedirectToNext: () => void;
+  clearHistory: () => Promise<void>;
   handleSignOut: () => Promise<void>;
 };
 
@@ -86,14 +92,14 @@ const initialMessages = (): ChatMessage[] => [
 // action — the real AI path always has its own narrated "reply" instead.
 // A bulk delete's confirmation also uses this on the real AI path — only the
 // app can count exactly how many tasks it's about to remove.
-function confirmationPrompt(action: StructuredAction): string {
+function confirmationPrompt(action: StructuredAction, frozenTaskIds?: string[]): string {
   switch (action.type) {
     case "CREATE_TASK":
       return action.drafts.length === 1
         ? `I found 1 task: "${action.drafts[0].title}". Want me to add it?`
         : `I found ${action.drafts.length} tasks: ${action.drafts.map((d) => `"${d.title}"`).join(", ")}. Want me to add them?`;
     case "DELETE_TASKS": {
-      const count = tasksInScope(useTaskStore.getState().tasks, action.scope).length;
+      const count = frozenTaskIds?.length ?? tasksInScope(useTaskStore.getState().tasks, action.scope).length;
       const both = action.scope === "all" ? " (pending and completed)" : "";
       return `This will delete ${describeTaskCount(count, action.scope)}${both}. Go ahead?`;
     }
@@ -106,9 +112,18 @@ function confirmationPrompt(action: StructuredAction): string {
 // CREATE_TASK is handled separately (undo = delete the new task), and
 // read-only/routing actions (QUERY, CLARIFY, UNKNOWN, REDIRECT_NEXT) never
 // touch a task, so there's nothing to snapshot.
-function snapshotBefore(action: StructuredAction, tasks: Task[]): { taskId: string; before: Task | null }[] {
-  if (action.type === "DELETE_TASKS") {
-    return tasksInScope(tasks, action.scope).map((task) => ({ taskId: task.id, before: task }));
+function snapshotBefore(
+  action: StructuredAction,
+  tasks: Task[],
+  frozenTaskIds?: string[],
+): { taskId: string; before: Task | null }[] {
+  if (action.type === "DELETE_TASKS" || action.type === "COMPLETE_TASKS") {
+    const scope = action.type === "DELETE_TASKS" ? action.scope : "pending";
+    const ids = frozenTaskIds ?? tasksInScope(tasks, scope).map((task) => task.id);
+    return ids.flatMap((taskId) => {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      return task ? [{ taskId, before: task }] : [];
+    });
   }
 
   const taskId =
@@ -158,14 +173,18 @@ export const useChatStore = create<ChatStore>()(
 
       // Applies one action, and — unless it's a pure read/route — records
       // enough to undo it later as this turn's most recent mutation.
-      const executeAction = (action: StructuredAction): { message: string; taskId?: string } => {
+      const executeAction = (action: StructuredAction, frozenTaskIds?: string[]): { message: string; taskId?: string } => {
         if (action.type === "REDIRECT_NEXT") {
           set({ redirectToNext: { minutes: action.availableMinutes } });
           return useTaskStore.getState().applyStructuredAction(action);
         }
 
-        const beforeSnapshots = snapshotBefore(action, useTaskStore.getState().tasks);
-        const result = useTaskStore.getState().applyStructuredAction(action);
+        const beforeSnapshots = snapshotBefore(action, useTaskStore.getState().tasks, frozenTaskIds);
+        const actionToExecute =
+          action.type === "DELETE_TASKS" && frozenTaskIds
+            ? { ...action, taskIds: frozenTaskIds }
+            : action;
+        const result = useTaskStore.getState().applyStructuredAction(actionToExecute);
 
         if (action.type === "CREATE_TASK") {
           const ids = result.taskIds ?? (result.taskId ? [result.taskId] : []);
@@ -183,18 +202,29 @@ export const useChatStore = create<ChatStore>()(
       const handleClassifiedActions = (actions: StructuredAction[], narratedReply: string | null) => {
         // A bulk delete that matches nothing has nothing to confirm — say so
         // instead of asking "delete 0 tasks?".
+        // Same for "mark everything done" with nothing pending.
         const emptyBulkDeletes = actions.filter(
-          (a) => a.type === "DELETE_TASKS" && tasksInScope(useTaskStore.getState().tasks, a.scope).length === 0,
+          (a) =>
+            (a.type === "DELETE_TASKS" && tasksInScope(useTaskStore.getState().tasks, a.scope).length === 0) ||
+            (a.type === "COMPLETE_TASKS" && tasksInScope(useTaskStore.getState().tasks, "pending").length === 0),
         );
         const actionable = actions.filter((a) => !emptyBulkDeletes.includes(a));
-        const confirmRequired = actionable.filter((a) => a.confirmationTier === "confirm-required");
-        const immediate = actionable.filter((a) => a.confirmationTier !== "confirm-required");
+        // Auto mode (Settings) skips the preview for adding and updating
+        // tasks. A bulk delete still always asks — one message can wipe out
+        // every task.
+        const autoMode = useSettingsStore.getState().aiAutoMode;
+        const needsConfirmation = (a: StructuredAction) =>
+          a.confirmationTier === "confirm-required" && !(autoMode && AUTO_MODE_ACTION_TYPES.includes(a.type));
+        const confirmRequired = actionable.filter(needsConfirmation);
+        const immediate = actionable.filter((a) => !needsConfirmation(a));
 
         let lastTaskId: string | undefined;
         const executedMessages: string[] = emptyBulkDeletes.map((a) =>
-          a.type === "DELETE_TASKS" && a.scope !== "all"
-            ? `You don't have any ${a.scope} tasks to delete.`
-            : "You don't have any tasks to delete.",
+          a.type === "COMPLETE_TASKS"
+            ? "You don't have any pending tasks to mark as done."
+            : a.type === "DELETE_TASKS" && a.scope !== "all"
+              ? `You don't have any ${a.scope} tasks to delete.`
+              : "You don't have any tasks to delete.",
         );
         for (const action of immediate) {
           const result = executeAction(action);
@@ -204,12 +234,19 @@ export const useChatStore = create<ChatStore>()(
 
         if (confirmRequired.length > 0) {
           set({
-            pendingActions: confirmRequired.map((action) => ({ action, label: narratedReply ?? confirmationPrompt(action) })),
+            pendingActions: confirmRequired.map((action) => {
+              const taskIds =
+                action.type === "DELETE_TASKS"
+                  ? tasksInScope(useTaskStore.getState().tasks, action.scope).map((task) => task.id)
+                  : undefined;
+              return { action, taskIds, label: narratedReply ?? confirmationPrompt(action, taskIds) };
+            }),
           });
         }
 
-        const fallbackMessage = [...executedMessages, ...confirmRequired.map(confirmationPrompt)].join(" ") || "Done.";
-        respondWith(narratedReply ?? fallbackMessage, lastTaskId);
+        const fallbackMessage =
+          [...executedMessages, ...confirmRequired.map((action) => confirmationPrompt(action))].join(" ") || "Done.";
+        respondWith(emptyBulkDeletes.length > 0 ? fallbackMessage : narratedReply ?? fallbackMessage, lastTaskId);
       };
 
       return {
@@ -391,12 +428,46 @@ export const useChatStore = create<ChatStore>()(
           if (pendingActions.length === 0) return;
           set({ pendingActions: [] });
           let lastTaskId: string | undefined;
-          const messages = pendingActions.map(({ action }) => {
-            const result = executeAction(action);
+          const messages = pendingActions.map(({ action, taskIds }) => {
+            const result = executeAction(action, taskIds);
             if (result.taskId) lastTaskId = result.taskId;
             return result.message;
           });
           respondWith(messages.join(" "), lastTaskId);
+        },
+
+        // "Add Task" on one card adds only that card's draft — the other
+        // drafts stay queued so they can still be added or dismissed.
+        confirmPendingDraft: (actionIndex, draftIndex) => {
+          const pending = get().pendingActions[actionIndex];
+          if (!pending || pending.action.type !== "CREATE_TASK") return;
+          const draft = pending.action.drafts[draftIndex];
+          if (!draft) return;
+
+          const remainingDrafts = pending.action.drafts.filter((_, i) => i !== draftIndex);
+          set((state) => ({
+            pendingActions: state.pendingActions.flatMap((item, index) => {
+              if (index !== actionIndex || item.action.type !== "CREATE_TASK") return [item];
+              return remainingDrafts.length > 0 ? [{ ...item, action: { ...item.action, drafts: remainingDrafts } }] : [];
+            }),
+          }));
+
+          const result = executeAction({ type: "CREATE_TASK", drafts: [draft], confirmationTier: "confirm-required" });
+          respondWith(result.message, result.taskId);
+        },
+
+        // "Add all tasks" — every queued draft at once. Any non-task action
+        // in the same turn (e.g. a bulk delete) keeps its own Yes/Cancel.
+        confirmAllPendingDrafts: () => {
+          const { pendingActions } = get();
+          const drafts = pendingActions.flatMap((pending) =>
+            pending.action.type === "CREATE_TASK" ? pending.action.drafts : [],
+          );
+          if (drafts.length === 0) return;
+          set({ pendingActions: pendingActions.filter((pending) => pending.action.type !== "CREATE_TASK") });
+
+          const result = executeAction({ type: "CREATE_TASK", drafts, confirmationTier: "confirm-required" });
+          respondWith(result.message, result.taskId);
         },
 
         cancelPendingActions: () => {
@@ -421,6 +492,23 @@ export const useChatStore = create<ChatStore>()(
         },
 
         clearRedirectToNext: () => set({ redirectToNext: null }),
+
+        // Wipes the conversation (locally and in Supabase, or hydrate would
+        // bring it straight back) but leaves the user signed in and their
+        // tasks untouched.
+        clearHistory: async () => {
+          signOutGeneration += 1; // drop any AI reply still in flight
+          set({
+            messages: initialMessages(),
+            isAiTyping: false,
+            recentlyMentionedTaskIds: [],
+            pendingActions: [],
+            lastUndo: null,
+            redirectToNext: null,
+          });
+          const userId = get().syncUserId;
+          if (userId) await deleteAllMessages(userId);
+        },
 
         handleSignOut: async () => {
           signOutGeneration += 1;

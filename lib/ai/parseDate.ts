@@ -47,7 +47,33 @@ const MONTHS = [
   "december",
 ];
 
+const MONTH_ALTERNATIVES = [
+  ["january", "jan"],
+  ["february", "feb"],
+  ["march", "mar"],
+  ["april", "apr"],
+  ["may"],
+  ["june", "jun"],
+  ["july", "jul"],
+  ["august", "aug"],
+  ["september", "sep", "sept"],
+  ["october", "oct"],
+  ["november", "nov"],
+  ["december", "dec"],
+];
+
 type TimeOfDay = { hour: number; minute: number };
+
+// "7pm", "7 pm", "7 p.m.", "7:30am" — voice transcription writes the dotted form.
+const MERIDIEM_PATTERN = /\b(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?![a-z])/;
+const EXPLICIT_TIME_PATTERN = /\b(?:\d{1,2}(?::\d{2})?\s*(?:a\.?m\.?|p\.?m\.?)(?![a-z])|at\s+\d{1,2}(?::\d{2})?\b|\d{1,2}:\d{2}\b|noon\b|midday\b|midnight\b)/;
+
+// Whether the user gave an actual clock time ("7 p.m.", "at 9", "noon") —
+// used so a deadline only shows a time when one was really said, rather
+// than the DEFAULT_HOUR filled in for a bare date.
+export function hasExplicitTime(text: string): boolean {
+  return EXPLICIT_TIME_PATTERN.test(text.toLowerCase());
+}
 
 function toCount(word: string | undefined): number | undefined {
   if (!word) return undefined;
@@ -63,11 +89,11 @@ function extractTimeOfDay(lower: string): TimeOfDay | undefined {
   if (/\b(noon|midday)\b/.test(lower)) return { hour: 12, minute: 0 };
   if (/\bmidnight\b/.test(lower)) return { hour: 0, minute: 0 };
 
-  const meridiem = lower.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/);
+  const meridiem = lower.match(MERIDIEM_PATTERN);
   if (meridiem) {
     const hour12 = Number.parseInt(meridiem[1], 10) % 12;
     return {
-      hour: meridiem[3] === "pm" ? hour12 + 12 : hour12,
+      hour: meridiem[3].startsWith("p") ? hour12 + 12 : hour12,
       minute: meridiem[2] ? Number.parseInt(meridiem[2], 10) : 0,
     };
   }
@@ -169,6 +195,31 @@ export function parseDatePhrase(text: string, now: Date = new Date()): string | 
 
   if (/\bnext week\b/.test(lower)) return resolve(byDays(7));
 
+  // An explicit calendar date is checked before weekdays and bare clock
+  // times — "25th September at 7 p.m." used to stop at "at 7" and land on
+  // today/tomorrow.
+  const iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
+  if (iso) {
+    return resolve(new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
+  }
+
+  // "march 5", "5 march", "sept 20", "september 25th", "the 25th of september"
+  // — the year is whichever keeps it closest to now, so a month already past
+  // this year reads as next year.
+  for (let i = 0; i < MONTHS.length; i += 1) {
+    const name = `(?:${MONTH_ALTERNATIVES[i].join("|")})`;
+    const ordinal = "(?:st|nd|rd|th)?";
+    const match = lower.match(
+      new RegExp(`\\b(?:${name}\\.?\\s+(?:the\\s+)?(\\d{1,2})${ordinal}|(\\d{1,2})${ordinal}\\s+(?:of\\s+)?${name})\\b`),
+    );
+    if (!match) continue;
+    const day = Number.parseInt(match[1] ?? match[2], 10);
+    if (!day || day > 31) continue;
+    const date = new Date(now.getFullYear(), i, day);
+    if (date.getTime() < now.getTime() - 180 * 24 * 60 * 60 * 1000) date.setFullYear(date.getFullYear() + 1);
+    return resolve(date);
+  }
+
   for (let i = 0; i < WEEKDAYS.length; i += 1) {
     if (!new RegExp(`\\b${WEEKDAYS[i]}\\b`).test(lower)) continue;
     const date = new Date(now);
@@ -185,28 +236,10 @@ export function parseDatePhrase(text: string, now: Date = new Date()): string | 
   // A bare clock time with no day ("gym at 6pm") means today, or tomorrow
   // if that hour has already passed. Only explicit clock times qualify —
   // "morning"/"evening" alone are too weak to invent a deadline from.
-  if (time && /\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)|at\s+\d{1,2}(?::\d{2})?|noon|midnight)\b/.test(lower)) {
+  if (time && hasExplicitTime(lower)) {
     const today = resolve(new Date(now));
     if (today && new Date(today).getTime() >= now.getTime()) return today;
     return resolve(byDays(1));
-  }
-
-  const iso = lower.match(/\b(\d{4})-(\d{2})-(\d{2})\b/);
-  if (iso) {
-    return resolve(new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3])));
-  }
-
-  // "march 5", "5 march", "sept 20" — the year is whichever keeps it closest
-  // to now, so a month already past this year reads as next year.
-  for (let i = 0; i < MONTHS.length; i += 1) {
-    const name = `${MONTHS[i].slice(0, 3)}[a-z]*`;
-    const match = lower.match(new RegExp(`\\b(?:${name}\\s+(\\d{1,2})|(\\d{1,2})\\s+${name})\\b`));
-    if (!match) continue;
-    const day = Number.parseInt(match[1] ?? match[2], 10);
-    if (!day || day > 31) continue;
-    const date = new Date(now.getFullYear(), i, day);
-    if (date.getTime() < now.getTime() - 180 * 24 * 60 * 60 * 1000) date.setFullYear(date.getFullYear() + 1);
-    return resolve(date);
   }
 
   return undefined;

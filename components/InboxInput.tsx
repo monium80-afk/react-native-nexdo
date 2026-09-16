@@ -21,6 +21,8 @@ type InboxInputProps = {
   onChangeText: (text: string) => void;
   onSend: () => void;
   onAttachment: (attachment: ChatAttachment) => void;
+  /** A voice note is being turned into text for the input box (auto mode off). */
+  isTranscribing?: boolean;
 };
 
 function formatDurationLabel(totalSeconds: number) {
@@ -29,7 +31,7 @@ function formatDurationLabel(totalSeconds: number) {
   return `${minutes}:${seconds.toString().padStart(2, "0")}`;
 }
 
-export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxInputProps) {
+export function InboxInput({ value, onChangeText, onSend, onAttachment, isTranscribing = false }: InboxInputProps) {
   // Recording state (isRecording, durationMillis) is polled by this hook, not stored locally —
   // the recorder instance itself is the source of truth.
   const audioRecorder = useAudioRecorder(RecordingPresets.HIGH_QUALITY);
@@ -110,7 +112,9 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         onPress={handleMicPress}
         accessibilityRole="button"
         accessibilityLabel={isRecording ? "Stop recording" : "Record voice note"}
+        disabled={isTranscribing}
         hitSlop={8}
+        style={{ opacity: isTranscribing ? 0.35 : 1 }}
         className="h-9 w-9 items-center justify-center"
       >
         <Feather name="mic" size={19} color={isRecording ? colors.overdue[500] : colors.ink.creamMuted} />
@@ -145,6 +149,10 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
             Recording… {formatDurationLabel(Math.round(recorderState.durationMillis / 1000))}
           </Text>
         </View>
+      ) : isTranscribing ? (
+        <View className="flex-1 py-2.5">
+          <Text className="font-grotesk-medium text-sm text-ink-cream-muted">Transcribing…</Text>
+        </View>
       ) : (
         <TextInput
           value={value}
@@ -161,7 +169,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         onPress={isRecording ? handleMicPress : onSend}
         accessibilityRole="button"
         accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
-        disabled={!isRecording && !canSend}
+        disabled={isTranscribing || (!isRecording && !canSend)}
         hitSlop={4}
         className="mr-2 h-11 w-11 items-center justify-center rounded-2xl bg-orange-500"
       >

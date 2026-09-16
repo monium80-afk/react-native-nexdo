@@ -603,13 +603,20 @@ export const useTaskStore = create<TaskStore>()(
             get().completeTask(action.taskId);
             return { message: `Marked "${task?.title ?? "task"}" as done.`, taskId: action.taskId };
           }
+          case "COMPLETE_TASKS": {
+            const pending = tasksInScope(get().tasks, "pending");
+            pending.forEach((task) => get().completeTask(task.id));
+            return { message: `Marked ${describeTaskCount(pending.length, "all")} as done.` };
+          }
           case "DELETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().deleteTask(action.taskId);
             return { message: `Deleted "${task?.title ?? "task"}".` };
           }
           case "DELETE_TASKS": {
-            const matching = tasksInScope(get().tasks, action.scope);
+            const matching = action.taskIds
+              ? get().tasks.filter((task) => action.taskIds?.includes(task.id))
+              : tasksInScope(get().tasks, action.scope);
             get().deleteTasks(matching.map((task) => task.id));
             return { message: `Deleted ${describeTaskCount(matching.length, action.scope)}.` };
           }

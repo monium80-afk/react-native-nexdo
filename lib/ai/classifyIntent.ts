@@ -63,6 +63,7 @@ function mapSingleAction(action: InboxAction, fallbackNote: string, categories: 
           category,
           estimatedMinutes: action.fields.estimatedMinutes ?? 30,
           dueDate: action.fields.dueDate,
+          dueHasTime: action.fields.dueHasTime,
           priorityLevel,
         },
       ],
@@ -86,6 +87,10 @@ function mapSingleAction(action: InboxAction, fallbackNote: string, categories: 
 
   if (action.type === "COMPLETE_TASK" && action.taskId) {
     return { type: "COMPLETE_TASK", taskId: action.taskId, confirmationTier: "immediate" };
+  }
+
+  if (action.type === "COMPLETE_TASKS") {
+    return { type: "COMPLETE_TASKS", confirmationTier: "immediate" };
   }
 
   // Deletion is direct/unambiguous per the taxonomy — no confirmation tier,
@@ -184,6 +189,11 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
 
   if (ALREADY_DID_PATTERN.test(text) && currentTaskId) {
     return { type: "ADD_TASK_CONTEXT", taskId: currentTaskId, note: text, confirmationTier: "safe" };
+  }
+
+  // "mark all my tasks as done" / "I finished everything".
+  if (DONE_PATTERN.test(text) && BULK_PATTERN.test(text)) {
+    return { type: "COMPLETE_TASKS", confirmationTier: "immediate" };
   }
 
   if (DONE_PATTERN.test(text)) {

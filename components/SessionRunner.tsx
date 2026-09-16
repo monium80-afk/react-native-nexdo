@@ -42,12 +42,14 @@ export function SessionRunner() {
   const countdown = useSessionCountdown(session);
 
   // Tasks deleted elsewhere (Tasks tab, AI chat) simply drop out of the run.
-  const sessionTasks = useMemo(() => {
+  const sessionTaskEntries = useMemo(() => {
     if (!session) return [];
-    return session.taskIds
-      .map((taskId) => tasks.find((task) => task.id === taskId))
-      .filter((task) => task !== undefined);
+    return session.taskIds.flatMap((taskId, sessionIndex) => {
+      const task = tasks.find((candidate) => candidate.id === taskId);
+      return task ? [{ task, sessionIndex }] : [];
+    });
   }, [session, tasks]);
+  const sessionTasks = sessionTaskEntries.map((entry) => entry.task);
 
   useEffect(() => {
     if (session && sessionTasks.length === 0) leave();
@@ -55,7 +57,9 @@ export function SessionRunner() {
 
   if (!session || sessionTasks.length === 0) return null;
 
-  const activeIndex = Math.min(Math.max(session.activeIndex, 0), sessionTasks.length - 1);
+  const activeSessionIndex = Math.min(Math.max(session.activeIndex, 0), session.taskIds.length - 1);
+  const projectedActiveIndex = sessionTaskEntries.findIndex((entry) => entry.sessionIndex >= activeSessionIndex);
+  const activeIndex = projectedActiveIndex >= 0 ? projectedActiveIndex : sessionTaskEntries.length - 1;
   const activeTask = sessionTasks[activeIndex];
   const unfinishedCount = sessionTasks.filter((task) => task.status !== "completed").length;
 
@@ -82,7 +86,7 @@ export function SessionRunner() {
     const forward = sessionTasks.findIndex((task, i) => i > index && !isFinished(task.id));
     const next = forward >= 0 ? forward : sessionTasks.findIndex((task) => !isFinished(task.id));
 
-    if (next >= 0) focusTask(next);
+    if (next >= 0) focusTask(sessionTaskEntries[next].sessionIndex);
     else endSession("finished");
   };
 
@@ -173,7 +177,7 @@ export function SessionRunner() {
                       isLastTask={unfinishedCount <= 1}
                       availableMinutes={session.plannedMinutes}
                       onDone={() => handleDone(task.id, index)}
-                      onFocus={() => focusTask(index)}
+                      onFocus={() => focusTask(sessionTaskEntries[index].sessionIndex)}
                       onStuck={() => setStuckOpen(true)}
                       onToggleSubtask={(subtaskId) => handleToggleSubtask(task.id, subtaskId, index)}
                     />

@@ -148,7 +148,6 @@ export function BreakdownSheet({
                   value={stepDraft}
                   onChangeText={setStepDraft}
                   onSubmitEditing={handleAddStep}
-                  onBlur={handleAddStep}
                   placeholder="Describe the step…"
                   placeholderTextColor={colors.ink.charcoalMuted}
                   returnKeyType="done"

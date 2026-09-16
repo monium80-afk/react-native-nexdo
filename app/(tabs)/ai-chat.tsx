@@ -2,21 +2,26 @@ import { useUser } from "@clerk/expo";
 import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
+import { Alert, KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import { InboxInput } from "@/components/InboxInput";
 import { SuggestionChip } from "@/components/SuggestionChip";
 import { TaskConfirmationCard } from "@/components/TaskConfirmationCard";
 import { colors } from "@/constants/theme";
-import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
+import type { ExtractTextResponseBody } from "@/app/api/extract-text+api";
+import { ATTACHMENT_REPLIES, INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
 import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
+import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
+import { apiPost } from "@/lib/api";
 import { posthog } from "@/lib/posthog";
 import { uploadAttachment } from "@/lib/supabaseStorage";
 import { useCategoryStore } from "@/store/useCategoryStore";
 import { useChatStore } from "@/store/useChatStore";
+import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 
@@ -97,6 +102,8 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const updateMessageAttachment = useChatStore((state) => state.updateMessageAttachment);
   const pendingActions = useChatStore((state) => state.pendingActions);
   const confirmPendingActions = useChatStore((state) => state.confirmPendingActions);
+  const confirmPendingDraft = useChatStore((state) => state.confirmPendingDraft);
+  const confirmAllPendingDrafts = useChatStore((state) => state.confirmAllPendingDrafts);
   const cancelPendingActions = useChatStore((state) => state.cancelPendingActions);
   const updatePendingDraft = useChatStore((state) => state.updatePendingDraft);
   const redirectToNext = useChatStore((state) => state.redirectToNext);
@@ -104,9 +111,15 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const tasks = useTaskStore((state) => state.tasks);
 
   const pendingCount = tasks.filter((task) => task.status === "pending").length;
+  const pendingDraftCount = pendingActions.reduce(
+    (count, pending) => count + (pending.action.type === "CREATE_TASK" ? pending.action.drafts.length : 0),
+    0,
+  );
   const contextTask = contextTaskId ? tasks.find((task) => task.id === contextTaskId) : undefined;
 
   const [draft, setDraft] = useState("");
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const aiAutoMode = useSettingsStore((state) => state.aiAutoMode);
   const analysisSeededFor = useRef<string | null>(null);
   const scrollRef = useRef<ScrollView>(null);
 
@@ -151,6 +164,33 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
 
   const handleAttachment = async (attachment: ChatAttachment) => {
     posthog.capture("inbox_attachment_captured", { kind: attachment.kind });
+
+    // With auto mode off, a voice note isn't sent — its transcript lands in
+    // the input box so the user can check/edit it and send it themselves.
+    if (attachment.kind === "voice" && !aiAutoMode) {
+      setIsTranscribing(true);
+      try {
+        const base64 = await readFileAsBase64(attachment.uri);
+        const { text } = await apiPost<ExtractTextResponseBody>("/api/extract-text", {
+          mimeType: resolveMimeType(attachment),
+          base64,
+          kind: attachment.kind,
+        });
+        const transcript = text.trim();
+        if (transcript) {
+          setDraft((current) => (current.trim() ? `${current.trimEnd()} ${transcript}` : transcript));
+        } else {
+          Alert.alert("Couldn't catch that", ATTACHMENT_REPLIES.voice);
+        }
+      } catch (error) {
+        console.warn("[ai-chat] voice transcription failed", error);
+        Alert.alert("Couldn't transcribe", ATTACHMENT_REPLIES.voice);
+      } finally {
+        setIsTranscribing(false);
+      }
+      return;
+    }
+
     const messageId = sendMessage(attachment.label, attachment, contextTaskId);
 
     // Local file:// uris don't survive a reinstall or another device — push
@@ -217,13 +257,22 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                         <TaskConfirmationCard
                           key={`${index}-${draftIndex}`}
                           draft={draft}
-                          onAdd={confirmPendingActions}
+                          onAdd={() => confirmPendingDraft(index, draftIndex)}
                           onDismiss={cancelPendingActions}
                           onChange={(patch) => updatePendingDraft(index, draftIndex, patch)}
                         />
                       ))
                     : [],
                 )}
+                {pendingDraftCount > 1 ? (
+                  <AnimatedPressable
+                    onPress={confirmAllPendingDrafts}
+                    className="flex-row items-center justify-center gap-2 self-end rounded-full bg-orange-500 px-4 py-2.5"
+                  >
+                    <Feather name="check-circle" size={16} color={colors.cream[50]} />
+                    <Text className="font-grotesk-bold text-sm text-cream-50">Add all {pendingDraftCount} tasks</Text>
+                  </AnimatedPressable>
+                ) : null}
                 {pendingActions.some((pending) => pending.action.type !== "CREATE_TASK") ? (
                   <View className="flex-row gap-2">
                     <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingActions} />
@@ -280,6 +329,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
             onChangeText={setDraft}
             onSend={() => handleSend(draft)}
             onAttachment={handleAttachment}
+            isTranscribing={isTranscribing}
           />
         </View>
       </KeyboardAvoidingView>

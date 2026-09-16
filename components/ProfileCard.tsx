@@ -24,19 +24,19 @@ export function ProfileCard() {
 
   const handleChangePhoto = async () => {
     if (!user) return;
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ["images"],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.5,
-      base64: true,
-    });
-    const asset = result.canceled ? undefined : result.assets[0];
-    if (!asset?.base64) return;
-
     setUploadingPhoto(true);
     setError(null);
     try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.5,
+        base64: true,
+      });
+      const asset = result.canceled ? undefined : result.assets[0];
+      if (!asset?.base64) return;
+
       // Clerk accepts the image as a base64 data URL on React Native.
       await user.setProfileImage({ file: `data:${asset.mimeType ?? "image/jpeg"};base64,${asset.base64}` });
       await user.reload();

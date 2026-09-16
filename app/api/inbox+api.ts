@@ -1,9 +1,9 @@
 import { DEFAULT_CATEGORIES } from "@/constants/categories";
 import { TASK_MANAGER_INTEGRATION_NOTES, TASK_MANAGER_SYSTEM_PROMPT } from "@/data/aiPrompts";
 import type { TaskContext } from "@/lib/ai/context";
-import { guessDuration, guessPriorityLevel } from "@/lib/ai/extractTasks";
+import { guessCategory, guessDuration, guessPriorityLevel, parseDurationMinutes } from "@/lib/ai/extractTasks";
 import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
-import { parseDatePhrase } from "@/lib/ai/parseDate";
+import { hasExplicitTime, parseDatePhrase } from "@/lib/ai/parseDate";
 
 export type InboxCategory = { id: string; label: string };
 
@@ -22,6 +22,7 @@ export type InboxActionType =
   | "CREATE_TASK"
   | "UPDATE_TASK"
   | "COMPLETE_TASK"
+  | "COMPLETE_TASKS"
   | "DELETE_TASK"
   | "DELETE_TASKS"
   | "ADD_CONTEXT"
@@ -37,6 +38,8 @@ export type InboxAction = {
     category?: string;
     estimatedMinutes?: number;
     dueDate?: string;
+    /** CREATE_TASK only: whether the user gave a clock time for dueDate. */
+    dueHasTime?: boolean;
     priority?: string;
     note?: string;
     steps?: { title: string; estimatedMinutes: number }[];
@@ -74,6 +77,7 @@ const ACTION_TYPE_ENUM = [
   "CREATE_TASK",
   "UPDATE_TASK",
   "COMPLETE_TASK",
+  "COMPLETE_TASKS",
   "DELETE_TASK",
   "DELETE_TASKS",
   "ADD_CONTEXT",
@@ -117,10 +121,29 @@ const buildActionSchema = (categoryIds: string[]): GeminiJsonSchema => ({
         availableMinutes: { type: "NUMBER", nullable: true },
         scope: { type: "STRING", enum: ["all", "completed", "pending"], nullable: true },
       },
+      // Optional keys were routinely skipped: "study chemistry in six days
+      // for two hours, it's for school" came back with only a title, even
+      // though "reply" narrated School/2h. Required-but-nullable forces the
+      // model to decide each task field (null is still allowed for actions
+      // that don't use it), and the ordering has it fill them in before
+      // anything else.
+      required: ["title", "category", "estimatedMinutes", "priority", "dueDatePhrase"],
+      propertyOrdering: [
+        "title",
+        "category",
+        "estimatedMinutes",
+        "priority",
+        "dueDatePhrase",
+        "note",
+        "steps",
+        "availableMinutes",
+        "scope",
+      ],
     },
     confirmationRequired: { type: "BOOLEAN" },
   },
   required: ["type", "fields", "confirmationRequired"],
+  propertyOrdering: ["type", "taskId", "fields", "confirmationRequired"],
 });
 
 const buildSingleTurnSchema = (categoryIds: string[]): GeminiJsonSchema => ({
@@ -132,6 +155,9 @@ const buildSingleTurnSchema = (categoryIds: string[]): GeminiJsonSchema => ({
     reply: { type: "STRING" },
   },
   required: ["intent", "action", "reply"],
+  // "reply" last, so it narrates the fields already chosen rather than the
+  // fields being filled in to match (or not match) a reply written first.
+  propertyOrdering: ["intent", "action", "remainingMessage", "reply"],
 });
 
 const FALLBACK_RESPONSE: InboxResponseBody = {
@@ -188,6 +214,7 @@ function normalizeAction(raw: unknown, now: Date): InboxAction | null {
       estimatedMinutes:
         typeof rawFields.estimatedMinutes === "number" && Number.isFinite(rawFields.estimatedMinutes) ? rawFields.estimatedMinutes : undefined,
       dueDate: dueDatePhrase ? parseDatePhrase(dueDatePhrase, now) : undefined,
+      dueHasTime: dueDatePhrase ? hasExplicitTime(dueDatePhrase) : undefined,
       priority: typeof rawFields.priority === "string" ? rawFields.priority : undefined,
       note: typeof rawFields.note === "string" ? rawFields.note : undefined,
       steps: steps && steps.length > 0 ? steps : undefined,
@@ -212,12 +239,43 @@ function instructionText(message: string, remainingMessage: string | null): stri
 // dueDatePhrase), which saved every task with no deadline, medium priority
 // and 30 minutes — and therefore the same score. Read whatever it left out
 // straight off the user's own words instead.
-function fillMissingTaskFields(action: InboxAction, text: string, now: Date) {
-  action.fields.dueDate ??= parseDatePhrase(text, now);
-  if (!["high", "medium", "low"].includes(action.fields.priority ?? "")) {
-    action.fields.priority = guessPriorityLevel(text);
+function fillMissingTaskFields(action: InboxAction, text: string, now: Date, categories: InboxCategory[]) {
+  // The model sometimes copies only the date part ("25th September") and
+  // drops the time the user said ("at 7 p.m.") — re-read both off the text.
+  if (hasExplicitTime(text) && !action.fields.dueHasTime) {
+    const withTime = parseDatePhrase(text, now);
+    if (withTime) {
+      action.fields.dueDate = withTime;
+      action.fields.dueHasTime = true;
+    }
   }
-  action.fields.estimatedMinutes ??= guessDuration(text);
+  if (!action.fields.dueDate) {
+    action.fields.dueDate = parseDatePhrase(text, now);
+    action.fields.dueHasTime = action.fields.dueDate ? hasExplicitTime(text) : undefined;
+  }
+  // Importance the user stated outright ("it's really important", "no
+  // rush") beats the model's own judgement.
+  const statedPriority = guessPriorityLevel(text);
+  if (statedPriority !== "medium" || !["high", "medium", "low"].includes(action.fields.priority ?? "")) {
+    action.fields.priority = statedPriority;
+  }
+  // A length the user actually said ("for two hours") beats any estimate.
+  action.fields.estimatedMinutes = parseDurationMinutes(text) ?? action.fields.estimatedMinutes ?? guessDuration(text);
+  if (!categories.some((category) => category.id === action.fields.category)) {
+    action.fields.category = guessCategoryFromText(text, categories);
+  }
+}
+
+// A category the user named outright ("it's for school", "gym") wins, then
+// the built-in keyword guesser — but only if that id still exists for them.
+function guessCategoryFromText(text: string, categories: InboxCategory[]): string | undefined {
+  const lower = text.toLowerCase();
+  const named = categories.find((category) =>
+    new RegExp(`\\b${category.label.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower),
+  );
+  if (named) return named.id;
+  const guessed = guessCategory(text);
+  return categories.some((category) => category.id === guessed) ? guessed : undefined;
 }
 
 async function classifyOneInstruction(params: {
@@ -240,7 +298,7 @@ async function classifyOneInstruction(params: {
     typeof raw.remainingMessage === "string" && raw.remainingMessage.trim().length > 0 ? raw.remainingMessage.trim() : null;
 
   if (action.type === "CREATE_TASK") {
-    fillMissingTaskFields(action, instructionText(params.message, remainingMessage), new Date(params.now));
+    fillMissingTaskFields(action, instructionText(params.message, remainingMessage), new Date(params.now), params.categories);
   }
 
   return {

@@ -1,5 +1,5 @@
-import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { Feather } from "@expo/vector-icons";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
 import { useState } from "react";
 import { Platform, Text, TextInput, View } from "react-native";
 
@@ -22,21 +22,27 @@ function startOfDay(date: Date): Date {
 // full Task, but a draft here hasn't been created yet and only has a
 // dueDate to go on (no status/id/etc. to fabricate just to satisfy the type).
 // No urgency tint here: this card is a preview, so the icons stay brand orange.
-function previewDueLabel(dueDate: string | undefined, now: Date): string {
+// The time is only shown when the user actually gave one — otherwise the
+// hour on dueDate is just a default and would read as a time they never said.
+function previewDueLabel(dueDate: string | undefined, hasTime: boolean | undefined, now: Date): string {
   if (!dueDate) return "No deadline";
   const due = new Date(dueDate);
   const dayDiff = Math.round((startOfDay(due).getTime() - startOfDay(now).getTime()) / DAY_MS);
-  if (dayDiff < 0) return "Overdue";
-  if (dayDiff === 0) return "Due today";
-  if (dayDiff === 1) return "Due tomorrow";
-  if (dayDiff <= 6) return due.toLocaleDateString("en-US", { weekday: "long" });
-  return due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  const time = hasTime ? `, ${due.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}` : "";
+  if (dayDiff < 0) return `Overdue${time}`;
+  if (dayDiff === 0) return `Due today${time}`;
+  if (dayDiff === 1) return `Due tomorrow${time}`;
+  // Weekday plus date — a bare "Tuesday" read as the wrong day for "in six days".
+  if (dayDiff <= 6) return `${due.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" })}${time}`;
+  return `${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}${time}`;
 }
 
-function formatDueFieldValue(dueDate: string | undefined): string {
+function formatDueFieldValue(dueDate: string | undefined, hasTime: boolean | undefined): string {
   if (!dueDate) return "No deadline";
   const due = new Date(dueDate);
-  return `${due.toLocaleDateString("en-US", { month: "short", day: "numeric" })}, ${due.toLocaleTimeString("en-US", {
+  const date = due.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  if (!hasTime) return date;
+  return `${date}, ${due.toLocaleTimeString("en-US", {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
@@ -60,7 +66,7 @@ export function TaskConfirmationCard({
   onAdd: () => void;
   onDismiss: () => void;
   /** Writes edits back into the queued draft so "Add Task" saves what's on screen. */
-  onChange?: (patch: Partial<ExtractedTaskDraft>) => void;
+  onChange: (patch: Partial<ExtractedTaskDraft>) => void;
 }) {
   const [isEditing, setIsEditing] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
@@ -80,7 +86,7 @@ export function TaskConfirmationCard({
     },
     now,
   );
-  const dueLabel = previewDueLabel(draft.dueDate, now);
+  const dueLabel = previewDueLabel(draft.dueDate, draft.dueHasTime, now);
 
   const handleMinutesChange = (text: string) => {
     const parsed = Number.parseInt(text.replace(/\D/g, ""), 10);
@@ -89,17 +95,24 @@ export function TaskConfirmationCard({
 
   const handlePickerChange = (event: DateTimePickerEvent, selected?: Date) => {
     const mode = picker;
-    setPicker(null);
+    if (Platform.OS === "android") setPicker(null);
     if (event.type === "dismissed" || !selected) return;
     const base = draft.dueDate ? new Date(draft.dueDate) : new Date();
+    // Picking a time (or the combined iOS date+time spinner) means the user
+    // has now set one explicitly.
+    let dueHasTime = draft.dueHasTime;
     if (mode === "time") {
       base.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      dueHasTime = true;
     } else {
       base.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
       // iOS shows date and time in one spinner; Android needs a second dialog.
-      if (Platform.OS === "ios") base.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      if (Platform.OS === "ios") {
+        base.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+        dueHasTime = true;
+      }
     }
-    onChange?.({ dueDate: base.toISOString() });
+    onChange?.({ dueDate: base.toISOString(), dueHasTime });
     if (mode === "date" && Platform.OS === "android") setPicker("time");
   };
 
@@ -150,7 +163,7 @@ export function TaskConfirmationCard({
               className="flex-1 rounded-xl border border-cream-300 bg-cream-50 px-3 py-2"
             >
               <Text className="font-grotesk-medium text-sm text-ink-cream-subtle">
-                {formatDueFieldValue(draft.dueDate)}
+                {formatDueFieldValue(draft.dueDate, draft.dueHasTime)}
               </Text>
             </AnimatedPressable>
           </View>
@@ -170,6 +183,7 @@ export function TaskConfirmationCard({
               onPress={() => {
                 setIsEditing(false);
                 setCategoryOpen(false);
+                setPicker(null);
               }}
               hitSlop={8}
             >
@@ -228,11 +242,7 @@ export function TaskConfirmationCard({
           </View>
           {/* Icon rather than an "Edit details" label — the row is tight on
               narrow screens and the text pushed past the card's edge. */}
-          <AnimatedPressable
-            onPress={() => setIsEditing(true)}
-            hitSlop={10}
-            accessibilityLabel="Edit task details"
-          >
+          <AnimatedPressable onPress={() => setIsEditing(true)} hitSlop={10} accessibilityLabel="Edit task details">
             <Feather name="edit-2" size={15} color={colors.ink.creamSubtle} />
           </AnimatedPressable>
         </View>
