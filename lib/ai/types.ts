@@ -1,4 +1,5 @@
-import type { Task, TaskCategory, TaskComplexity } from "@/types/task";
+import type { TaskScope } from "@/lib/taskMeta";
+import type { Task, TaskCategory, TaskComplexity, TaskPriorityLevel } from "@/types/task";
 
 // Every "AI" function in this directory is a heuristic today, but shaped
 // exactly like a real LLM call's input/output — swapping in a real backend
@@ -11,6 +12,10 @@ export type ExtractedTaskDraft = {
   category: TaskCategory;
   estimatedMinutes: number;
   dueDate?: string;
+  // Feeds `importance` in lib/scoring.ts. Without it every extracted task
+  // landed on medium, which — combined with no deadline — pinned every
+  // AI-created task to the same priority score.
+  priorityLevel: TaskPriorityLevel;
 };
 
 export type ComplexityAnalysis = {
@@ -33,6 +38,10 @@ export type StructuredAction =
   // executes immediately; ambiguity is handled by asking which task
   // (CLARIFY) rather than by a confirmation step.
   | { type: "DELETE_TASK"; taskId: string; confirmationTier: "immediate" }
+  // Bulk removal ("remove all my completed tasks"). The scope is resolved
+  // against the full task list on-device, and it's always confirmed first
+  // since one message can wipe out every task.
+  | { type: "DELETE_TASKS"; scope: TaskScope; confirmationTier: "confirm-required" }
   // estimatedMinutes is set alongside a note when added context changes the
   // task's scope (taxonomy 2.2) or shrinks it via partial progress (3.3).
   | { type: "ADD_TASK_CONTEXT"; taskId: string; note: string; estimatedMinutes?: number; confirmationTier: "safe" }

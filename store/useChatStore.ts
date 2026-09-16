@@ -7,9 +7,11 @@ import type { ExtractTextResponseBody } from "@/app/api/extract-text+api";
 import { ATTACHMENT_REPLIES, INBOX_WELCOME_MESSAGE } from "@/data/aiPrompts";
 import { classifyIntent } from "@/lib/ai/classifyIntent";
 import { readFileAsBase64, resolveMimeType } from "@/lib/ai/media";
-import type { StructuredAction } from "@/lib/ai/types";
+import type { ExtractedTaskDraft, StructuredAction } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
 import { fetchMessages, subscribeToMessages, upsertMessageRow } from "@/lib/supabaseSync";
+import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
 import type { Task } from "@/types/task";
@@ -63,6 +65,7 @@ type ChatStore = {
   seedMessage: (text: string, relatedTaskId?: string) => void;
   updateMessageAttachment: (messageId: string, attachment: ChatAttachment) => void;
   updateMessageText: (messageId: string, text: string) => void;
+  updatePendingDraft: (actionIndex: number, draftIndex: number, patch: Partial<ExtractedTaskDraft>) => void;
   confirmPendingActions: () => void;
   cancelPendingActions: () => void;
   undoLastAction: () => void;
@@ -81,12 +84,19 @@ const initialMessages = (): ChatMessage[] => [
 
 // Only used when the offline heuristic fallback produces a confirm-required
 // action — the real AI path always has its own narrated "reply" instead.
+// A bulk delete's confirmation also uses this on the real AI path — only the
+// app can count exactly how many tasks it's about to remove.
 function confirmationPrompt(action: StructuredAction): string {
   switch (action.type) {
     case "CREATE_TASK":
       return action.drafts.length === 1
         ? `I found 1 task: "${action.drafts[0].title}". Want me to add it?`
         : `I found ${action.drafts.length} tasks: ${action.drafts.map((d) => `"${d.title}"`).join(", ")}. Want me to add them?`;
+    case "DELETE_TASKS": {
+      const count = tasksInScope(useTaskStore.getState().tasks, action.scope).length;
+      const both = action.scope === "all" ? " (pending and completed)" : "";
+      return `This will delete ${describeTaskCount(count, action.scope)}${both}. Go ahead?`;
+    }
     default:
       return "Want me to go ahead with that?";
   }
@@ -97,6 +107,10 @@ function confirmationPrompt(action: StructuredAction): string {
 // read-only/routing actions (QUERY, CLARIFY, UNKNOWN, REDIRECT_NEXT) never
 // touch a task, so there's nothing to snapshot.
 function snapshotBefore(action: StructuredAction, tasks: Task[]): { taskId: string; before: Task | null }[] {
+  if (action.type === "DELETE_TASKS") {
+    return tasksInScope(tasks, action.scope).map((task) => ({ taskId: task.id, before: task }));
+  }
+
   const taskId =
     action.type === "UPDATE_TASK" ||
     action.type === "COMPLETE_TASK" ||
@@ -167,11 +181,21 @@ export const useChatStore = create<ChatStore>()(
       // narrated "reply" covering all of them. Confirm-required actions are
       // queued together behind a single Yes/No; everything else applies now.
       const handleClassifiedActions = (actions: StructuredAction[], narratedReply: string | null) => {
-        const confirmRequired = actions.filter((a) => a.confirmationTier === "confirm-required");
-        const immediate = actions.filter((a) => a.confirmationTier !== "confirm-required");
+        // A bulk delete that matches nothing has nothing to confirm — say so
+        // instead of asking "delete 0 tasks?".
+        const emptyBulkDeletes = actions.filter(
+          (a) => a.type === "DELETE_TASKS" && tasksInScope(useTaskStore.getState().tasks, a.scope).length === 0,
+        );
+        const actionable = actions.filter((a) => !emptyBulkDeletes.includes(a));
+        const confirmRequired = actionable.filter((a) => a.confirmationTier === "confirm-required");
+        const immediate = actionable.filter((a) => a.confirmationTier !== "confirm-required");
 
         let lastTaskId: string | undefined;
-        const executedMessages: string[] = [];
+        const executedMessages: string[] = emptyBulkDeletes.map((a) =>
+          a.type === "DELETE_TASKS" && a.scope !== "all"
+            ? `You don't have any ${a.scope} tasks to delete.`
+            : "You don't have any tasks to delete.",
+        );
         for (const action of immediate) {
           const result = executeAction(action);
           executedMessages.push(result.message);
@@ -324,6 +348,7 @@ export const useChatStore = create<ChatStore>()(
               currentTaskId: contextTaskId,
               recentTaskIds: get().recentlyMentionedTaskIds,
               tasks: useTaskStore.getState().tasks,
+              categories: useCategoryStore.getState().categories,
               history,
             });
 
@@ -342,6 +367,23 @@ export const useChatStore = create<ChatStore>()(
             createdAt: new Date().toISOString(),
             relatedTaskId,
           });
+        },
+
+        // "Edit details" on a TaskConfirmationCard writes straight back into
+        // the queued draft, so confirming adds exactly what's on screen.
+        updatePendingDraft: (actionIndex, draftIndex, patch) => {
+          set((state) => ({
+            pendingActions: state.pendingActions.map((pending, index) => {
+              if (index !== actionIndex || pending.action.type !== "CREATE_TASK") return pending;
+              return {
+                ...pending,
+                action: {
+                  ...pending.action,
+                  drafts: pending.action.drafts.map((draft, i) => (i === draftIndex ? { ...draft, ...patch } : draft)),
+                },
+              };
+            }),
+          }));
         },
 
         confirmPendingActions: () => {

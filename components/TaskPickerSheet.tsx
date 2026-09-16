@@ -2,9 +2,10 @@ import { Feather } from "@expo/vector-icons";
 import { Modal, Pressable, ScrollView, Text, View } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
-import { CATEGORY_META } from "@/constants/categories";
+import { findCategory } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { formatDuration } from "@/lib/formatDuration";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import type { Task } from "@/types/task";
 
 export function TaskPickerSheet({
@@ -22,6 +23,8 @@ export function TaskPickerSheet({
   onUseRecommended: () => void;
   onClose: () => void;
 }) {
+  const categories = useCategoryStore((state) => state.categories);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable className="scrim flex-1 justify-end" onPress={onClose}>
@@ -34,7 +37,7 @@ export function TaskPickerSheet({
           </View>
           <ScrollView showsVerticalScrollIndicator={false}>
             {tasks.map((task) => {
-              const category = CATEGORY_META[task.category];
+              const category = findCategory(categories, task.category);
               const selected = selectedIds.includes(task.id);
               return (
                 <AnimatedPressable

@@ -6,15 +6,16 @@ import Animated from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { ContextNoteCard } from "@/components/ContextNoteCard";
 import { GemLogo } from "@/components/GemLogo";
+import { TaskEditPanel, type TaskEditChanges } from "@/components/TaskEditPanel";
 import { DeadlineChip, parseCustomDeadline } from "@/components/TaskFormFields";
-import { CATEGORY_META } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
-import { generateAdvice } from "@/lib/ai/generateAdvice";
+import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { formatDuration } from "@/lib/formatDuration";
 import { getDueInfo } from "@/lib/taskMeta";
-import { useSettingsStore } from "@/store/useSettingsStore";
+import { useCategory, useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 
 type PostponeValue = "1d" | "3d" | "1w";
@@ -40,16 +41,15 @@ export default function TaskDetail() {
   const deleteTask = useTaskStore((state) => state.deleteTask);
   const completeStep = useTaskStore((state) => state.completeStep);
   const addSubtask = useTaskStore((state) => state.addSubtask);
-  const addContext = useTaskStore((state) => state.addContext);
+  const setContextNotes = useTaskStore((state) => state.setContextNotes);
   const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
-  const planningStyle = useSettingsStore((state) => state.planningStyle);
+  const category = useCategory(task?.category ?? "");
   const enterStyle = useScreenEnterAnimation();
 
   const [note, setNote] = useState("");
   const [subtaskDraft, setSubtaskDraft] = useState("");
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(task?.title ?? "");
+  const [editing, setEditing] = useState(false);
   const [customPostponeOpen, setCustomPostponeOpen] = useState(false);
   const [customPostponeText, setCustomPostponeText] = useState("");
 
@@ -58,8 +58,8 @@ export default function TaskDetail() {
   useEffect(() => {
     if (!task) return;
     let cancelled = false;
-    generateAdvice(task, planningStyle).then((result) => {
-      if (!cancelled) setAdvice(result);
+    generateAdvice(task, useCategoryStore.getState().categories).then((result) => {
+      if (!cancelled) setAdvice(adviceToText(result));
     });
     return () => {
       cancelled = true;
@@ -68,7 +68,7 @@ export default function TaskDetail() {
     // pending task a fresh object identity whenever any task mutates, and
     // that would otherwise re-trigger a paid AI call on unrelated edits.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [task?.id, task?.updatedAt, planningStyle]);
+  }, [task?.id, task?.updatedAt]);
 
   if (!task) {
     return (
@@ -85,8 +85,8 @@ export default function TaskDetail() {
   }
 
   const due = getDueInfo(task);
-  const category = CATEGORY_META[task.category];
   const isCompleted = task.status === "completed";
+  const contextNotes = task.aiContext.notes;
   const orderedSubtasks = task.subtasks?.slice().sort((a, b) => a.order - b.order) ?? [];
   const completedSubtaskCount = orderedSubtasks.filter((subtask) => subtask.status === "completed").length;
 
@@ -104,15 +104,9 @@ export default function TaskDetail() {
     setCustomPostponeText("");
   };
 
-  const handleStartEditTitle = () => {
-    setTitleDraft(task.title);
-    setEditingTitle(true);
-  };
-
-  const handleCommitTitle = () => {
-    const trimmed = titleDraft.trim();
-    if (trimmed && trimmed !== task.title) updateTask(task.id, { title: trimmed });
-    setEditingTitle(false);
+  const handleSaveEdit = (changes: TaskEditChanges) => {
+    updateTask(task.id, changes);
+    setEditing(false);
   };
 
   const handleAddSubtask = () => {
@@ -125,12 +119,22 @@ export default function TaskDetail() {
   const handleSendNote = () => {
     const trimmed = note.trim();
     if (!trimmed) return;
-    addContext(task.id, trimmed);
+    setContextNotes(task.id, [...contextNotes, trimmed]);
     setNote("");
   };
 
-  const handleFocusNow = () => {
-    router.push("/(tabs)");
+  const handleUpdateNote = (index: number, text: string) => {
+    setContextNotes(
+      task.id,
+      contextNotes.map((entry, entryIndex) => (entryIndex === index ? text : entry)),
+    );
+  };
+
+  const handleDeleteNote = (index: number) => {
+    setContextNotes(
+      task.id,
+      contextNotes.filter((_, entryIndex) => entryIndex !== index),
+    );
   };
 
   const handleDelete = () => {
@@ -166,13 +170,6 @@ export default function TaskDetail() {
               Score: <Text className="font-grotesk-bold">{task.priorityScore}</Text>
             </Text>
           </View>
-          <AnimatedPressable
-            onPress={handleFocusNow}
-            className="flex-row items-center gap-1.5 rounded-2xl bg-orange-100 px-3 py-1.5"
-          >
-            <Feather name="target" size={13} color={colors.orange[600]} />
-            <Text className="font-grotesk-semibold text-xs text-orange-600">Focus Now</Text>
-          </AnimatedPressable>
         </View>
       </View>
 
@@ -231,41 +228,41 @@ export default function TaskDetail() {
             ) : null}
           </View>
 
-          <View className="flex-row items-start justify-between gap-3">
-            {editingTitle ? (
-              <TextInput
-                value={titleDraft}
-                onChangeText={setTitleDraft}
-                onSubmitEditing={handleCommitTitle}
-                onBlur={handleCommitTitle}
-                autoFocus
-                returnKeyType="done"
-                className="flex-1 text-title text-ink-cream"
-              />
-            ) : (
-              <Text className="flex-1 text-title text-ink-cream">{task.title}</Text>
-            )}
-            <AnimatedPressable onPress={editingTitle ? handleCommitTitle : handleStartEditTitle} hitSlop={8} className="pt-1">
-              <Feather name={editingTitle ? "check" : "edit-2"} size={18} color={colors.ink.creamMuted} />
-            </AnimatedPressable>
-          </View>
+          {editing ? (
+            <TaskEditPanel task={task} onSave={handleSaveEdit} onCancel={() => setEditing(false)} />
+          ) : (
+            <>
+              <View className="flex-row items-start justify-between gap-3">
+                <Text className="flex-1 text-title text-ink-cream">{task.title}</Text>
+                <AnimatedPressable
+                  onPress={() => setEditing(true)}
+                  hitSlop={8}
+                  accessibilityRole="button"
+                  accessibilityLabel="Edit task"
+                  className="pt-1"
+                >
+                  <Feather name="edit-2" size={18} color={colors.ink.creamMuted} />
+                </AnimatedPressable>
+              </View>
 
-          <View className="flex-row flex-wrap gap-2">
-            <View className="flex-row items-center gap-1.5 rounded-xl border border-cream-300 px-3 py-1.5">
-              <Feather name="folder" size={13} color={colors.ink.creamMuted} />
-              <Text className="font-grotesk-medium text-xs text-ink-cream">{category.label}</Text>
-            </View>
-            <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
-              <Feather name="calendar" size={13} color={colors.ink.creamMuted} />
-              <Text className="font-grotesk-medium text-xs text-ink-cream">Due: {due.label}</Text>
-            </View>
-            <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
-              <Feather name="clock" size={13} color={colors.orange[500]} />
-              <Text className="font-grotesk-semibold text-xs text-orange-600">
-                Est: {formatDuration(task.estimatedMinutes)}
-              </Text>
-            </View>
-          </View>
+              <View className="flex-row flex-wrap gap-2">
+                <View className="flex-row items-center gap-1.5 rounded-xl border border-cream-300 px-3 py-1.5">
+                  <Feather name="folder" size={13} color={colors.ink.creamMuted} />
+                  <Text className="font-grotesk-medium text-xs text-ink-cream">{category.label}</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
+                  <Feather name="calendar" size={13} color={colors.ink.creamMuted} />
+                  <Text className="font-grotesk-medium text-xs text-ink-cream">Due: {due.label}</Text>
+                </View>
+                <View className="flex-row items-center gap-1.5 rounded-xl bg-cream-200 px-3 py-1.5">
+                  <Feather name="clock" size={13} color={colors.orange[500]} />
+                  <Text className="font-grotesk-semibold text-xs text-orange-600">
+                    Est: {formatDuration(task.estimatedMinutes)}
+                  </Text>
+                </View>
+              </View>
+            </>
+          )}
 
           <View className="gap-2 rounded-2xl bg-cream-200 p-5">
             <View className="flex-row items-center gap-2">
@@ -353,25 +350,22 @@ export default function TaskDetail() {
             </View>
           ) : null}
 
-          {task.aiContext.notes.length > 0 ? (
-            <View className="gap-2">
-              <Text className="eyebrow text-ink-cream">CONTEXT NEXDO KNOWS</Text>
-              <View className="gap-1.5">
-                {task.aiContext.notes.map((entry, index) => (
-                  <View key={`${index}-${entry}`} className="flex-row gap-2">
-                    <Text className="text-body text-orange-500">•</Text>
-                    <Text className="flex-1 text-body text-ink-cream-muted">{entry}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          ) : null}
-
           <View className="gap-3 rounded-2xl border border-cream-300 bg-cream-50 p-4">
             <View className="flex-row items-center gap-2">
               <Ionicons name="sparkles" size={16} color={colors.orange[500]} />
               <Text className="eyebrow text-ink-cream">ADD CONTEXT FOR AI</Text>
             </View>
+            <Text className="font-grotesk-regular text-xs text-ink-cream-muted">
+              The AI reads these notes when it gives advice on this task or breaks it down.
+            </Text>
+            {contextNotes.map((entry, index) => (
+              <ContextNoteCard
+                key={`${index}-${entry}`}
+                note={entry}
+                onSave={(text) => handleUpdateNote(index, text)}
+                onDelete={() => handleDeleteNote(index)}
+              />
+            ))}
             <View className="flex-row items-end gap-2 rounded-2xl border border-cream-300 bg-cream-100 px-4 py-2.5">
               <TextInput
                 value={note}

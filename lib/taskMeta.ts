@@ -2,6 +2,19 @@ import type { Task } from "@/types/task";
 
 export type ScoreTier = "high" | "medium" | "low";
 
+// Which tasks a bulk action ("remove all my completed tasks") applies to.
+export type TaskScope = "all" | "completed" | "pending";
+
+export function tasksInScope(tasks: Task[], scope: TaskScope): Task[] {
+  return scope === "all" ? tasks : tasks.filter((task) => task.status === scope);
+}
+
+/** "12 tasks", "1 completed task", "3 pending tasks". */
+export function describeTaskCount(count: number, scope: TaskScope): string {
+  const noun = count === 1 ? "task" : "tasks";
+  return scope === "all" ? `${count} ${noun}` : `${count} ${scope} ${noun}`;
+}
+
 // Thresholds mirror prompt_material/01-design-system.txt's urgency scale.
 export function getScoreTier(score: number): ScoreTier {
   if (score >= 75) return "high";

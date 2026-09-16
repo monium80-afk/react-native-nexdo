@@ -1,6 +1,8 @@
-import type { Subtask, TaskCategory, TaskComplexity } from "@/types/task";
+import { FALLBACK_CATEGORY_ID, isBuiltInCategoryId } from "@/constants/categories";
+import type { BuiltInCategoryId, Subtask, TaskCategory, TaskComplexity } from "@/types/task";
 
-const CATEGORY_TEMPLATES: Record<TaskCategory, [string, string, string]> = {
+// User-created categories fall back to the "other" wording.
+const CATEGORY_TEMPLATES: Record<BuiltInCategoryId, [string, string, string]> = {
   school: ["Gather notes and materials", "Do the core work", "Review and finalize"],
   work: ["Gather what you need", "Do the core work", "Review and send"],
   personal: ["Get ready", "Do the core work", "Wrap up"],
@@ -23,7 +25,7 @@ export function generatePlan(input: {
 }): Subtask[] | undefined {
   if (input.complexity === "simple") return undefined;
 
-  const labels = CATEGORY_TEMPLATES[input.category];
+  const labels = CATEGORY_TEMPLATES[isBuiltInCategoryId(input.category) ? input.category : FALLBACK_CATEGORY_ID];
   const durations = SPLIT_RATIOS.map((ratio) => Math.round(input.estimatedMinutes * ratio));
   durations[durations.length - 1] += input.estimatedMinutes - durations.reduce((sum, duration) => sum + duration, 0);
 

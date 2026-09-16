@@ -76,6 +76,14 @@ export default function RootLayout() {
         >
           <View style={Platform.OS === "web" ? { flex: 1, width: "100%", maxWidth: WEB_FRAME_MAX_WIDTH } : { flex: 1 }}>
             <Stack
+              // Without this, React Navigation defaults the initial route to
+              // whichever screen is registered first — and "add" below,
+              // being the only *explicit* Stack.Screen, was winning that
+              // slot over the file-system-discovered "(tabs)" group. That
+              // put the app on the Add Task modal on cold start with no
+              // history underneath it, so its "x" button (router.back())
+              // had nothing to go back to.
+              initialRouteName="(tabs)"
               screenOptions={{
                 headerShown: false,
                 // Left as "none": onboarding/sign-in/sign-up drive their own

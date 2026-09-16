@@ -2,31 +2,19 @@ import type { NextResponseBody } from "@/app/api/next+api";
 import { taskToContext } from "@/lib/ai/context";
 import { apiPost } from "@/lib/api";
 import { formatDuration } from "@/lib/formatDuration";
-import { getDueInfo } from "@/lib/taskMeta";
-import type { PlanningStyle } from "@/types/settings";
+import type { Category } from "@/types/category";
 import type { Task } from "@/types/task";
 
-// Composes the Layer B response into the tiered display copy the UI already
-// expects — "how much detail to show" is an app/UI concern the execution
-// coach prompt intentionally doesn't own (see EXECUTION_COACH_SYSTEM_PROMPT).
-function composeAdvice(task: Task, planningStyle: PlanningStyle, result: NextResponseBody, now: Date): string {
-  if (planningStyle === "minimal") return result.advice;
-  if (planningStyle === "balanced") return `${result.advice} ${result.explanation}`.trim();
+/** A short, bold takeaway plus the reasoning behind it — shown as two lines of different weight. */
+export type TaskAdvice = { headline: string; detail: string };
 
-  const due = getDueInfo(task, now);
-  const remainingSteps = result.plan.filter((step) => step.status !== "completed").length;
-  const remainingPhrase = remainingSteps > 1 ? `${remainingSteps - 1} step${remainingSteps - 1 === 1 ? "" : "s"} left after this one. ` : "";
-  return `${result.advice} ${result.explanation} ${remainingPhrase}${due.pillLabel}.`.replace(/\s+/g, " ").trim();
+export function adviceToText(advice: TaskAdvice): string {
+  return `${advice.headline} ${advice.detail}`.trim();
 }
 
 // Layer B (Execution Coach) — see data/aiPrompts.ts and app/api/next+api.ts.
 // Falls back to the heuristic advice below on any network/parse failure.
-export async function generateAdvice(
-  task: Task,
-  planningStyle: PlanningStyle,
-  availableMinutes?: number,
-  now: Date = new Date(),
-): Promise<string> {
+export async function generateAdvice(task: Task, categories: Category[], availableMinutes?: number): Promise<TaskAdvice> {
   try {
     const existingPlan = (task.subtasks ?? []).map((subtask) => ({
       id: subtask.id,
@@ -35,31 +23,26 @@ export async function generateAdvice(
       status: subtask.status,
     }));
     const result = await apiPost<NextResponseBody>("/api/next", {
-      task: taskToContext(task),
+      task: taskToContext(task, categories),
       existingPlan,
       availableMinutes,
     });
-    return composeAdvice(task, planningStyle, result, now);
+    return { headline: result.advice.trim(), detail: result.explanation.trim() };
   } catch (error) {
     console.warn("[generateAdvice] falling back to heuristic", error);
-    return generateAdviceHeuristic(task, planningStyle, now);
+    return generateAdviceHeuristic(task);
   }
 }
 
 // Heuristic fallback — was the only implementation before Layer B existed.
-// Advice here is derived at read time from the task + planning-style
-// setting, so it can never go stale relative to a task edit or settings change.
-function generateAdviceHeuristic(task: Task, planningStyle: PlanningStyle, now: Date = new Date()): string {
+// Advice here is derived at read time from the task, so it can never go
+// stale relative to a task edit.
+function generateAdviceHeuristic(task: Task): TaskAdvice {
   const currentSubtask = task.subtasks?.find((subtask) => subtask.status === "current");
-  const remainingCount = task.subtasks?.filter(
-    (subtask) => subtask.status !== "completed" && subtask.id !== currentSubtask?.id,
-  ).length ?? 0;
 
   const headline = currentSubtask
     ? `Do this now: ${currentSubtask.label} (~${formatDuration(currentSubtask.estimatedMinutes)}).`
     : `Just do it — ${task.title} should take about ${formatDuration(task.estimatedMinutes)}.`;
-
-  if (planningStyle === "minimal") return headline;
 
   const urgencyPhrase =
     task.priorityScore >= 85
@@ -67,14 +50,6 @@ function generateAdviceHeuristic(task: Task, planningStyle: PlanningStyle, now: 
       : task.priorityScore >= 60
         ? "this is worth tackling soon"
         : "there's no rush, but it's on your list";
-  const reasoningSentence = `Priority score ${task.priorityScore}/100 — ${urgencyPhrase}.`;
 
-  if (planningStyle === "balanced") return `${headline} ${reasoningSentence}`;
-
-  const due = getDueInfo(task, now);
-  const remainingPhrase =
-    remainingCount > 0
-      ? `${remainingCount} step${remainingCount === 1 ? "" : "s"} left after this one. `
-      : "";
-  return `${headline} ${reasoningSentence} ${remainingPhrase}${due.pillLabel}.`;
+  return { headline, detail: `Priority score ${task.priorityScore}/100 — ${urgencyPhrase}.` };
 }

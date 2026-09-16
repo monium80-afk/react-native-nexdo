@@ -17,17 +17,10 @@ import { FilterSheet } from "@/components/FilterSheet";
 import { TaskCard } from "@/components/TaskCard";
 import { colors } from "@/constants/theme";
 import { getDueInfo } from "@/lib/taskMeta";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskFilterStore, type TaskSortOption, type TaskStatusFilter } from "@/store/useTaskFilterStore";
 import { useTaskStore } from "@/store/useTaskStore";
-import type { Task, TaskCategory } from "@/types/task";
-
-const CATEGORY_TABS: { label: string; value: TaskCategory | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "School", value: "school" },
-  { label: "Work", value: "work" },
-  { label: "Personal", value: "personal" },
-  { label: "Other", value: "other" },
-];
+import type { Task } from "@/types/task";
 
 const SORT_OPTIONS: { label: string; value: TaskSortOption }[] = [
   { label: "Recently added", value: "recent" },
@@ -64,8 +57,22 @@ export default function TasksListScreen() {
   const router = useRouter();
   const tasks = useTaskStore((state) => state.tasks);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
-  const { category, status, sort, search, setCategory, setStatus, setSort, setSearch } =
+  const categories = useCategoryStore((state) => state.categories);
+  const { category: selectedCategory, status, sort, search, setCategory, setStatus, setSort, setSearch } =
     useTaskFilterStore();
+
+  // A category deleted in Settings can't stay selected here.
+  const category = selectedCategory === "all" || categories.some((c) => c.id === selectedCategory)
+    ? selectedCategory
+    : "all";
+
+  const categoryTabs = useMemo(
+    () => [
+      { label: "All", value: "all" },
+      ...categories.map((c) => ({ label: c.label, value: c.id })),
+    ],
+    [categories],
+  );
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
@@ -96,14 +103,8 @@ export default function TasksListScreen() {
   );
 
   const categoryCounts = useMemo(() => {
-    const counts: Record<TaskCategory | "all", number> = {
-      all: tasks.length,
-      work: 0,
-      school: 0,
-      personal: 0,
-      other: 0,
-    };
-    for (const task of tasks) counts[task.category] += 1;
+    const counts: Record<string, number> = { all: tasks.length };
+    for (const task of tasks) counts[task.category] = (counts[task.category] ?? 0) + 1;
     return counts;
   }, [tasks]);
 
@@ -208,7 +209,7 @@ export default function TasksListScreen() {
             className="absolute bottom-1 left-0 top-1 rounded-2xl bg-cream-50"
             style={categoryHighlightStyle}
           />
-          {CATEGORY_TABS.map((tab) => {
+          {categoryTabs.map((tab) => {
             const active = tab.value === category;
             return (
               <AnimatedPressable
@@ -234,7 +235,7 @@ export default function TasksListScreen() {
                     active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
                   }
                 >
-                  <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value]}</Text>
+                  <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value] ?? 0}</Text>
                 </View>
               </AnimatedPressable>
             );

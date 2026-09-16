@@ -1,9 +1,19 @@
-import { Pressable, type PressableProps, type PressableStateCallbackType } from "react-native";
+import { Pressable, type PressableProps, type StyleProp, type ViewStyle } from "react-native";
 import Animated, { Easing, useAnimatedStyle, useSharedValue, withTiming } from "react-native-reanimated";
 
 const ReanimatedPressable = Animated.createAnimatedComponent(Pressable);
 
-type AnimatedPressableProps = PressableProps & { scaleTo?: number };
+type AnimatedPressableProps = Omit<PressableProps, "style"> & {
+  scaleTo?: number;
+  /**
+   * A plain style only — not Pressable's `(state) => style` function form.
+   * Reanimated and NativeWind both read `style` as an object/array and
+   * silently drop a function, which used to swallow every inline style
+   * passed here (e.g. a selected category's colors) along with the press
+   * animation itself.
+   */
+  style?: StyleProp<ViewStyle>;
+};
 
 /**
  * Drop-in replacement for Pressable that adds a quick spring scale-down on
@@ -31,10 +41,7 @@ export function AnimatedPressable({ scaleTo = 0.96, onPressIn, onPressOut, style
         scale.value = withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) });
         onPressOut?.(event);
       }}
-      style={(state: PressableStateCallbackType) => {
-        const resolvedStyle = typeof style === "function" ? style(state) : style;
-        return [resolvedStyle, animatedStyle];
-      }}
+      style={[style, animatedStyle]}
     />
   );
 }

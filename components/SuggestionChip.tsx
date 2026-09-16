@@ -1,12 +1,12 @@
-import { Feather } from "@expo/vector-icons";
+import type { ReactNode } from "react";
 import { Text } from "react-native";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
-import { colors } from "@/constants/theme";
 
 type SuggestionChipProps = {
   emoji: string;
-  icon?: keyof typeof Feather.glyphMap;
+  /** Rendered in place of the emoji — pass a sized, colored icon element. */
+  icon?: ReactNode;
   label: string;
   onPress: () => void;
   /** Stacked greeting suggestions stretch full-width; the quick-action bar stays compact. */
@@ -24,7 +24,7 @@ export function SuggestionChip({ emoji, icon, label, onPress, fullWidth = false 
       }
     >
       {icon ? (
-        <Feather name={icon} size={fullWidth ? 16 : 18} color={colors.orange[500]} />
+        icon
       ) : (
         <Text className={fullWidth ? "text-sm" : "text-xs"}>{emoji}</Text>
       )}

@@ -1,11 +1,11 @@
-import type { Task, TaskCategory } from "@/types/task";
+import type { BuiltInCategoryId, Task } from "@/types/task";
 
 export type TaskReferenceResult =
   | { status: "resolved"; taskId: string }
   | { status: "ambiguous"; candidates: Task[] }
   | { status: "none" };
 
-const CATEGORY_KEYWORDS: Record<TaskCategory, RegExp> = {
+const CATEGORY_KEYWORDS: Record<BuiltInCategoryId, RegExp> = {
   school: /\bschool\b/i,
   work: /\bwork\b/i,
   personal: /\bpersonal\b/i,
@@ -51,7 +51,7 @@ export function resolveTaskReference(
   if (wordMatches.length === 1) return { status: "resolved", taskId: wordMatches[0].id };
   if (wordMatches.length > 1) return { status: "ambiguous", candidates: wordMatches };
 
-  for (const [category, pattern] of Object.entries(CATEGORY_KEYWORDS) as [TaskCategory, RegExp][]) {
+  for (const [category, pattern] of Object.entries(CATEGORY_KEYWORDS) as [BuiltInCategoryId, RegExp][]) {
     if (pattern.test(text)) {
       const candidates = pending.filter((task) => task.category === category);
       if (candidates.length === 1) return { status: "resolved", taskId: candidates[0].id };

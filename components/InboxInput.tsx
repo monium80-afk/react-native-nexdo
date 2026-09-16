@@ -163,7 +163,7 @@ export function InboxInput({ value, onChangeText, onSend, onAttachment }: InboxI
         accessibilityLabel={isRecording ? "Stop recording" : "Send message"}
         disabled={!isRecording && !canSend}
         hitSlop={4}
-        className="mr-1 h-11 w-11 items-center justify-center rounded-2xl bg-orange-500"
+        className="mr-2 h-11 w-11 items-center justify-center rounded-2xl bg-orange-500"
       >
         <Feather name={isRecording ? "square" : "send"} size={isRecording ? 15 : 17} color={colors.cream[50]} />
       </AnimatedPressable>

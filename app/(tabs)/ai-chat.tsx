@@ -1,7 +1,7 @@
 import { useUser } from "@clerk/expo";
-import { Feather } from "@expo/vector-icons";
+import { Feather, MaterialCommunityIcons } from "@expo/vector-icons";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { KeyboardAvoidingView, Platform, ScrollView, Text, View } from "react-native";
 import Animated, { FadeInDown, FadeInUp } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,13 +12,27 @@ import { SuggestionChip } from "@/components/SuggestionChip";
 import { TaskConfirmationCard } from "@/components/TaskConfirmationCard";
 import { colors } from "@/constants/theme";
 import { INBOX_QUICK_ACTIONS, INBOX_STARTER_SUGGESTIONS } from "@/data/aiPrompts";
-import { generateAdvice } from "@/lib/ai/generateAdvice";
+import { adviceToText, generateAdvice } from "@/lib/ai/generateAdvice";
 import { posthog } from "@/lib/posthog";
 import { uploadAttachment } from "@/lib/supabaseStorage";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useChatStore } from "@/store/useChatStore";
-import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { ChatAttachment, ChatMessage } from "@/types/chat";
+
+const QUICK_ACTION_ICON_SIZE = 18;
+
+// Each quick-action chip gets its own colored icon, keyed by INBOX_QUICK_ACTIONS id.
+const QUICK_ACTION_ICONS: Record<string, ReactNode> = {
+  "whats-next": <Feather name="plus" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.add} />,
+  "breakdown-top": <Feather name="check" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.complete} />,
+  "quick-win": <Feather name="trash-2" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.remove} />,
+  "overdue-catchup": <Feather name="refresh-cw" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.change} />,
+  "break-down": (
+    <MaterialCommunityIcons name="format-list-checks" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.breakDown} />
+  ),
+  prioritize: <Feather name="target" size={QUICK_ACTION_ICON_SIZE} color={colors.quickAction.prioritize} />,
+};
 
 function formatTime(iso: string) {
   return new Date(iso).toLocaleTimeString("en-US", {
@@ -31,7 +45,7 @@ function formatTime(iso: string) {
 function ChatBubble({ message }: { message: ChatMessage }) {
   if (message.role === "ai") {
     return (
-      <Animated.View entering={FadeInUp.duration(240)} className="flex-row items-start gap-2.5 pr-6">
+      <Animated.View entering={FadeInUp.duration(240)} className="flex-row items-start gap-2.5 pr-1">
         <View className="h-8 w-8 items-center justify-center rounded-full bg-cream-200">
           <GemLogo size={16} />
         </View>
@@ -46,7 +60,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
   }
 
   return (
-    <Animated.View entering={FadeInDown.duration(220)} className="flex-row items-center justify-end gap-2 pl-6">
+    <Animated.View entering={FadeInDown.duration(220)} className="flex-row items-center justify-end gap-2 pl-1">
       <View className="flex-1 rounded-2xl bg-charcoal-900 px-4 py-3">
         <Text className="font-grotesk-medium text-sm text-ink-charcoal">{message.text}</Text>
         <Text className="mt-1 self-end font-grotesk-medium text-xs text-ink-charcoal-muted">
@@ -62,7 +76,7 @@ function ChatBubble({ message }: { message: ChatMessage }) {
 
 function TypingBubble() {
   return (
-    <Animated.View entering={FadeInUp.duration(200)} className="flex-row items-center gap-2.5 pr-6">
+    <Animated.View entering={FadeInUp.duration(200)} className="flex-row items-center gap-2.5 pr-1">
       <View className="h-8 w-8 items-center justify-center rounded-full bg-cream-200">
         <GemLogo size={16} />
       </View>
@@ -84,10 +98,10 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
   const pendingActions = useChatStore((state) => state.pendingActions);
   const confirmPendingActions = useChatStore((state) => state.confirmPendingActions);
   const cancelPendingActions = useChatStore((state) => state.cancelPendingActions);
+  const updatePendingDraft = useChatStore((state) => state.updatePendingDraft);
   const redirectToNext = useChatStore((state) => state.redirectToNext);
   const clearRedirectToNext = useChatStore((state) => state.clearRedirectToNext);
   const tasks = useTaskStore((state) => state.tasks);
-  const planningStyle = useSettingsStore((state) => state.planningStyle);
 
   const pendingCount = tasks.filter((task) => task.status === "pending").length;
   const contextTask = contextTaskId ? tasks.find((task) => task.id === contextTaskId) : undefined;
@@ -103,10 +117,10 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
     const task = useTaskStore.getState().tasks.find((candidate) => candidate.id === contextTaskId);
     if (!task) return;
     let cancelled = false;
-    generateAdvice(task, planningStyle, availableMinutes).then((advice) => {
+    generateAdvice(task, useCategoryStore.getState().categories, availableMinutes).then((advice) => {
       if (cancelled) return;
       seedMessage(
-        `Here's my read on "${task.title}" — it's a ${task.complexity} task. ${advice}`,
+        `Here's my read on "${task.title}" — it's a ${task.complexity} task. ${adviceToText(advice)}`,
         task.id,
       );
     });
@@ -114,7 +128,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
       cancelled = true;
       if (analysisSeededFor.current === contextTaskId) analysisSeededFor.current = null;
     };
-  }, [contextTaskId, planningStyle, availableMinutes, seedMessage]);
+  }, [contextTaskId, availableMinutes, seedMessage]);
 
   const handleSend = (text: string, attachment?: ChatAttachment) => {
     if (!text.trim()) return;
@@ -122,7 +136,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
     setDraft("");
   };
 
-  // Quick-action chips (Add, Mark complete, Remove, Change deadline) don't
+  // Quick-action chips (Add, Mark complete, Remove, Change, Break down, Prioritize) don't
   // send on their own — they drop their label into the draft so the user
   // can add the specifics (which task, what deadline) before sending.
   const handleQuickAction = (label: string) => {
@@ -192,25 +206,31 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
           {isAiTyping ? <TypingBubble /> : null}
 
           {pendingActions.length > 0 ? (
-            <Animated.View entering={FadeInUp.duration(240)} className="gap-3 pr-8">
-              {pendingActions.flatMap((pending, index) =>
-                pending.action.type === "CREATE_TASK"
-                  ? pending.action.drafts.map((draft, draftIndex) => (
-                      <TaskConfirmationCard
-                        key={`${index}-${draftIndex}`}
-                        draft={draft}
-                        onAdd={confirmPendingActions}
-                        onDismiss={cancelPendingActions}
-                      />
-                    ))
-                  : [],
-              )}
-              {pendingActions.some((pending) => pending.action.type !== "CREATE_TASK") ? (
-                <View className="flex-row gap-2">
-                  <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingActions} />
-                  <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingActions} />
-                </View>
-              ) : null}
+            <Animated.View entering={FadeInUp.duration(240)} className="flex-row items-start gap-2.5 pr-1">
+              {/* Mirrors the avatar column in ChatBubble so this card's left
+                  edge lands exactly where the AI bubbles' do. */}
+              <View className="h-8 w-8" />
+              <View className="flex-1 gap-3">
+                {pendingActions.flatMap((pending, index) =>
+                  pending.action.type === "CREATE_TASK"
+                    ? pending.action.drafts.map((draft, draftIndex) => (
+                        <TaskConfirmationCard
+                          key={`${index}-${draftIndex}`}
+                          draft={draft}
+                          onAdd={confirmPendingActions}
+                          onDismiss={cancelPendingActions}
+                          onChange={(patch) => updatePendingDraft(index, draftIndex, patch)}
+                        />
+                      ))
+                    : [],
+                )}
+                {pendingActions.some((pending) => pending.action.type !== "CREATE_TASK") ? (
+                  <View className="flex-row gap-2">
+                    <SuggestionChip emoji="✅" label="Yes, do it" onPress={confirmPendingActions} />
+                    <SuggestionChip emoji="✕" label="Cancel" onPress={cancelPendingActions} />
+                  </View>
+                ) : null}
+              </View>
             </Animated.View>
           ) : null}
 
@@ -248,15 +268,7 @@ function InboxChatScreen({ contextTaskId, availableMinutes }: { contextTaskId?: 
                   key={action.id}
                   emoji={action.emoji}
                   label={action.label}
-                  icon={
-                    action.id === "whats-next"
-                      ? "plus"
-                      : action.id === "breakdown-top"
-                        ? "check"
-                        : action.id === "quick-win"
-                          ? "trash-2"
-                          : "refresh-cw"
-                  }
+                  icon={QUICK_ACTION_ICONS[action.id]}
                   onPress={() => handleQuickAction(action.label)}
                 />
               ))}

@@ -10,6 +10,7 @@ import { generatePlan } from "@/lib/ai/generatePlan";
 import type { PlanStep, StructuredAction } from "@/lib/ai/types";
 import { PRIORITY_LEVEL_IMPORTANCE, createSkipRecord, recalcTask } from "@/lib/scoring";
 import { deleteTaskRow, fetchTasks, subscribeToTasks, upsertTaskRow } from "@/lib/supabaseSync";
+import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
 import { recalcAll } from "@/lib/taskPipeline";
 import type { Subtask, Task, TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
 
@@ -142,15 +143,20 @@ type TaskStore = {
     changes: Partial<Pick<Task, "title" | "category" | "dueDate" | "estimatedMinutes" | "notes">>,
   ) => void;
   deleteTask: (id: string) => void;
+  deleteTasks: (ids: string[]) => void;
   toggleTaskStatus: (id: string) => void;
   completeTask: (id: string) => void;
   reopenTask: (id: string) => void;
   completeStep: (taskId: string, stepId: string) => void;
   addSubtask: (taskId: string, label: string) => void;
   addContext: (taskId: string, note: string, estimatedMinutesOverride?: number) => void;
+  /** Replaces the task's AI context notes as-is — the Task Details note cards add, edit and remove through this. */
+  setContextNotes: (taskId: string, notes: string[]) => void;
   skipTask: (taskId: string, reason: string) => void;
   regeneratePlan: (taskId: string) => void;
   applyPlanSteps: (taskId: string, steps: PlanStep[]) => void;
+  /** AI Breakdown in a session: swaps the unfinished steps for new ones, keeping the ones already checked off. */
+  replaceRemainingSteps: (taskId: string, steps: PlanStep[]) => void;
   /** Undo support: null restores "no task" (undoes a create), otherwise replaces/reinserts the given task verbatim. */
   restoreTaskSnapshot: (taskId: string, snapshot: Task | null) => void;
   applyStructuredAction: (action: StructuredAction) => { message: string; taskId?: string; taskIds?: string[] };
@@ -233,6 +239,12 @@ export const useTaskStore = create<TaskStore>()(
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }));
         syncDelete(id, get().syncUserId);
+      },
+
+      deleteTasks: (ids) => {
+        const doomed = new Set(ids);
+        set((state) => ({ tasks: state.tasks.filter((task) => !doomed.has(task.id)) }));
+        ids.forEach((id) => syncDelete(id, get().syncUserId));
       },
 
       toggleTaskStatus: (id) => {
@@ -410,6 +422,22 @@ export const useTaskStore = create<TaskStore>()(
         if (updated) syncUpsert(updated, get().syncUserId);
       },
 
+      // Unlike addContext above, this never reinterprets the notes (no subtask
+      // reordering, no deadline changes) — they're just what the AI reads.
+      setContextNotes: (taskId, notes) => {
+        const now = new Date();
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId ? { ...t, aiContext: { notes }, updatedAt: now.toISOString() } : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
       skipTask: (taskId, reason) => {
         const now = new Date();
         set((state) => ({
@@ -489,6 +517,45 @@ export const useTaskStore = create<TaskStore>()(
         if (updated) syncUpsert(updated, get().syncUserId);
       },
 
+      replaceRemainingSteps: (taskId, steps) => {
+        const now = new Date();
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task || steps.length === 0) return;
+
+        const finished = (task.subtasks ?? [])
+          .filter((subtask) => subtask.status === "completed")
+          .sort((a, b) => a.order - b.order);
+        const subtasks: Subtask[] = [
+          ...finished.map((subtask, index) => ({ ...subtask, order: index })),
+          ...steps.map((step, index) => ({
+            id: `subtask-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+            label: step.title,
+            estimatedMinutes: step.estimatedMinutes,
+            order: finished.length + index,
+            status: index === 0 ? ("current" as const) : ("pending" as const),
+          })),
+        ];
+
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks,
+                    currentStepId: subtasks.find((subtask) => subtask.status === "current")?.id,
+                    estimatedMinutes: remainingMinutes(subtasks),
+                    updatedAt: now.toISOString(),
+                  }
+                : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
       restoreTaskSnapshot: (taskId, snapshot) => {
         const now = new Date();
         if (snapshot === null) {
@@ -513,7 +580,7 @@ export const useTaskStore = create<TaskStore>()(
                 category: draft.category,
                 estimatedMinutes: draft.estimatedMinutes,
                 dueDate: draft.dueDate,
-                priorityLevel: "medium",
+                priorityLevel: draft.priorityLevel,
               }),
             );
             const message =
@@ -540,6 +607,11 @@ export const useTaskStore = create<TaskStore>()(
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().deleteTask(action.taskId);
             return { message: `Deleted "${task?.title ?? "task"}".` };
+          }
+          case "DELETE_TASKS": {
+            const matching = tasksInScope(get().tasks, action.scope);
+            get().deleteTasks(matching.map((task) => task.id));
+            return { message: `Deleted ${describeTaskCount(matching.length, action.scope)}.` };
           }
           case "ADD_TASK_CONTEXT": {
             const task = get().tasks.find((t) => t.id === action.taskId);

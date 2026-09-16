@@ -7,12 +7,14 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
+import { SessionRunner } from "@/components/SessionRunner";
 import { SessionTaskCard } from "@/components/SessionTaskCard";
 import { TaskPickerSheet } from "@/components/TaskPickerSheet";
 import { colors } from "@/constants/theme";
 import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
 import { buildSessionPlan, ENERGY_LEVELS, sumEstimatedMinutes, TIME_OPTIONS, type EnergyLevel } from "@/lib/sessionPlan";
+import { useSessionStore } from "@/store/useSessionStore";
 import { useTaskStore } from "@/store/useTaskStore";
 
 const ENERGY_ICONS: Record<EnergyLevel, keyof typeof Feather.glyphMap> = {
@@ -25,8 +27,10 @@ export default function Next() {
   const router = useRouter();
   const { minutes: incomingMinutes } = useLocalSearchParams<{ minutes?: string }>();
   const tasks = useTaskStore((state) => state.tasks);
-  const completeStep = useTaskStore((state) => state.completeStep);
-  const regeneratePlan = useTaskStore((state) => state.regeneratePlan);
+  // A running session takes over this tab rather than pushing a route, so
+  // the timer keeps running while the user wanders off to Tasks or Inbox.
+  const activeSession = useSessionStore((state) => state.session);
+  const startSession = useSessionStore((state) => state.start);
 
   // A time-budget statement in AI Chat (taxonomy 4.2) lands here via a
   // "minutes" param instead of being answered inline in the chat.
@@ -74,20 +78,6 @@ export default function Next() {
     setManualTaskIds(null);
   };
 
-  const handleBreakdownTask = (taskId: string) => {
-    regeneratePlan(taskId);
-  };
-
-  const handleBreakdownSession = () => {
-    sessionTasks.forEach((task) => {
-      if (!task.subtasks || task.subtasks.length === 0) regeneratePlan(task.id);
-    });
-  };
-
-  const handleAdvice = (taskId: string) => {
-    router.push({ pathname: "/(tabs)/ai-chat", params: { taskId, mode: "analyze", minutes: String(selectedMinutes) } });
-  };
-
   const handleDetails = (taskId: string) => {
     router.push({ pathname: "/task/[id]", params: { id: taskId } });
   };
@@ -111,11 +101,16 @@ export default function Next() {
       energy_level: energy,
       task_count: sessionTasks.length,
     });
-    router.push({
-      pathname: "/session",
-      params: { taskIds: sessionTasks.map((task) => task.id).join(","), minutes: String(selectedMinutes), energy },
+    startSession({
+      taskIds: sessionTasks.map((task) => task.id),
+      plannedMinutes: selectedMinutes,
+      energy,
     });
   };
+
+  if (activeSession) {
+    return <SessionRunner />;
+  }
 
   if (pendingTasks.length === 0) {
     return (
@@ -146,8 +141,6 @@ export default function Next() {
           <View className="flex-row items-center gap-2">
             <Feather name="zap" size={12} color={colors.orange[500]} />
             <Text className="font-grotesk-bold text-xs tracking-[0.11em] text-orange-500">NEXDO NOW</Text>
-            <Text className="text-ink-charcoal-muted">•</Text>
-            <Text className="font-grotesk-medium text-xs text-ink-charcoal-muted">Work Session Engine</Text>
           </View>
           <View className="flex-row items-center gap-2.5">
             <GemLogo size={26} onDark />
@@ -174,8 +167,8 @@ export default function Next() {
                       onPress={() => handleSelectMinutes(minutes)}
                       className={
                         selected
-                          ? "flex-1 items-center rounded-2xl bg-orange-500 py-1.5"
-                          : "chip chip--idle flex-1 items-center py-1.5"
+                          ? "choice choice--selected-orange flex-1 items-center py-1.5"
+                          : "choice choice--idle flex-1 items-center py-1.5"
                       }
                     >
                       <Text
@@ -194,33 +187,33 @@ export default function Next() {
 
               <View className="flex-row gap-2">
                 {TIME_OPTIONS.slice(4).map((minutes) => {
-                const selected = !customMinutesOpen && selectedMinutes === minutes;
-                return (
-                  <AnimatedPressable
-                    key={minutes}
-                    onPress={() => handleSelectMinutes(minutes)}
-                    className={
-                      selected
-                        ? "flex-1 items-center rounded-2xl bg-orange-500 py-1.5"
-                        : "chip chip--idle flex-1 items-center py-1.5"
-                    }
-                  >
-                    <Text
+                  const selected = !customMinutesOpen && selectedMinutes === minutes;
+                  return (
+                    <AnimatedPressable
+                      key={minutes}
+                      onPress={() => handleSelectMinutes(minutes)}
                       className={
-                        selected ? "font-grotesk-bold text-sm text-cream-50" : "font-grotesk-medium text-sm text-ink-cream"
+                        selected
+                          ? "choice choice--selected-orange flex-1 items-center py-1.5"
+                          : "choice choice--idle flex-1 items-center py-1.5"
                       }
                     >
-                      {minutes} min
-                    </Text>
-                  </AnimatedPressable>
-                );
+                      <Text
+                        className={
+                          selected ? "font-grotesk-bold text-sm text-cream-50" : "font-grotesk-medium text-sm text-ink-cream"
+                        }
+                      >
+                        {minutes} min
+                      </Text>
+                    </AnimatedPressable>
+                  );
                 })}
                 <AnimatedPressable
                   onPress={() => setCustomMinutesOpen((open) => !open)}
                   className={
                     customMinutesOpen
-                      ? "flex-1 items-center rounded-2xl bg-orange-500 py-1.5"
-                      : "chip chip--idle flex-1 items-center py-1.5"
+                      ? "choice choice--selected-orange flex-1 items-center py-1.5"
+                      : "choice choice--idle flex-1 items-center py-1.5"
                   }
                 >
                   <Text
@@ -240,7 +233,7 @@ export default function Next() {
             </View>
 
             {customMinutesOpen ? (
-              <View className="flex-row items-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3">
+              <View className="flex-row items-center gap-2 rounded-xl border border-cream-300 bg-cream-50 px-4 py-3">
                 <TextInput
                   value={customMinutesText}
                   onChangeText={handleCustomMinutesChange}
@@ -264,8 +257,8 @@ export default function Next() {
                     onPress={() => handleSelectEnergy(level.value)}
                     className={
                       selected
-                        ? "flex-1 flex-row items-center justify-center gap-1 rounded-2xl bg-charcoal-900 px-1 py-3"
-                        : "chip chip--idle flex-1 flex-row items-center justify-center gap-1 px-1 py-3"
+                        ? "choice choice--selected-charcoal flex-1 flex-row items-center justify-center gap-1 px-1 py-3"
+                        : "choice choice--idle flex-1 flex-row items-center justify-center gap-1 px-1 py-3"
                     }
                   >
                     <Feather
@@ -292,48 +285,27 @@ export default function Next() {
           </View>
 
           <View className="card card--cream gap-4 p-5">
-            <View className="flex-row items-start justify-between gap-2">
-              <View className="flex-1 gap-1">
-                <View className="flex-row items-center gap-2">
-                  <Feather name="zap" size={14} color={colors.orange[500]} />
-                  <Text className="eyebrow flex-shrink text-ink-cream">
-                    SESSION PLAN{" "}
-                    <Text className="text-ink-cream-muted">
-                      • {sessionTasks.length} {sessionTasks.length === 1 ? "task" : "tasks"}
-                    </Text>
+            <View className="flex-row items-center justify-between gap-2">
+              <View className="flex-1 flex-row items-center gap-2">
+                <Feather name="zap" size={14} color={colors.orange[500]} />
+                <Text className="eyebrow flex-shrink text-ink-cream">
+                  SESSION PLAN{" "}
+                  <Text className="text-ink-cream-muted">
+                    • {sessionTasks.length} {sessionTasks.length === 1 ? "task" : "tasks"}
                   </Text>
-                </View>
-                <Text className="font-grotesk-regular text-xs text-ink-cream-muted">
-                  Tasks optimized to fit your available time.
                 </Text>
               </View>
-              <View className="shrink-0 items-end gap-2">
-                <AnimatedPressable
-                  onPress={handleBreakdownSession}
-                  className="flex-row items-center gap-1.5 rounded-2xl bg-charcoal-900 px-3 py-1.5"
-                >
-                  <Feather name="list" size={12} color={colors.ink.charcoal} />
-                  <Text className="font-grotesk-semibold text-xs text-ink-charcoal">Break down</Text>
-                </AnimatedPressable>
-                <View className="rounded-2xl bg-cream-200 px-3 py-1">
-                  <Text className="font-grotesk-semibold text-xs text-ink-cream">
-                    {formatDuration(totalMinutes)} total
-                  </Text>
-                </View>
+              <View className="shrink-0 rounded-2xl bg-cream-200 px-3 py-1">
+                <Text className="font-grotesk-semibold text-xs text-ink-cream">
+                  {formatDuration(totalMinutes)} total
+                </Text>
               </View>
             </View>
 
             <View className="gap-3">
               {sessionTasks.map((task, index) => (
                 <Animated.View key={task.id} entering={FadeInUp.delay(index * 60).duration(280)}>
-                  <SessionTaskCard
-                    task={task}
-                    index={index}
-                    onToggleSubtask={completeStep}
-                    onBreakdown={handleBreakdownTask}
-                    onAdvice={handleAdvice}
-                    onDetails={handleDetails}
-                  />
+                  <SessionTaskCard task={task} index={index} onDetails={handleDetails} />
                 </Animated.View>
               ))}
             </View>

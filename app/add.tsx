@@ -8,8 +8,7 @@ import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context"
 import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GemLogo } from "@/components/GemLogo";
 import {
-  CATEGORY_ROWS,
-  CategoryOption,
+  CategoryPicker,
   computeDeadlineDate,
   DEADLINE_OPTIONS,
   DeadlineChip,
@@ -20,16 +19,18 @@ import {
   SectionHeader,
   type DeadlineValue,
 } from "@/components/TaskFormFields";
+import { resolveCategoryId } from "@/constants/categories";
 import { colors } from "@/constants/theme";
 import { formatDuration } from "@/lib/formatDuration";
 import { posthog } from "@/lib/posthog";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskStore } from "@/store/useTaskStore";
 import type { TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
 
-const PRIORITY_OPTIONS: { value: TaskPriorityLevel; title: string; subtitle: string }[] = [
-  { value: "high", title: "High Priority", subtitle: "Urgent focus" },
-  { value: "medium", title: "Medium Priority", subtitle: "Standard importance" },
-  { value: "low", title: "Low Priority", subtitle: "Flexible timing" },
+const PRIORITY_OPTIONS: { value: TaskPriorityLevel; title: string }[] = [
+  { value: "high", title: "High Priority" },
+  { value: "medium", title: "Medium Priority" },
+  { value: "low", title: "Low Priority" },
 ];
 
 const STEP_DURATIONS = [15, 30, 45, 60, 90, 120];
@@ -46,7 +47,11 @@ export default function Add() {
 
   const [title, setTitle] = useState("");
   const [titleTouched, setTitleTouched] = useState(false);
-  const [category, setCategory] = useState<TaskCategory>("personal");
+  // Starts on the category starred as default in Settings → Manage Categories.
+  const [category, setCategory] = useState<TaskCategory>(() => {
+    const { categories, defaultCategoryId } = useCategoryStore.getState();
+    return resolveCategoryId(categories, defaultCategoryId);
+  });
 
   const [durationMinutes, setDurationMinutes] = useState(45);
   const [customDurationOpen, setCustomDurationOpen] = useState(false);
@@ -94,12 +99,23 @@ export default function Add() {
     setSteps((current) => current.filter((step) => step.id !== id));
   };
 
+  // Guards against landing here with no history underneath (a stale deep
+  // link, restored session, etc.) — router.back()/dismissTo() have nothing
+  // to go back to in that case, so fall back to replacing straight to tabs.
   const handleClose = () => {
-    router.back();
+    if (router.canGoBack()) {
+      router.back();
+    } else {
+      router.replace("/(tabs)/tasks");
+    }
   };
 
   const handleOpenAiChat = () => {
-    router.dismissTo("/(tabs)/ai-chat");
+    if (router.canGoBack()) {
+      router.dismissTo("/(tabs)/ai-chat");
+    } else {
+      router.replace("/(tabs)/ai-chat");
+    }
   };
 
   const handleSubmit = () => {
@@ -142,7 +158,11 @@ export default function Add() {
       step_count: steps.length,
     });
 
-    router.dismissTo("/(tabs)/tasks");
+    if (router.canGoBack()) {
+      router.dismissTo("/(tabs)/tasks");
+    } else {
+      router.replace("/(tabs)/tasks");
+    }
   };
 
   return (
@@ -196,20 +216,7 @@ export default function Add() {
 
               <View className="gap-3">
                 <Text className="eyebrow text-ink-cream">CATEGORY</Text>
-                <View className="gap-3">
-                  {CATEGORY_ROWS.map((row) => (
-                    <View key={row.join("-")} className="flex-row gap-3">
-                      {row.map((value) => (
-                        <CategoryOption
-                          key={value}
-                          category={value}
-                          selected={category === value}
-                          onPress={() => setCategory(value)}
-                        />
-                      ))}
-                    </View>
-                  ))}
-                </View>
+                <CategoryPicker selectedId={category} onSelect={setCategory} />
               </View>
 
               <View className="gap-3">
@@ -300,7 +307,6 @@ export default function Add() {
                     <PriorityCard
                       key={option.value}
                       title={option.title}
-                      subtitle={option.subtitle}
                       selected={priorityLevel === option.value}
                       onPress={() => setPriorityLevel(option.value)}
                     />
