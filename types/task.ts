@@ -1,4 +1,11 @@
-export type TaskCategory = "work" | "school" | "personal" | "other";
+// The four categories every account starts with. Users can rename them but
+// not delete them — their ids never change, which is what lets the offline
+// AI fallbacks (lib/ai/extractTasks.ts, generatePlan.ts) keep keying off them.
+export type BuiltInCategoryId = "work" | "school" | "personal" | "other";
+
+// A category id: a built-in one above, or one the user created in Settings
+// (see store/useCategoryStore.ts).
+export type TaskCategory = string;
 
 export type TaskStatus = "pending" | "completed";
 

@@ -8,8 +8,10 @@ import { analyzeTaskComplexity } from "@/lib/ai/analyzeComplexity";
 import { applyContextToTask } from "@/lib/ai/applyContext";
 import { generatePlan } from "@/lib/ai/generatePlan";
 import type { PlanStep, StructuredAction } from "@/lib/ai/types";
+import { translate } from "@/lib/i18n";
 import { PRIORITY_LEVEL_IMPORTANCE, createSkipRecord, recalcTask } from "@/lib/scoring";
 import { deleteTaskRow, fetchTasks, subscribeToTasks, upsertTaskRow } from "@/lib/supabaseSync";
+import { describeTaskCount, tasksInScope } from "@/lib/taskMeta";
 import { recalcAll } from "@/lib/taskPipeline";
 import type { Subtask, Task, TaskCategory, TaskPriorityLevel, TaskStep } from "@/types/task";
 
@@ -142,15 +144,24 @@ type TaskStore = {
     changes: Partial<Pick<Task, "title" | "category" | "dueDate" | "estimatedMinutes" | "notes">>,
   ) => void;
   deleteTask: (id: string) => void;
+  deleteTasks: (ids: string[]) => void;
   toggleTaskStatus: (id: string) => void;
   completeTask: (id: string) => void;
   reopenTask: (id: string) => void;
   completeStep: (taskId: string, stepId: string) => void;
   addSubtask: (taskId: string, label: string) => void;
+  /** Renames a subtask from Task Details. */
+  updateSubtask: (taskId: string, subtaskId: string, label: string) => void;
+  /** Removes a subtask and hands "current" to the next unfinished one if needed. */
+  deleteSubtask: (taskId: string, subtaskId: string) => void;
   addContext: (taskId: string, note: string, estimatedMinutesOverride?: number) => void;
+  /** Replaces the task's AI context notes as-is — the Task Details note cards add, edit and remove through this. */
+  setContextNotes: (taskId: string, notes: string[]) => void;
   skipTask: (taskId: string, reason: string) => void;
   regeneratePlan: (taskId: string) => void;
   applyPlanSteps: (taskId: string, steps: PlanStep[]) => void;
+  /** AI Breakdown in a session: swaps the unfinished steps for new ones, keeping the ones already checked off. */
+  replaceRemainingSteps: (taskId: string, steps: PlanStep[]) => void;
   /** Undo support: null restores "no task" (undoes a create), otherwise replaces/reinserts the given task verbatim. */
   restoreTaskSnapshot: (taskId: string, snapshot: Task | null) => void;
   applyStructuredAction: (action: StructuredAction) => { message: string; taskId?: string; taskIds?: string[] };
@@ -233,6 +244,12 @@ export const useTaskStore = create<TaskStore>()(
       deleteTask: (id) => {
         set((state) => ({ tasks: state.tasks.filter((task) => task.id !== id) }));
         syncDelete(id, get().syncUserId);
+      },
+
+      deleteTasks: (ids) => {
+        const doomed = new Set(ids);
+        set((state) => ({ tasks: state.tasks.filter((task) => !doomed.has(task.id)) }));
+        ids.forEach((id) => syncDelete(id, get().syncUserId));
       },
 
       toggleTaskStatus: (id) => {
@@ -377,6 +394,66 @@ export const useTaskStore = create<TaskStore>()(
         if (updated) syncUpsert(updated, get().syncUserId);
       },
 
+      updateSubtask: (taskId, subtaskId, label) => {
+        const trimmed = label.trim();
+        if (!trimmed) return;
+        const now = new Date();
+        set((state) => ({
+          tasks: state.tasks.map((t) =>
+            t.id === taskId
+              ? {
+                  ...t,
+                  subtasks: t.subtasks?.map((subtask) =>
+                    subtask.id === subtaskId ? { ...subtask, label: trimmed } : subtask,
+                  ),
+                  updatedAt: now.toISOString(),
+                }
+              : t,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
+      deleteSubtask: (taskId, subtaskId) => {
+        const now = new Date();
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task?.subtasks) return;
+
+        const remaining = task.subtasks
+          .filter((subtask) => subtask.id !== subtaskId)
+          .sort((a, b) => a.order - b.order);
+        const hasCurrent = remaining.some((subtask) => subtask.status === "current");
+        const nextCurrentId = hasCurrent
+          ? undefined
+          : remaining.find((subtask) => subtask.status === "pending")?.id;
+        const subtasks: Subtask[] = remaining.map((subtask, index) => ({
+          ...subtask,
+          order: index,
+          status: subtask.id === nextCurrentId ? "current" : subtask.status,
+        }));
+        const hasUnfinished = subtasks.some((subtask) => subtask.status !== "completed");
+
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks,
+                    currentStepId: subtasks.find((subtask) => subtask.status === "current")?.id,
+                    estimatedMinutes: hasUnfinished ? remainingMinutes(subtasks) : t.estimatedMinutes,
+                    updatedAt: now.toISOString(),
+                  }
+                : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
       addContext: (taskId, note, estimatedMinutesOverride) => {
         const now = new Date();
         const task = get().tasks.find((t) => t.id === taskId);
@@ -402,6 +479,22 @@ export const useTaskStore = create<TaskStore>()(
                     updatedAt: now.toISOString(),
                   }
                 : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
+      // Unlike addContext above, this never reinterprets the notes (no subtask
+      // reordering, no deadline changes) — they're just what the AI reads.
+      setContextNotes: (taskId, notes) => {
+        const now = new Date();
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId ? { ...t, aiContext: { notes }, updatedAt: now.toISOString() } : t,
             ),
             now,
           ),
@@ -489,6 +582,45 @@ export const useTaskStore = create<TaskStore>()(
         if (updated) syncUpsert(updated, get().syncUserId);
       },
 
+      replaceRemainingSteps: (taskId, steps) => {
+        const now = new Date();
+        const task = get().tasks.find((t) => t.id === taskId);
+        if (!task || steps.length === 0) return;
+
+        const finished = (task.subtasks ?? [])
+          .filter((subtask) => subtask.status === "completed")
+          .sort((a, b) => a.order - b.order);
+        const subtasks: Subtask[] = [
+          ...finished.map((subtask, index) => ({ ...subtask, order: index })),
+          ...steps.map((step, index) => ({
+            id: `subtask-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+            label: step.title,
+            estimatedMinutes: step.estimatedMinutes,
+            order: finished.length + index,
+            status: index === 0 ? ("current" as const) : ("pending" as const),
+          })),
+        ];
+
+        set((state) => ({
+          tasks: recalcAll(
+            state.tasks.map((t) =>
+              t.id === taskId
+                ? {
+                    ...t,
+                    subtasks,
+                    currentStepId: subtasks.find((subtask) => subtask.status === "current")?.id,
+                    estimatedMinutes: remainingMinutes(subtasks),
+                    updatedAt: now.toISOString(),
+                  }
+                : t,
+            ),
+            now,
+          ),
+        }));
+        const updated = get().tasks.find((t) => t.id === taskId);
+        if (updated) syncUpsert(updated, get().syncUserId);
+      },
+
       restoreTaskSnapshot: (taskId, snapshot) => {
         const now = new Date();
         if (snapshot === null) {
@@ -505,6 +637,8 @@ export const useTaskStore = create<TaskStore>()(
       },
 
       applyStructuredAction: (action) => {
+        // Named "copy" rather than "t" — "t" is already the loop variable for a task below.
+        const copy = translate().assistant;
         switch (action.type) {
           case "CREATE_TASK": {
             const ids = action.drafts.map((draft) =>
@@ -513,13 +647,18 @@ export const useTaskStore = create<TaskStore>()(
                 category: draft.category,
                 estimatedMinutes: draft.estimatedMinutes,
                 dueDate: draft.dueDate,
-                priorityLevel: "medium",
+                priorityLevel: draft.priorityLevel,
+                steps: draft.steps?.map((step, index) => ({
+                  id: `subtask-${Date.now().toString(36)}-${index}-${Math.random().toString(36).slice(2, 6)}`,
+                  label: step.title,
+                  estimatedMinutes: step.estimatedMinutes,
+                })),
               }),
             );
             const message =
               action.drafts.length === 1
-                ? `Added "${action.drafts[0].title}" to your tasks.`
-                : `Added ${action.drafts.length} tasks: ${action.drafts.map((d) => d.title).join(", ")}.`;
+                ? copy.added(action.drafts[0].title)
+                : copy.addedMany(action.drafts.length, action.drafts.map((d) => d.title).join(", "));
             return { message, taskId: ids[0], taskIds: ids };
           }
           case "UPDATE_TASK": {
@@ -527,42 +666,54 @@ export const useTaskStore = create<TaskStore>()(
             get().updateTask(action.taskId, action.changes);
             const updatedTask = get().tasks.find((t) => t.id === action.taskId);
             return {
-              message: `Updated "${action.changes.title ?? updatedTask?.title ?? task?.title ?? "task"}".`,
+              message: copy.updated(action.changes.title ?? updatedTask?.title ?? task?.title ?? copy.fallbackTask),
               taskId: action.taskId,
             };
           }
           case "COMPLETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().completeTask(action.taskId);
-            return { message: `Marked "${task?.title ?? "task"}" as done.`, taskId: action.taskId };
+            return { message: copy.markedDone(task?.title ?? copy.fallbackTask), taskId: action.taskId };
+          }
+          case "COMPLETE_TASKS": {
+            const pending = tasksInScope(get().tasks, "pending");
+            pending.forEach((task) => get().completeTask(task.id));
+            return { message: copy.markedAllDone(describeTaskCount(pending.length, "all")) };
           }
           case "DELETE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().deleteTask(action.taskId);
-            return { message: `Deleted "${task?.title ?? "task"}".` };
+            return { message: copy.deleted(task?.title ?? copy.fallbackTask) };
+          }
+          case "DELETE_TASKS": {
+            const matching = action.taskIds
+              ? get().tasks.filter((task) => action.taskIds?.includes(task.id))
+              : tasksInScope(get().tasks, action.scope);
+            get().deleteTasks(matching.map((task) => task.id));
+            return { message: copy.deletedMany(describeTaskCount(matching.length, action.scope)) };
           }
           case "ADD_TASK_CONTEXT": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().addContext(action.taskId, action.note, action.estimatedMinutes);
-            return { message: `Got it — logged that on "${task?.title ?? "your task"}".`, taskId: action.taskId };
+            return { message: copy.loggedContext(task?.title ?? copy.fallbackYourTask), taskId: action.taskId };
           }
           case "RESCHEDULE_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().updateTask(action.taskId, { dueDate: action.newDueDate });
-            return { message: `Rescheduled "${task?.title ?? "task"}".`, taskId: action.taskId };
+            return { message: copy.rescheduled(task?.title ?? copy.fallbackTask), taskId: action.taskId };
           }
           case "SKIP_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().skipTask(action.taskId, action.reason);
-            return { message: `Got it — I'll hold off suggesting "${task?.title ?? "that"}" for a bit.`, taskId: action.taskId };
+            return { message: copy.skipped(task?.title ?? copy.fallbackThat), taskId: action.taskId };
           }
           case "BREAKDOWN_TASK": {
             const task = get().tasks.find((t) => t.id === action.taskId);
             get().applyPlanSteps(action.taskId, action.steps);
-            return { message: `Broke "${task?.title ?? "that"}" into ${action.steps.length} steps.`, taskId: action.taskId };
+            return { message: copy.brokeDown(task?.title ?? copy.fallbackThat, action.steps.length), taskId: action.taskId };
           }
           case "REDIRECT_NEXT":
-            return { message: `Set up the Next page for ${action.availableMinutes} minutes.` };
+            return { message: copy.redirectNext(action.availableMinutes) };
           case "QUERY":
             return { message: action.answer };
           case "CLARIFY":

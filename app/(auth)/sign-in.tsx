@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
   KeyboardAvoidingView,
   Platform,
-  Pressable,
   ScrollView,
   StyleSheet,
   Text,
@@ -14,16 +13,19 @@ import {
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { AuthTextField } from "@/components/AuthTextField";
 import { SocialAuthButton } from "@/components/SocialAuthButton";
 import { VerificationModal } from "@/components/VerificationModal";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
 
 const REVEAL_LAYOUT = LinearTransition.duration(250);
 
 export default function SignIn() {
+  const t = useTranslation();
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
   const { signIn, errors, fetchStatus } = useSignIn();
@@ -59,7 +61,7 @@ export default function SignIn() {
 
   const handleVerifyCode = async (code: string) => {
     const { error } = await signIn.emailCode.verifyCode({ code });
-    if (error) return error.longMessage ?? "Invalid code. Try again.";
+    if (error) return error.longMessage ?? t.auth.invalidCode;
 
     if (signIn.status === "complete") {
       const { error: finalizeError } = await signIn.finalize({
@@ -69,7 +71,7 @@ export default function SignIn() {
         },
       });
       if (finalizeError) {
-        return finalizeError.longMessage ?? "Invalid code. Try again.";
+        return finalizeError.longMessage ?? t.auth.invalidCode;
       }
     }
   };
@@ -86,9 +88,9 @@ export default function SignIn() {
         >
           <Animated.View style={enterStyle}>
             <View className="mt-16 gap-3">
-              <Text className="text-title text-ink-cream">Welcome back.</Text>
+              <Text className="text-title text-ink-cream">{t.auth.welcomeBack}</Text>
               <Text className="text-base font-grotesk-regular leading-relaxed text-ink-cream-muted">
-                Log in to pick up right where you left off.
+                {t.auth.signInSubtitle}
               </Text>
             </View>
 
@@ -111,7 +113,7 @@ export default function SignIn() {
                   className="gap-3"
                 >
                   <AuthTextField
-                    label="EMAIL"
+                    label={t.auth.email}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
@@ -122,33 +124,31 @@ export default function SignIn() {
                       {errors.fields.identifier.message}
                     </Text>
                   ) : null}
-                  <Pressable
+                  <AnimatedPressable
                     onPress={handleLogIn}
                     disabled={fetchStatus === "fetching"}
+                    scaleTo={0.98}
                     className="btn btn--primary mt-1"
-                    style={({ pressed }) => [
-                      pressed ? { transform: [{ scale: 0.99 }] } : undefined,
-                      fetchStatus === "fetching" ? { opacity: 0.6 } : undefined,
-                    ]}
+                    style={fetchStatus === "fetching" ? { opacity: 0.6 } : undefined}
                   >
                     <Text className="font-grotesk-bold text-lg text-cream-50">
-                      Log in
+                      {t.auth.logIn}
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               ) : (
                 <Animated.View
                   entering={FadeIn.duration(220)}
                   exiting={FadeOut.duration(150)}
                 >
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() => setShowEmailForm(true)}
                     className="items-center"
                   >
                     <Text className="font-grotesk-semibold text-sm text-ink-cream-muted underline">
-                      or continue with email
+                      {t.auth.continueWithEmail}
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               )}
             </Animated.View>
@@ -158,20 +158,19 @@ export default function SignIn() {
               className="mt-5 flex-row justify-center gap-1"
             >
               <Text className="font-grotesk-regular text-sm text-ink-cream-muted">
-                Don&apos;t have an account?
+                {t.auth.noAccount}
               </Text>
-              <Pressable onPress={() => router.push("/(auth)/sign-up")}>
+              <AnimatedPressable onPress={() => router.push("/(auth)/sign-up")}>
                 <Text className="font-grotesk-bold text-sm text-orange-500">
-                  Sign up
+                  {t.auth.signUp}
                 </Text>
-              </Pressable>
+              </AnimatedPressable>
             </Animated.View>
           </Animated.View>
 
           <Animated.View layout={REVEAL_LAYOUT} className="mt-10">
             <Text className="px-4 text-center font-grotesk-regular text-xs text-ink-cream-muted">
-              By continuing you agree to Nexdo&apos;s Terms and Privacy
-              Policy.
+              {t.auth.terms}
             </Text>
           </Animated.View>
         </ScrollView>

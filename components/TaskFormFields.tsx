@@ -1,35 +1,22 @@
-import type { ReactNode } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Feather, Ionicons } from "@expo/vector-icons";
+import DateTimePicker, { type DateTimePickerEvent } from "@react-native-community/datetimepicker";
+import { useState, type ReactNode } from "react";
+import { Platform, Text, View } from "react-native";
 
-import { CATEGORY_META } from "@/constants/categories";
+import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { getCategoryTint } from "@/constants/categories";
 import { colors } from "@/constants/theme";
-import type { TaskCategory } from "@/types/task";
+import { useTranslation } from "@/hooks/useTranslation";
+import { useCategoryStore } from "@/store/useCategoryStore";
+import type { Category } from "@/types/category";
+import type { TaskPriorityLevel } from "@/types/task";
 
 export type DeadlineValue = "today" | "tomorrow" | "friday" | "weekend" | "nextWeek" | "none";
 
-export const CATEGORY_ROWS: TaskCategory[][] = [
-  ["school", "work"],
-  ["personal", "other"],
-];
+// Chip labels live in the translations: form.durationOptions / form.deadlines.
+export const DURATION_OPTIONS: number[] = [15, 30, 45, 60, 90, 120, 180];
 
-export const DURATION_OPTIONS: { label: string; minutes: number }[] = [
-  { label: "15m", minutes: 15 },
-  { label: "30m", minutes: 30 },
-  { label: "45m", minutes: 45 },
-  { label: "1h", minutes: 60 },
-  { label: "1.5h", minutes: 90 },
-  { label: "2h", minutes: 120 },
-  { label: "3h+", minutes: 180 },
-];
-
-export const DEADLINE_OPTIONS: { label: string; value: DeadlineValue }[] = [
-  { label: "Today", value: "today" },
-  { label: "Tomorrow", value: "tomorrow" },
-  { label: "This Friday", value: "friday" },
-  { label: "This Weekend", value: "weekend" },
-  { label: "Next Week", value: "nextWeek" },
-  { label: "No deadline", value: "none" },
-];
+export const DEADLINE_OPTIONS: DeadlineValue[] = ["today", "tomorrow", "friday", "weekend", "nextWeek", "none"];
 
 // "This Friday"/"This Weekend" resolve to the nearest upcoming Fri/Sat, today included.
 export function computeDeadlineDate(value: DeadlineValue): Date | undefined {
@@ -97,9 +84,9 @@ export function SectionHeader({
         <Text className="eyebrow text-ink-cream">{label}</Text>
       </View>
       {action ? (
-        <Pressable onPress={action.onPress} hitSlop={8}>
+        <AnimatedPressable onPress={action.onPress} hitSlop={8}>
           <Text className="font-grotesk-semibold text-sm text-orange-500">{action.label}</Text>
-        </Pressable>
+        </AnimatedPressable>
       ) : null}
     </View>
   );
@@ -110,36 +97,66 @@ export function CategoryOption({
   selected,
   onPress,
 }: {
-  category: TaskCategory;
+  category: Category;
   selected: boolean;
   onPress: () => void;
 }) {
-  const meta = CATEGORY_META[category];
-  const tint = colors.category[category];
+  const tint = getCategoryTint(category.color);
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
       className="flex-1 flex-row items-center gap-2.5 rounded-2xl border px-4 py-3.5"
       style={{
         borderColor: selected ? tint[500] : colors.cream[300],
         backgroundColor: selected ? tint[100] : colors.cream[50],
       }}
     >
-      <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: meta.dotColor }} />
-      <Text className="font-grotesk-semibold text-sm text-ink-cream">{meta.label}</Text>
-    </Pressable>
+      <View className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: tint[500] }} />
+      <Text numberOfLines={1} className="flex-1 font-grotesk-semibold text-sm text-ink-cream">
+        {category.label}
+      </Text>
+    </AnimatedPressable>
+  );
+}
+
+/** Every category — built-in and the user's own from Settings — two to a row. */
+export function CategoryPicker({ selectedId, onSelect }: { selectedId: string; onSelect: (id: string) => void }) {
+  const categories = useCategoryStore((state) => state.categories);
+
+  const rows: Category[][] = [];
+  for (let i = 0; i < categories.length; i += 2) rows.push(categories.slice(i, i + 2));
+
+  return (
+    <View className="gap-3">
+      {rows.map((row) => (
+        <View key={row.map((category) => category.id).join("-")} className="flex-row gap-3">
+          {row.map((category) => (
+            <CategoryOption
+              key={category.id}
+              category={category}
+              selected={selectedId === category.id}
+              onPress={() => onSelect(category.id)}
+            />
+          ))}
+          {/* Keeps an odd one out at half width instead of stretching across the row. */}
+          {row.length === 1 ? <View className="flex-1" /> : null}
+        </View>
+      ))}
+    </View>
   );
 }
 
 export function DurationChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={
         selected
-          ? "rounded-2xl border border-orange-500 bg-orange-500 px-4 py-2.5"
-          : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
+          ? "rounded-2xl border border-orange-500 bg-orange-500 px-3.5 py-2"
+          : "rounded-2xl border border-cream-300 bg-cream-50 px-3.5 py-2"
       }
     >
       <Text
@@ -149,18 +166,18 @@ export function DurationChip({ label, selected, onPress }: { label: string; sele
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
 export function DeadlineChip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={
         selected
-          ? "rounded-2xl border border-charcoal-900 bg-charcoal-900 px-4 py-2.5"
-          : "rounded-2xl border border-cream-300 bg-cream-50 px-4 py-2.5"
+          ? "rounded-2xl border border-charcoal-900 bg-charcoal-900 px-3.5 py-2"
+          : "rounded-2xl border border-cream-300 bg-cream-50 px-3.5 py-2"
       }
     >
       <Text
@@ -170,46 +187,152 @@ export function DeadlineChip({ label, selected, onPress }: { label: string; sele
       >
         {label}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }
 
+// Each level keeps its own color whether picked or not, so the three read
+// apart at a glance: high = overdue red, medium = amber, low = olive.
+const PRIORITY_STYLES: Record<TaskPriorityLevel, { idle: string; selected: string; text: string; color: string }> = {
+  high: {
+    idle: "flex-1 gap-2 rounded-2xl border border-overdue-500/40 bg-overdue-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-overdue-500 bg-overdue-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-overdue-500",
+    color: colors.overdue[500],
+  },
+  medium: {
+    idle: "flex-1 gap-2 rounded-2xl border border-amber-500/40 bg-amber-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-amber-500 bg-amber-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-amber-500",
+    color: colors.amber[500],
+  },
+  low: {
+    idle: "flex-1 gap-2 rounded-2xl border border-olive-500/40 bg-olive-100 p-3.5",
+    selected: "flex-1 gap-2 rounded-2xl border-2 border-olive-500 bg-olive-500 p-3.5",
+    text: "font-grotesk-bold text-sm text-olive-500",
+    color: colors.olive[500],
+  },
+};
+
+const PRIORITY_ICONS: Record<TaskPriorityLevel, keyof typeof Ionicons.glyphMap> = {
+  high: "flame",
+  medium: "alert-circle",
+  low: "leaf",
+};
+
 export function PriorityCard({
+  level,
   title,
-  subtitle,
   selected,
   onPress,
 }: {
+  level: TaskPriorityLevel;
   title: string;
-  subtitle: string;
   selected: boolean;
   onPress: () => void;
 }) {
+  const style = PRIORITY_STYLES[level];
+
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
-      className={
-        selected
-          ? "flex-1 gap-1 rounded-2xl border border-orange-500 bg-orange-100 p-3.5"
-          : "flex-1 gap-1 rounded-2xl border border-cream-300 bg-cream-100 p-3.5"
-      }
+      accessibilityRole="radio"
+      accessibilityState={{ selected }}
+      className={selected ? style.selected : style.idle}
     >
-      <Text
-        className={
-          selected ? "font-grotesk-bold text-sm text-orange-600" : "font-grotesk-bold text-sm text-ink-cream"
-        }
+      <Ionicons name={PRIORITY_ICONS[level]} size={18} color={selected ? colors.cream[50] : style.color} />
+      <Text className={selected ? "font-grotesk-bold text-sm text-cream-50" : style.text}>{title}</Text>
+    </AnimatedPressable>
+  );
+}
+
+/**
+ * A calendar for the deadline. iOS shows it inline; Android opens its native
+ * date dialog, then the time dialog, and shows the result as a tappable row.
+ */
+export function DeadlineDatePicker({ value, onChange }: { value: Date; onChange: (date: Date) => void }) {
+  const t = useTranslation();
+  // Android opens onto the date dialog immediately and only commits once a valid
+  // time has been picked. Keep the selected date pending until the final deadline
+  // is valid, so cancelling the time picker leaves the current value alone.
+  const [androidPicker, setAndroidPicker] = useState<"date" | "time" | null>("date");
+  const [pendingDate, setPendingDate] = useState<Date | null>(null);
+
+  const handleChange = (event: DateTimePickerEvent, selected?: Date) => {
+    const mode = androidPicker;
+    if (Platform.OS === "android") setAndroidPicker(null);
+    if (event.type === "dismissed" || !selected) {
+      if (Platform.OS === "android") {
+        setPendingDate(null);
+      }
+      return;
+    }
+
+    if (Platform.OS === "android") {
+      const baseDate = pendingDate ?? value;
+
+      if (mode === "date") {
+        const nextPending = new Date(baseDate);
+        nextPending.setFullYear(selected.getFullYear(), selected.getMonth(), selected.getDate());
+        setPendingDate(nextPending);
+        setAndroidPicker("time");
+        return;
+      }
+
+      const next = new Date(baseDate);
+      next.setHours(selected.getHours(), selected.getMinutes(), 0, 0);
+      if (next.getTime() < Date.now()) {
+        setPendingDate(null);
+        return;
+      }
+
+      setPendingDate(null);
+      onChange(next);
+      return;
+    }
+
+    const next = new Date(value);
+    next.setTime(selected.getTime());
+    onChange(next);
+  };
+
+  if (Platform.OS === "ios") {
+    return (
+      <View className="overflow-hidden rounded-2xl border border-cream-300 bg-cream-50 px-2">
+        <DateTimePicker
+          value={value}
+          mode="datetime"
+          display="inline"
+          minimumDate={new Date()}
+          accentColor={colors.orange[500]}
+          themeVariant="light"
+          onChange={handleChange}
+        />
+      </View>
+    );
+  }
+
+  const label = `${value.toLocaleDateString(t.locale, { weekday: "short", month: "short", day: "numeric" })} · ${value.toLocaleTimeString(t.locale, { hour: "2-digit", minute: "2-digit" })}`;
+
+  return (
+    <>
+      <AnimatedPressable
+        onPress={() => setAndroidPicker("date")}
+        className="flex-row items-center gap-3 rounded-2xl border border-orange-500 bg-orange-100 px-4 py-3.5"
       >
-        {title}
-      </Text>
-      <Text
-        className={
-          selected
-            ? "font-grotesk-medium text-xs text-orange-600"
-            : "font-grotesk-medium text-xs text-ink-cream-muted"
-        }
-      >
-        {subtitle}
-      </Text>
-    </Pressable>
+        <Feather name="calendar" size={16} color={colors.orange[600]} />
+        <Text className="flex-1 font-grotesk-semibold text-sm text-orange-600">{label}</Text>
+        <Text className="font-grotesk-semibold text-xs text-orange-600">{t.form.changeDate}</Text>
+      </AnimatedPressable>
+      {androidPicker ? (
+        <DateTimePicker
+          value={pendingDate ?? value}
+          mode={androidPicker}
+          display="default"
+          minimumDate={androidPicker === "date" ? new Date() : undefined}
+          onChange={handleChange}
+        />
+      ) : null}
+    </>
   );
 }

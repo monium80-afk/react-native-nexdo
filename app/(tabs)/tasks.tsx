@@ -1,30 +1,29 @@
 import { Feather, Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
-import { useMemo, useState } from "react";
-import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ScrollView, Text, TextInput, View } from "react-native";
+import Animated, {
+  Easing,
+  FadeInUp,
+  LinearTransition,
+  useAnimatedStyle,
+  useSharedValue,
+  withTiming,
+} from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { FilterSheet } from "@/components/FilterSheet";
 import { TaskCard } from "@/components/TaskCard";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { getDueInfo } from "@/lib/taskMeta";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useTaskFilterStore, type TaskSortOption, type TaskStatusFilter } from "@/store/useTaskFilterStore";
 import { useTaskStore } from "@/store/useTaskStore";
-import type { Task, TaskCategory } from "@/types/task";
+import type { Task } from "@/types/task";
 
-const CATEGORY_TABS: { label: string; value: TaskCategory | "all" }[] = [
-  { label: "All", value: "all" },
-  { label: "School", value: "school" },
-  { label: "Work", value: "work" },
-  { label: "Personal", value: "personal" },
-  { label: "Other", value: "other" },
-];
-
-const SORT_OPTIONS: { label: string; value: TaskSortOption }[] = [
-  { label: "Recently added", value: "recent" },
-  { label: "Due date", value: "dueDate" },
-  { label: "Priority score", value: "priority" },
-];
+const SORT_VALUES: TaskSortOption[] = ["recent", "dueDate", "priority"];
 
 function compareBySort(a: Task, b: Task, sort: TaskSortOption): number {
   switch (sort) {
@@ -52,15 +51,40 @@ function sortTasks(list: Task[], sort: TaskSortOption): Task[] {
 }
 
 export default function TasksListScreen() {
+  const t = useTranslation();
   const router = useRouter();
   const tasks = useTaskStore((state) => state.tasks);
   const toggleTaskStatus = useTaskStore((state) => state.toggleTaskStatus);
-  const { category, status, sort, search, setCategory, setStatus, setSort, setSearch } =
+  const categories = useCategoryStore((state) => state.categories);
+  const { category: selectedCategory, status, sort, search, setCategory, setStatus, setSort, setSearch } =
     useTaskFilterStore();
+
+  // A category deleted in Settings can't stay selected here.
+  const category = selectedCategory === "all" || categories.some((c) => c.id === selectedCategory)
+    ? selectedCategory
+    : "all";
+
+  const categoryTabs = useMemo(
+    () => [
+      { label: t.tasks.all, value: "all" },
+      ...categories.map((c) => ({ label: c.label, value: c.id })),
+    ],
+    [categories, t],
+  );
 
   const [searchOpen, setSearchOpen] = useState(false);
   const [statusSheetOpen, setStatusSheetOpen] = useState(false);
   const [sortSheetOpen, setSortSheetOpen] = useState(false);
+
+  const [categoryTabLayouts, setCategoryTabLayouts] = useState<
+    Record<string, { x: number; width: number }>
+  >({});
+  const categoryHighlightX = useSharedValue(0);
+  const categoryHighlightWidth = useSharedValue(0);
+  const categoryHighlightStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: categoryHighlightX.value }],
+    width: categoryHighlightWidth.value,
+  }));
 
   const pendingCount = tasks.filter((task) => task.status === "pending").length;
   const completedCount = tasks.filter((task) => task.status === "completed").length;
@@ -68,23 +92,19 @@ export default function TasksListScreen() {
 
   const statusOptions = useMemo(
     () => [
-      { label: "All", value: "all" as TaskStatusFilter, count: tasks.length },
-      { label: "Pending", value: "pending" as TaskStatusFilter, count: pendingCount },
-      { label: "Completed", value: "completed" as TaskStatusFilter, count: completedCount },
-      { label: "Overdue", value: "overdue" as TaskStatusFilter, count: overdueCount },
+      { label: t.tasks.status.all, value: "all" as TaskStatusFilter, count: tasks.length },
+      { label: t.tasks.status.pending, value: "pending" as TaskStatusFilter, count: pendingCount },
+      { label: t.tasks.status.completed, value: "completed" as TaskStatusFilter, count: completedCount },
+      { label: t.tasks.status.overdue, value: "overdue" as TaskStatusFilter, count: overdueCount },
     ],
-    [tasks.length, pendingCount, completedCount, overdueCount],
+    [tasks.length, pendingCount, completedCount, overdueCount, t],
   );
 
+  const sortOptions = SORT_VALUES.map((value) => ({ label: t.tasks.sort[value], value }));
+
   const categoryCounts = useMemo(() => {
-    const counts: Record<TaskCategory | "all", number> = {
-      all: tasks.length,
-      work: 0,
-      school: 0,
-      personal: 0,
-      other: 0,
-    };
-    for (const task of tasks) counts[task.category] += 1;
+    const counts: Record<string, number> = { all: tasks.length };
+    for (const task of tasks) counts[task.category] = (counts[task.category] ?? 0) + 1;
     return counts;
   }, [tasks]);
 
@@ -101,8 +121,24 @@ export default function TasksListScreen() {
     return sortTasks(filtered, sort);
   }, [tasks, category, status, sort, search]);
 
-  const statusLabel = statusOptions.find((option) => option.value === status)?.label ?? "All";
-  const sortLabel = SORT_OPTIONS.find((option) => option.value === sort)?.label ?? "Recently added";
+  const hasPositionedInitialHighlight = useRef(false);
+  useEffect(() => {
+    const layout = categoryTabLayouts[category];
+    if (!layout) return;
+    if (!hasPositionedInitialHighlight.current) {
+      hasPositionedInitialHighlight.current = true;
+      // eslint-disable-next-line react-hooks/immutability
+      categoryHighlightX.value = layout.x;
+      // eslint-disable-next-line react-hooks/immutability
+      categoryHighlightWidth.value = layout.width;
+      return;
+    }
+    categoryHighlightX.value = withTiming(layout.x, { duration: 220 });
+    categoryHighlightWidth.value = withTiming(layout.width, { duration: 220 });
+  }, [category, categoryTabLayouts, categoryHighlightX, categoryHighlightWidth]);
+
+  const statusLabel = t.tasks.status[status];
+  const sortLabel = t.tasks.sort[sort];
 
   const handleOpenTask = (taskId: string) => {
     router.push({ pathname: "/task/[id]", params: { id: taskId } });
@@ -112,22 +148,22 @@ export default function TasksListScreen() {
     <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
       <View className="gap-4 bg-charcoal-900 px-6 pb-5 pt-2">
         <View className="flex-row items-center justify-between gap-3">
-          <Text className="text-title text-ink-charcoal">Tasks</Text>
+          <Text className="text-title text-ink-charcoal">{t.tasks.title}</Text>
           <View className="flex-row items-center gap-2.5">
-            <Pressable
+            <AnimatedPressable
               onPress={() => setSearchOpen((open) => !open)}
               hitSlop={8}
               className="h-11 w-11 items-center justify-center rounded-full bg-charcoal-800"
             >
               <Feather name={searchOpen ? "x" : "search"} size={18} color={colors.ink.charcoal} />
-            </Pressable>
-            <Pressable
-              onPress={() => router.push("/(tabs)/add")}
+            </AnimatedPressable>
+            <AnimatedPressable
+              onPress={() => router.push("/add")}
               className="btn btn--primary flex-row gap-2"
             >
               <Feather name="plus" size={16} color={colors.cream[50]} />
-              <Text className="font-grotesk-bold text-sm text-cream-50">Add Task</Text>
-            </Pressable>
+              <Text className="font-grotesk-bold text-sm text-cream-50">{t.tasks.addTask}</Text>
+            </AnimatedPressable>
           </View>
         </View>
 
@@ -137,7 +173,7 @@ export default function TasksListScreen() {
             <TextInput
               value={search}
               onChangeText={setSearch}
-              placeholder="Search tasks..."
+              placeholder={t.tasks.searchPlaceholder}
               placeholderTextColor={colors.ink.charcoalMuted}
               autoFocus
               className="flex-1 font-grotesk-regular text-sm text-ink-charcoal"
@@ -146,12 +182,14 @@ export default function TasksListScreen() {
         ) : (
           <View className="flex-row flex-wrap items-center gap-x-2 gap-y-1">
             <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">
-              <Text className="font-grotesk-bold text-ink-charcoal">{pendingCount}</Text> pending,{" "}
-              <Text className="font-grotesk-bold text-ink-charcoal">{completedCount}</Text> completed
+              <Text className="font-grotesk-bold text-ink-charcoal">{pendingCount}</Text>
+              {t.tasks.pendingSuffix}
+              <Text className="font-grotesk-bold text-ink-charcoal">{completedCount}</Text>
+              {t.tasks.completedSuffix}
             </Text>
             {overdueCount > 0 ? (
               <Text className="font-grotesk-semibold text-sm text-overdue-500">
-                • {overdueCount} overdue
+                {t.tasks.overdueCount(overdueCount)}
               </Text>
             ) : null}
           </View>
@@ -159,92 +197,126 @@ export default function TasksListScreen() {
       </View>
 
       <ScrollView
-        className="bg-cream-100"
+        style={{ backgroundColor: colors.cream[100] }}
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ paddingHorizontal: 24, paddingTop: 20, gap: 8 }}
-        >
-          {CATEGORY_TABS.map((tab) => {
-            const active = tab.value === category;
-            return (
-              <Pressable
-                key={tab.value}
-                onPress={() => setCategory(tab.value)}
-                className={
-                  active
-                    ? "flex-row items-center gap-1.5 rounded-2xl bg-cream-50 px-4 py-2.5"
-                    : "flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
-                }
-              >
-                <Text
-                  className={
-                    active
-                      ? "font-grotesk-semibold text-sm text-ink-cream"
-                      : "font-grotesk-medium text-sm text-ink-cream-muted"
-                  }
+        {/* The pill stays inset from both screen edges; only its contents scroll. */}
+        <View className="mx-6 mt-5 overflow-hidden rounded-[20px] bg-cream-200">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4, gap: 4, alignItems: "center" }}
+          >
+            <Animated.View
+              pointerEvents="none"
+              className="absolute bottom-1 left-0 top-1 rounded-2xl bg-cream-50"
+              style={categoryHighlightStyle}
+            />
+            {categoryTabs.map((tab) => {
+              const active = tab.value === category;
+              return (
+                <AnimatedPressable
+                  key={tab.value}
+                  onPress={() => setCategory(tab.value)}
+                  onLayout={(event) => {
+                    const { x, width } = event.nativeEvent.layout;
+                    setCategoryTabLayouts((current) => ({ ...current, [tab.value]: { x, width } }));
+                  }}
+                  className="flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
                 >
-                  {tab.label}
-                </Text>
-                <View
-                  className={
-                    active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
-                  }
-                >
-                  <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value]}</Text>
-                </View>
-              </Pressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    className={
+                      active
+                        ? "font-grotesk-semibold text-sm text-orange-500"
+                        : "font-grotesk-medium text-sm text-ink-cream-muted"
+                    }
+                  >
+                    {tab.label}
+                  </Text>
+                  <View
+                    className={
+                      active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
+                    }
+                  >
+                    <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value] ?? 0}</Text>
+                  </View>
+                </AnimatedPressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
         <View className="flex-row gap-3 px-6 pt-4">
-          <Pressable
+          <AnimatedPressable
             onPress={() => setStatusSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
+            className={
+              status !== "all"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+            }
           >
-            <Feather name="filter" size={14} color={colors.ink.cream} />
-            <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
-              Status: {statusLabel}
+            <Feather name="filter" size={14} color={status !== "all" ? colors.orange[600] : colors.ink.cream} />
+            <Text
+              className={
+                status !== "all"
+                  ? "font-grotesk-bold text-sm text-orange-600"
+                  : "font-grotesk-semibold text-sm text-ink-cream"
+              }
+              numberOfLines={1}
+            >
+              {statusLabel}
             </Text>
-            <Feather name="chevron-down" size={14} color={colors.ink.creamMuted} />
-          </Pressable>
-          <Pressable
+            <Feather name="chevron-down" size={14} color={status !== "all" ? colors.orange[600] : colors.ink.creamMuted} />
+          </AnimatedPressable>
+          <AnimatedPressable
             onPress={() => setSortSheetOpen(true)}
-            className="flex-1 flex-row items-center justify-center gap-2 rounded-2xl border border-cream-300 bg-cream-50 px-4 py-3"
+            className={
+              sort !== "recent"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+            }
           >
-            <Ionicons name="swap-vertical" size={14} color={colors.ink.cream} />
-            <Text className="font-grotesk-semibold text-sm text-ink-cream" numberOfLines={1}>
-              Sort: {sortLabel}
+            <Ionicons name="swap-vertical" size={14} color={sort !== "recent" ? colors.orange[600] : colors.ink.cream} />
+            <Text
+              className={
+                sort !== "recent"
+                  ? "font-grotesk-bold text-sm text-orange-600"
+                  : "font-grotesk-semibold text-sm text-ink-cream"
+              }
+              numberOfLines={1}
+            >
+              {sortLabel}
             </Text>
-          </Pressable>
+          </AnimatedPressable>
         </View>
 
         <Text className="px-6 pt-4 font-grotesk-medium text-sm text-ink-cream-muted">
-          Showing <Text className="font-grotesk-bold text-ink-cream">{filteredTasks.length}</Text> of{" "}
-          {tasks.length} tasks
+          {t.tasks.showingPrefix}
+          <Text className="font-grotesk-bold text-ink-cream">{filteredTasks.length}</Text>
+          {t.tasks.showingSuffix(filteredTasks.length, tasks.length)}
         </Text>
 
         <View className="gap-4 px-6 pt-4">
           {filteredTasks.length === 0 ? (
             <View className="items-center gap-2 py-16">
               <Feather name="inbox" size={28} color={colors.ink.creamMuted} />
-              <Text className="font-grotesk-semibold text-base text-ink-cream">No tasks found</Text>
-              <Text className="text-body text-center text-ink-cream-muted">
-                Try a different filter or search term.
-              </Text>
+              <Text className="font-grotesk-semibold text-base text-ink-cream">{t.tasks.emptyTitle}</Text>
+              <Text className="text-body text-center text-ink-cream-muted">{t.tasks.emptyBody}</Text>
             </View>
           ) : (
-            filteredTasks.map((task) => (
-              <TaskCard
+            filteredTasks.map((task, index) => (
+              <Animated.View
                 key={task.id}
-                task={task}
-                onPress={() => handleOpenTask(task.id)}
-                onToggle={() => toggleTaskStatus(task.id)}
-              />
+                entering={FadeInUp.delay(Math.min(index, 8) * 40).duration(260)}
+                layout={LinearTransition.duration(350).easing(Easing.out(Easing.quad))}
+              >
+                <TaskCard
+                  task={task}
+                  onPress={() => handleOpenTask(task.id)}
+                  onToggle={() => toggleTaskStatus(task.id)}
+                />
+              </Animated.View>
             ))
           )}
         </View>
@@ -252,7 +324,7 @@ export default function TasksListScreen() {
 
       <FilterSheet
         visible={statusSheetOpen}
-        title="STATUS"
+        title={t.tasks.statusTitle}
         options={statusOptions}
         selected={status}
         onSelect={setStatus}
@@ -260,8 +332,8 @@ export default function TasksListScreen() {
       />
       <FilterSheet
         visible={sortSheetOpen}
-        title="SORT BY"
-        options={SORT_OPTIONS}
+        title={t.tasks.sortTitle}
+        options={sortOptions}
         selected={sort}
         onSelect={setSort}
         onClose={() => setSortSheetOpen(false)}

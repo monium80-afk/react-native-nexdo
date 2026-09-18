@@ -6,5 +6,6 @@ export * from "@/lib/ai/extractTasks";
 export * from "@/lib/ai/analyzeComplexity";
 export * from "@/lib/ai/generatePlan";
 export * from "@/lib/ai/generateAdvice";
+export * from "@/lib/ai/suggestBreakdown";
 export * from "@/lib/ai/applyContext";
 export * from "@/lib/ai/parseDate";

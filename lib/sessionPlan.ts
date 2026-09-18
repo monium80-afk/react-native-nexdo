@@ -5,11 +5,8 @@ export type EnergyLevel = "ready" | "low" | "procrastinating";
 
 export const TIME_OPTIONS: number[] = [15, 25, 30, 45, 60, 90];
 
-export const ENERGY_LEVELS: { value: EnergyLevel; label: string }[] = [
-  { value: "ready", label: "Ready to work" },
-  { value: "low", label: "Low energy" },
-  { value: "procrastinating", label: "Procrastinating" },
-];
+// Labels live in the translations (next.energy).
+export const ENERGY_LEVELS: EnergyLevel[] = ["ready", "low", "procrastinating"];
 
 const COMPLEXITY_WEIGHT = { simple: 0, medium: 1, complex: 2 };
 const MAX_SESSION_TASKS = 6;

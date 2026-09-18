@@ -1,24 +1,22 @@
 import { FontAwesome } from "@expo/vector-icons";
-import { Pressable, Text } from "react-native";
+import { Text } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { GoogleIcon } from "@/components/icons/GoogleIcon";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 
 type SocialAuthButtonProps = {
   provider: "google" | "apple";
   onPress?: () => void;
 };
 
-const COPY = {
-  google: "Continue with Google",
-  apple: "Continue with Apple",
-} as const;
-
 export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
+  const t = useTranslation();
   const isApple = provider === "apple";
 
   return (
-    <Pressable
+    <AnimatedPressable
       onPress={onPress}
       className={`btn flex-row items-center justify-center gap-3 ${
         isApple ? "btn--charcoal-solid" : "bg-cream-50 btn--secondary-cream"
@@ -34,8 +32,8 @@ export function SocialAuthButton({ provider, onPress }: SocialAuthButtonProps) {
           isApple ? "text-cream-50" : "text-ink-cream"
         }`}
       >
-        {COPY[provider]}
+        {isApple ? t.auth.continueWithApple : t.auth.continueWithGoogle}
       </Text>
-    </Pressable>
+    </AnimatedPressable>
   );
 }

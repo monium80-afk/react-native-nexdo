@@ -4,9 +4,11 @@ import { useEffect } from "react";
 
 import { TabBar } from "@/components/TabBar";
 import { useAuthSync } from "@/hooks/useAuthSync";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
 
 export default function TabsLayout() {
+  const t = useTranslation();
   const { isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   useAuthSync();
@@ -32,12 +34,14 @@ export default function TabsLayout() {
   if (!isSignedIn) return <Redirect href="/onboarding" />;
 
   return (
-    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <TabBar {...props} />}>
-      <Tabs.Screen name="index" options={{ title: "Next" }} />
-      <Tabs.Screen name="tasks" options={{ title: "Tasks" }} />
-      <Tabs.Screen name="add" options={{ title: "Add" }} />
-      <Tabs.Screen name="ai-chat" options={{ title: "Inbox" }} />
-      <Tabs.Screen name="settings" options={{ title: "Settings" }} />
+    <Tabs
+      screenOptions={{ headerShown: false, animation: "fade" }}
+      tabBar={(props) => <TabBar {...props} />}
+    >
+      <Tabs.Screen name="index" options={{ title: t.tabs.next }} />
+      <Tabs.Screen name="tasks" options={{ title: t.tabs.tasks }} />
+      <Tabs.Screen name="ai-chat" options={{ title: t.tabs.inbox }} />
+      <Tabs.Screen name="settings" options={{ title: t.tabs.settings }} />
     </Tabs>
   );
 }

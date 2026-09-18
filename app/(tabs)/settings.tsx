@@ -1,31 +1,77 @@
-import { useClerk, useUser } from "@clerk/expo";
+import { useClerk } from "@clerk/expo";
 import { Feather } from "@expo/vector-icons";
 import { useState } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Alert, ScrollView, Switch, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { CategoryManager } from "@/components/CategoryManager";
+import { ProfileCard } from "@/components/ProfileCard";
 import { colors } from "@/constants/theme";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
+import { useCategoryStore } from "@/store/useCategoryStore";
 import { useChatStore } from "@/store/useChatStore";
 import { useSettingsStore } from "@/store/useSettingsStore";
 import { useTaskStore } from "@/store/useTaskStore";
-import type { PlanningStyle } from "@/types/settings";
+import type { AppLanguage, ThemePreference } from "@/types/settings";
 
-const PLANNING_STYLE_OPTIONS: { value: PlanningStyle; label: string; description: string }[] = [
-  { value: "minimal", label: "Minimal", description: "Just the next action." },
-  { value: "balanced", label: "Balanced", description: "Advice plus a few steps." },
-  { value: "detailed", label: "Detailed", description: "Full strategy and breakdown." },
+const THEME_OPTIONS: { value: ThemePreference; icon: keyof typeof Feather.glyphMap }[] = [
+  { value: "light", icon: "sun" },
+  { value: "dark", icon: "moon" },
+  { value: "system", icon: "smartphone" },
+];
+
+// Each language is listed in its own name, so it's recognizable to someone who reads it.
+const LANGUAGE_OPTIONS: { value: AppLanguage; label: string }[] = [
+  { value: "en", label: "English" },
+  { value: "fr", label: "Français" },
+  { value: "es", label: "Español" },
+  { value: "ar", label: "العربية" },
+  { value: "de", label: "Deutsch" },
 ];
 
 export default function Settings() {
-  const { user } = useUser();
+  const t = useTranslation();
   const { signOut } = useClerk();
   const handleChatSignOut = useChatStore((state) => state.handleSignOut);
   const handleTaskSignOut = useTaskStore((state) => state.handleSignOut);
-  const planningStyle = useSettingsStore((state) => state.planningStyle);
-  const setPlanningStyle = useSettingsStore((state) => state.setPlanningStyle);
+  const theme = useSettingsStore((state) => state.theme);
+  const setTheme = useSettingsStore((state) => state.setTheme);
+  const language = useSettingsStore((state) => state.language);
+  const setLanguage = useSettingsStore((state) => state.setLanguage);
+  const relabelDefaultCategories = useCategoryStore((state) => state.relabelDefaults);
+  const aiAutoMode = useSettingsStore((state) => state.aiAutoMode);
+  const setAiAutoMode = useSettingsStore((state) => state.setAiAutoMode);
+  const clearChatHistory = useChatStore((state) => state.clearHistory);
   const [isSigningOut, setIsSigningOut] = useState(false);
   const [signOutError, setSignOutError] = useState<string | null>(null);
+  const [historyStatus, setHistoryStatus] = useState<string | null>(null);
+
+  const handleSelectLanguage = (value: AppLanguage) => {
+    setLanguage(value);
+    // "School", "Work"… are app-provided names, so they follow the language too.
+    relabelDefaultCategories(value);
+    posthog.capture("language_changed", { language: value });
+  };
+
+  const handleClearHistory = () => {
+    Alert.alert(t.settings.clearConfirmTitle, t.settings.clearConfirmBody, [
+      { text: t.common.cancel, style: "cancel" },
+      {
+        text: t.settings.clear,
+        style: "destructive",
+        onPress: async () => {
+          try {
+            await clearChatHistory();
+            setHistoryStatus(t.settings.historyCleared);
+          } catch {
+            setHistoryStatus(t.settings.historyClearFailed);
+          }
+        },
+      },
+    ]);
+  };
 
   const handleSignOut = async () => {
     setIsSigningOut(true);
@@ -39,74 +85,141 @@ export default function Settings() {
         Promise.resolve().then(() => handleTaskSignOut()),
       ]);
       if (cleanupResults.some((result) => result.status === "rejected")) {
-        setSignOutError("Signed out, but local data cleanup needs attention.");
+        setSignOutError(t.settings.signOutCleanupError);
       }
     } catch {
-      setSignOutError("Couldn't sign out. Try again.");
+      setSignOutError(t.settings.signOutError);
     } finally {
       setIsSigningOut(false);
     }
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }}>
-      <View className="flex-1 gap-6 px-6 pt-4">
-        <Text className="text-title text-ink-charcoal">Settings</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: colors.charcoal[900] }} edges={["top"]}>
+      <ScrollView
+        style={{ backgroundColor: colors.charcoal[900] }}
+        contentContainerStyle={{ gap: 24, paddingHorizontal: 24, paddingTop: 16, paddingBottom: 40 }}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <Text className="text-title text-ink-charcoal">{t.settings.title}</Text>
 
-        <View className="card card--charcoal flex-row items-center gap-3 p-4">
-          <View className="h-12 w-12 items-center justify-center rounded-full bg-charcoal-600">
-            <Feather name="user" size={20} color={colors.ink.charcoal} />
-          </View>
-          <View className="flex-1">
-            <Text className="font-grotesk-semibold text-base text-ink-charcoal">
-              {user?.fullName ?? user?.firstName ?? "Your account"}
-            </Text>
-            <Text className="font-grotesk-regular text-sm text-ink-charcoal-muted">
-              {user?.primaryEmailAddress?.emailAddress ?? ""}
-            </Text>
+        <ProfileCard />
+
+        <View className="gap-3">
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.preferences}</Text>
+          <CategoryManager />
+        </View>
+
+        <View className="gap-3">
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.aiChat}</Text>
+          <View className="card card--charcoal gap-4 p-4">
+            <View className="flex-row items-center gap-3">
+              <View className="flex-1 gap-1">
+                <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.autoMode}</Text>
+                <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">{t.settings.autoModeBody}</Text>
+              </View>
+              <Switch
+                value={aiAutoMode}
+                onValueChange={setAiAutoMode}
+                trackColor={{ false: colors.charcoal[600], true: colors.orange[500] }}
+                thumbColor={colors.cream[50]}
+                ios_backgroundColor={colors.charcoal[600]}
+                accessibilityLabel={t.settings.autoMode}
+              />
+            </View>
+
+            <View className="h-px bg-white/10" />
+
+            <AnimatedPressable onPress={handleClearHistory} className="flex-row items-center gap-3">
+              <Feather name="trash-2" size={18} color={colors.overdue[500]} />
+              <Text className="flex-1 font-grotesk-semibold text-base text-overdue-500">{t.settings.clearHistory}</Text>
+            </AnimatedPressable>
+
+            {historyStatus ? (
+              <Text className="font-grotesk-medium text-sm text-ink-charcoal-muted">{historyStatus}</Text>
+            ) : null}
           </View>
         </View>
 
-        <View className="card card--charcoal gap-3 p-4">
-          <Text className="font-grotesk-semibold text-base text-ink-charcoal">Planning style</Text>
-          <Text className="font-grotesk-regular text-sm text-ink-charcoal-muted">
-            Controls how much detail Nexdo gives you on the Next page.
-          </Text>
-          <View className="gap-2">
-            {PLANNING_STYLE_OPTIONS.map((option) => {
-              const selected = planningStyle === option.value;
-              return (
-                <Pressable
-                  key={option.value}
-                  onPress={() => setPlanningStyle(option.value)}
-                  className={
-                    selected
-                      ? "flex-row items-center justify-between rounded-2xl border border-orange-500 bg-orange-500/10 px-4 py-3"
-                      : "flex-row items-center justify-between rounded-2xl border border-charcoal-600 px-4 py-3"
-                  }
-                >
-                  <View>
-                    <Text
+        <View className="gap-3">
+          <Text className="eyebrow text-ink-charcoal-muted">{t.settings.appearance}</Text>
+          <View className="card card--charcoal gap-4 p-4">
+            <View className="gap-3">
+              <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.theme}</Text>
+              <View className="flex-row gap-2">
+                {THEME_OPTIONS.map((option) => {
+                  const selected = theme === option.value;
+                  return (
+                    <AnimatedPressable
+                      key={option.value}
+                      onPress={() => setTheme(option.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
                       className={
                         selected
-                          ? "font-grotesk-semibold text-sm text-orange-500"
-                          : "font-grotesk-semibold text-sm text-ink-charcoal"
+                          ? "choice choice--charcoal-selected flex-1 flex-row items-center justify-center gap-2 py-3"
+                          : "choice choice--charcoal flex-1 flex-row items-center justify-center gap-2 py-3"
                       }
                     >
-                      {option.label}
-                    </Text>
-                    <Text className="font-grotesk-regular text-xs text-ink-charcoal-muted">
-                      {option.description}
-                    </Text>
-                  </View>
-                  {selected ? <Feather name="check" size={18} color={colors.orange[500]} /> : null}
-                </Pressable>
-              );
-            })}
+                      <Feather
+                        name={option.icon}
+                        size={15}
+                        color={selected ? colors.orange[500] : colors.ink.charcoalMuted}
+                      />
+                      <Text
+                        className={
+                          selected
+                            ? "font-grotesk-semibold text-sm text-orange-500"
+                            : "font-grotesk-medium text-sm text-ink-charcoal"
+                        }
+                      >
+                        {t.settings.themes[option.value]}
+                      </Text>
+                    </AnimatedPressable>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View className="h-px bg-white/10" />
+
+            <View className="gap-3">
+              <Text className="font-grotesk-semibold text-base text-ink-charcoal">{t.settings.language}</Text>
+              <View className="flex-row flex-wrap gap-2">
+                {LANGUAGE_OPTIONS.map((option) => {
+                  const selected = language === option.value;
+                  return (
+                    <AnimatedPressable
+                      key={option.value}
+                      onPress={() => handleSelectLanguage(option.value)}
+                      accessibilityRole="radio"
+                      accessibilityState={{ selected }}
+                      className={
+                        selected
+                          ? "choice choice--charcoal-selected flex-row items-center gap-1.5 px-3.5 py-2.5"
+                          : "choice choice--charcoal flex-row items-center gap-1.5 px-3.5 py-2.5"
+                      }
+                    >
+                      {selected ? <Feather name="check" size={14} color={colors.orange[500]} /> : null}
+                      <Text
+                        className={
+                          selected
+                            ? "font-grotesk-semibold text-sm text-orange-500"
+                            : "font-grotesk-medium text-sm text-ink-charcoal"
+                        }
+                      >
+                        {option.label}
+                      </Text>
+                    </AnimatedPressable>
+                  );
+                })}
+              </View>
+            </View>
           </View>
         </View>
 
-        <Pressable
+        <AnimatedPressable
           onPress={handleSignOut}
           disabled={isSigningOut}
           className="card card--charcoal flex-row items-center gap-3 p-4"
@@ -114,16 +227,16 @@ export default function Settings() {
         >
           <Feather name="log-out" size={18} color={colors.overdue[500]} />
           <Text className="font-grotesk-semibold text-base text-overdue-500">
-            {isSigningOut ? "Signing out…" : "Sign out"}
+            {isSigningOut ? t.settings.signingOut : t.settings.signOut}
           </Text>
-        </Pressable>
+        </AnimatedPressable>
 
         {signOutError ? (
           <Text className="text-sm font-grotesk-medium text-overdue-500">
             {signOutError}
           </Text>
         ) : null}
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }

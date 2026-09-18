@@ -10,6 +10,9 @@ import {
   View,
 } from "react-native";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
+import { useTranslation } from "@/hooks/useTranslation";
+
 const CODE_LENGTH = 6;
 
 type VerificationModalProps = {
@@ -25,6 +28,7 @@ export function VerificationModal({
   onClose,
   onVerify,
 }: VerificationModalProps) {
+  const t = useTranslation();
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [verifying, setVerifying] = useState(false);
@@ -58,7 +62,7 @@ export function VerificationModal({
       try {
         errorMessage = await onVerify(digitsOnly);
       } catch {
-        errorMessage = "Something went wrong. Try again.";
+        errorMessage = t.auth.somethingWrong;
       } finally {
         setVerifying(false);
       }
@@ -84,10 +88,10 @@ export function VerificationModal({
           <View className="card--cream-elevated gap-5 rounded-t-2xl p-6 pb-10">
             <View className="items-center gap-2">
               <Text className="text-card-title text-center text-ink-cream">
-                Check your email
+                {t.auth.checkEmail}
               </Text>
               <Text className="text-body px-4 text-center text-ink-cream-muted">
-                We sent a 6-digit code to{"\n"}
+                {t.auth.codeSentTo}{"\n"}
                 <Text className="font-grotesk-semibold text-ink-cream">
                   {email}
                 </Text>
@@ -132,11 +136,11 @@ export function VerificationModal({
               className="absolute h-px w-px opacity-0"
             />
 
-            <Pressable onPress={onClose} className="items-center">
+            <AnimatedPressable onPress={onClose} className="items-center">
               <Text className="font-grotesk-semibold text-sm text-ink-cream-muted">
-                Cancel
+                {t.common.cancel}
               </Text>
-            </Pressable>
+            </AnimatedPressable>
           </View>
         </KeyboardAvoidingView>
       </View>

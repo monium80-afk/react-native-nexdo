@@ -1,0 +1,727 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Tasks</title>
+<!-- Tailwind CSS CDN -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<!-- Tailwind Configuration -->
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            appDark: '#231F1D',
+            appOrange: '#D85427',
+            appBg: '#F7F3E9',
+            cardBg: '#FFFDF9',
+            cardBorder: '#E8E1D3',
+            chipBg: '#EFE9DC',
+            chipBorder: '#E2DBCF',
+            overdueRed: '#CC4B37',
+            overdueBg: '#FCF3F0',
+            overdueBorder: '#F2AFA4',
+            completedBg: '#EFE9DC',
+            completedBorder: '#E3DDD0'
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', '"SF Pro Display"', '"SF Pro Text"', 'Roboto', 'Helvetica', 'Arial', 'sans-serif']
+          }
+        }
+      }
+    }
+  </script>
+<!-- BEGIN: Custom Stylesheet -->
+<style data-purpose="base-styling">
+    body {
+      background-color: #231F1D;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+    .custom-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .custom-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+<!-- END: Custom Stylesheet -->
+</head>
+<body class="text-[#231F1D] flex justify-center min-h-screen select-none">
+<!-- BEGIN: Mobile Container -->
+<main class="w-full max-w-[693px] bg-appBg min-h-screen flex flex-col relative pb-12 shadow-2xl">
+<!-- BEGIN: Header Section -->
+<header class="bg-appDark text-white px-5 pt-7 pb-6 flex items-center justify-between sticky top-0 z-30 shadow-sm" data-purpose="app-header">
+<div class="flex flex-col">
+<h1 class="text-[32px] font-bold tracking-tight leading-tight">Tasks</h1>
+<div class="flex items-center text-[13px] text-gray-300 font-medium mt-1">
+<span class="text-white font-semibold">9</span>&nbsp;pending,&nbsp;<span class="text-white font-semibold">9</span>&nbsp;completed
+          <span class="mx-1.5 text-gray-400">•</span>
+<span class="w-2 h-2 rounded-full bg-appOrange inline-block mr-1"></span>
+<span class="text-appOrange font-medium">1 overdue</span>
+</div>
+</div>
+<!-- Right Header Controls -->
+<div class="flex items-center gap-3">
+<!-- Search Button -->
+<button aria-label="Search" class="w-10 h-10 rounded-full bg-[#322C29] flex items-center justify-center text-gray-300 hover:text-white transition-colors" type="button">
+<svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="11" cy="11" r="7"></circle>
+<path d="M21 21l-4.35-4.35" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+</button>
+<!-- Add Task Button -->
+<button class="bg-appOrange text-white font-semibold text-[14px] px-4 py-2.5 rounded-full flex items-center gap-1.5 shadow-sm active:scale-95 transition-transform" type="button">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+<path d="M12 4v16m8-8H4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Add Task</span>
+</button>
+</div>
+</header>
+<!-- END: Header Section -->
+<!-- BEGIN: Filtering and Navigation Controls -->
+<section class="px-4 pt-3.5 pb-2" data-purpose="filtering-controls">
+<!-- Category Segmented Pills -->
+<nav aria-label="Categories" class="bg-[#EBE4D5] p-1 rounded-full flex items-center justify-between text-[13.5px] font-medium text-gray-600 mb-3">
+<button class="flex-1 py-1.5 rounded-full bg-white text-gray-900 font-bold shadow-sm flex items-center justify-center gap-1.5" type="button">
+<span>All</span>
+<span class="text-[11px] font-semibold text-appOrange bg-[#FCECE8] px-1.5 py-0.2 rounded-full">18</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-[#6D6357] font-semibold flex items-center justify-center gap-1" type="button">
+<span>Work</span>
+<span class="text-[12px] opacity-70">2</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-[#6D6357] font-semibold flex items-center justify-center gap-1" type="button">
+<span>Personal</span>
+<span class="text-[12px] opacity-70">8</span>
+</button>
+<button class="flex-1 py-1.5 rounded-full text-[#6D6357] font-semibold flex items-center justify-center gap-1" type="button">
+<span>Other</span>
+<span class="text-[12px] opacity-70">0</span>
+</button>
+</nav>
+<!-- Dropdown Filter Pills & Task Count -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<!-- Status Dropdown -->
+<button class="bg-[#F0EAE0] border border-[#E3DCD0] px-3 py-1.5 rounded-full text-[12px] font-medium text-gray-700 flex items-center gap-1.5 shadow-2xs" type="button">
+<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Status: <b>All</b></span>
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+<!-- Sort Dropdown -->
+<button class="bg-[#F0EAE0] border border-[#E3DCD0] px-3 py-1.5 rounded-full text-[12px] font-medium text-gray-700 flex items-center gap-1.5 shadow-2xs" type="button">
+<svg class="w-3.5 h-3.5 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+<path d="M7 16V4m0 0L3 8m4-4l4 4m6 0v12m0 0l4-4m-4 4l-4-4" stroke-linecap="round" stroke-linejoin="round"></path>
+</svg>
+<span>Sort: <b>Recently added</b></span>
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</button>
+</div>
+</div>
+<!-- Task counter line -->
+<div class="text-[12px] text-[#7E7465] mt-2 mb-1 px-1 font-medium">
+        Showing <span class="font-bold text-[#4B443B]">18</span> of 18 tasks
+      </div>
+</section>
+<!-- END: Filtering and Navigation Controls -->
+<!-- BEGIN: Task List Section -->
+<section class="px-4 flex flex-col gap-2.5" data-purpose="active-task-list">
+<!-- Item 1: Dentist Appointment -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Dentist Appointment</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#B87A2B]">
+<span>In 2 days</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<!-- Tags Row -->
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<!-- Score -->
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold">45</strong>
+</span>
+<!-- Due Date -->
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Tomorrow
+          </span>
+<!-- Duration -->
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            10 minutes
+          </span>
+<!-- Category -->
+<span class="bg-[#E4ECE7] border border-[#D0DFD6] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#2E6B55] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Item 2: Clean or Repair Pants -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Clean or Repair Pants</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#B87A2B]">
+<span>In 2 days</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold">30</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Tomorrow
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            20 minutes
+          </span>
+<span class="bg-[#E4ECE7] border border-[#D0DFD6] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#2E6B55] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Item 3: Study for Friday Exam -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Study for Friday Exam</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#D4543C]">
+<span>Due tomorrow</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F8EAE4] border border-[#F2D1C8] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#9E3E28] flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-bold text-[#832E1B]">8.5</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Friday at 9:00 AM
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            3h
+          </span>
+<span class="bg-[#F6EBE5] border border-[#ECD9CF] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#A2523C] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Item 4: Buy Weekly Groceries -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Buy Weekly Groceries</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#D4543C]">
+<span>Due tomorrow</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F8EAE4] border border-[#F2D1C8] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#9E3E28] flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-bold text-[#832E1B]">7.2</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Today by 7:00 PM
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            30 mins
+          </span>
+<span class="bg-[#E4ECE7] border border-[#D0DFD6] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#2E6B55] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Item 5: Email Professor Regarding Assignment -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Email Professor Regarding Assignment</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#B87A2B]">
+<span>In 2 days</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F8EAE4] border border-[#F2D1C8] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#9E3E28] flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-bold text-[#832E1B]">8.8</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Tomorrow at 12:00 PM
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            10 mins
+          </span>
+<span class="bg-[#F6EBE5] border border-[#ECD9CF] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#A2523C] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Item 6: Finish Math Homework -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Finish Math Homework</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#B87A2B]">
+<span>In 2 days</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F8EAE4] border border-[#F2D1C8] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#9E3E28] flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-bold text-[#832E1B]">9.4</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Tomorrow at 5:00 PM
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            45 mins
+          </span>
+<span class="bg-[#F6EBE5] border border-[#ECD9CF] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#A2523C] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Item 7: Finish Chemistry Assignment (OVERDUE HIGHLIGHT) -->
+<article class="bg-[#FCF5F3] border-2 border-[#F1B8AE] rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#D85427] inline-block bg-white flex-shrink-0"></span>
+<div class="flex items-center gap-2">
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Finish Chemistry Assignment</h2>
+<span class="bg-[#C84534] text-white text-[10px] font-extrabold px-1.5 py-0.5 rounded tracking-wider flex items-center gap-1">
+<span>▲</span> OVERDUE
+              </span>
+</div>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#CC4B37]">
+<span>11d overdue</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#FDECE8] border border-[#F5C7BD] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#932C19] flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-red-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-bold">92</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due Thu, May 23
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            45 min
+          </span>
+<span class="bg-[#F6EBE5] border border-[#ECD9CF] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#A2523C] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Item 8: Order Textbook for Physics Lab -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Order Textbook for Physics Lab</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#8F8578]">
+<span>2 days ago</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold">30</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due 2 days ago
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            10 min
+          </span>
+<span class="bg-[#F6EBE5] border border-[#ECD9CF] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#A2523C] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Item 9: Backup Laptop to Cloud Storage -->
+<article class="bg-cardBg border border-cardBorder rounded-2xl p-4 shadow-sm relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-full border-2 border-[#A8A196] inline-block bg-white flex-shrink-0"></span>
+<h2 class="font-bold text-[15.5px] text-[#1E1B18] tracking-tight">Backup Laptop to Cloud Storage</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-semibold text-[#8F8578]">
+<span>3 days ago</span>
+<svg class="w-3.5 h-3.5 stroke-[2.5]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M9 5l7 7-7 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-700 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold">25</strong>
+</span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line><line x1="3" x2="21" y1="10" y2="10"></line></svg>
+            Due 3 days ago
+          </span>
+<span class="bg-[#F0ECE1] border border-[#E1DCcf] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-700 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            15 min
+          </span>
+<span class="bg-[#E4ECE7] border border-[#D0DFD6] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#2E6B55] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+</section>
+<!-- END: Task List Section -->
+<!-- BEGIN: Completed Tasks Section -->
+<section class="px-4 mt-3 flex flex-col gap-2.5" data-purpose="completed-task-list">
+<!-- Completed 1: Submit Expense Report -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Submit Expense Report</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">78</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            20 min
+          </span>
+<span class="bg-[#E2E6EC] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#465E77] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#52779D]"></span>
+            Work
+          </span>
+</div>
+</article>
+<!-- Completed 2: Study for Math Exam -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Study for Math Exam</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">85</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            2h
+          </span>
+<span class="bg-[#EBE3DE] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#925C4F] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Completed 3: Grocery Restocking -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Grocery Restocking</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">65</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            35 min
+          </span>
+<span class="bg-[#DFE7E2] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#466C5B] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Completed 4: Work on Website Project -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Work on Website Project</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">60</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            1h 30m
+          </span>
+<span class="bg-[#DFE7E2] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#466C5B] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Completed 5: Read Chapter 4 – Biology -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Read Chapter 4 – Biology</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">70</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            30 min
+          </span>
+<span class="bg-[#EBE3DE] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#925C4F] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+<!-- Completed 6: Plan content for Instagram -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Plan content for Instagram</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">50</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            1h
+          </span>
+<span class="bg-[#DFE7E2] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#466C5B] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Completed 7: Call the dentist -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Call the dentist</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">40</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            15 min
+          </span>
+<span class="bg-[#DFE7E2] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#466C5B] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#3B8067]"></span>
+            Personal
+          </span>
+</div>
+</article>
+<!-- Completed 8: Review Quarterly SaaS Metrics -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Review Quarterly SaaS Metrics</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">80</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            40 min
+          </span>
+<span class="bg-[#E2E6EC] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#465E77] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#52779D]"></span>
+            Work
+          </span>
+</div>
+</article>
+<!-- Completed 9: Submit Lab Safety Report -->
+<article class="bg-[#EFE9DC]/75 border border-[#E0D9CB] rounded-2xl p-4 shadow-2xs relative">
+<div class="flex items-start justify-between">
+<div class="flex items-center gap-3">
+<span class="w-5 h-5 rounded-md bg-[#E18C70] flex items-center justify-center text-white flex-shrink-0">
+<svg class="w-3.5 h-3.5 stroke-[3]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</span>
+<h2 class="font-bold text-[15.5px] text-[#8E877D] line-through tracking-tight">Submit Lab Safety Report</h2>
+</div>
+<div class="flex items-center gap-1 text-[13px] font-medium text-[#999084]">
+<span>Completed</span>
+<svg class="w-4 h-4 text-[#999084]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"></circle><path d="M9 12l2 2 4-4" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+</div>
+</div>
+<div class="flex flex-wrap items-center gap-1.5 mt-3 pl-8">
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<span class="w-2 h-2 rounded-xs bg-amber-800/60 rotate-45 inline-block"></span>
+            Score: <strong class="font-semibold text-gray-700">88</strong>
+</span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect height="18" rx="2" ry="2" width="18" x="3" y="4"></rect><line x1="16" x2="16" y1="2" y2="6"></line><line x1="8" x2="8" y1="2" y2="6"></line></svg>
+            Completed
+          </span>
+<span class="bg-[#E8E1D3] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-gray-600 flex items-center gap-1">
+<svg class="w-3 h-3 text-gray-500" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+            25 min
+          </span>
+<span class="bg-[#EBE3DE] px-2.5 py-1 rounded-full text-[11.5px] font-medium text-[#925C4F] flex items-center gap-1.5">
+<span class="w-1.5 h-1.5 rounded-full bg-[#B24C32]"></span>
+            School
+          </span>
+</div>
+</article>
+</section>
+<!-- END: Completed Tasks Section -->
+</main>
+<!-- END: Mobile Container -->
+</body></html>

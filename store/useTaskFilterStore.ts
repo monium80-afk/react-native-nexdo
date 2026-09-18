@@ -6,11 +6,12 @@ export type TaskStatusFilter = "all" | "pending" | "completed" | "overdue";
 export type TaskSortOption = "recent" | "dueDate" | "priority";
 
 type TaskFilterStore = {
-  category: TaskCategory | "all";
+  /** A category id, or "all". */
+  category: TaskCategory;
   status: TaskStatusFilter;
   sort: TaskSortOption;
   search: string;
-  setCategory: (category: TaskCategory | "all") => void;
+  setCategory: (category: TaskCategory) => void;
   setStatus: (status: TaskStatusFilter) => void;
   setSort: (sort: TaskSortOption) => void;
   setSearch: (search: string) => void;

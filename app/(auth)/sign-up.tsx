@@ -5,7 +5,6 @@ import { useState } from "react";
 import {
     KeyboardAvoidingView,
     Platform,
-    Pressable,
     ScrollView,
     StyleSheet,
     Text,
@@ -14,27 +13,23 @@ import {
 import Animated, { FadeIn, FadeOut, LinearTransition } from "react-native-reanimated";
 import { SafeAreaView } from "react-native-safe-area-context";
 
+import { AnimatedPressable } from "@/components/AnimatedPressable";
 import { AuthTextField } from "@/components/AuthTextField";
 import { SetupProgressBar } from "@/components/SetupProgressBar";
 import { SocialAuthButton } from "@/components/SocialAuthButton";
 import { VerificationModal } from "@/components/VerificationModal";
 import { colors } from "@/constants/theme";
 import { useScreenEnterAnimation } from "@/hooks/useScreenEnterAnimation";
+import { useTranslation } from "@/hooks/useTranslation";
 import { posthog } from "@/lib/posthog";
 
 const REVEAL_LAYOUT = LinearTransition.duration(250);
 
-const PLANNED_TASKS = [
-  { title: "Buy groceries", when: "Tonight", dotClassName: "bg-orange-500" },
-  {
-    title: "Finish math assignment",
-    when: "Friday",
-    dotClassName: "bg-orange-500/70",
-  },
-  { title: "Call dentist", when: "Tomorrow", dotClassName: "bg-orange-500/45" },
-] as const;
+// One dot per sample task in auth.plannedTasks, in the same order.
+const PLANNED_TASK_DOTS = ["bg-orange-500", "bg-orange-500/70", "bg-orange-500/45"] as const;
 
 export default function SignUp() {
+  const t = useTranslation();
   const router = useRouter();
   const enterStyle = useScreenEnterAnimation();
   const { signUp, errors, fetchStatus } = useSignUp();
@@ -73,7 +68,7 @@ export default function SignUp() {
     const { error: verificationError } = await signUp.verifications.sendEmailCode();
     if (verificationError) {
       setSendCodeError(
-        verificationError.longMessage ?? "Couldn't send the verification code. Try again.",
+        verificationError.longMessage ?? t.auth.sendCodeError,
       );
       return;
     }
@@ -82,7 +77,7 @@ export default function SignUp() {
 
   const handleVerifyCode = async (code: string) => {
     const { error } = await signUp.verifications.verifyEmailCode({ code });
-    if (error) return error.longMessage ?? "Invalid code. Try again.";
+    if (error) return error.longMessage ?? t.auth.invalidCode;
 
     if (signUp.status === "complete") {
       const { error: finalizeError } = await signUp.finalize({
@@ -92,7 +87,7 @@ export default function SignUp() {
         },
       });
       if (finalizeError) {
-        return finalizeError.longMessage ?? "Invalid code. Try again.";
+        return finalizeError.longMessage ?? t.auth.invalidCode;
       }
     }
   };
@@ -112,18 +107,17 @@ export default function SignUp() {
 
             <View className="mt-8 gap-3">
               <Text className="text-title text-ink-cream">
-                Don&apos;t lose your plan.
+                {t.auth.signUpTitle}
               </Text>
               <Text className="text-base font-grotesk-regular leading-relaxed text-ink-cream-muted">
-                3 tasks are sorted and ready. Create an account to save them
-                and keep going.
+                {t.auth.signUpSubtitle}
               </Text>
             </View>
 
             <View className="card card--cream mt-6 gap-5 p-5">
-              {PLANNED_TASKS.map((task) => (
+              {t.auth.plannedTasks.map((task, index) => (
                 <View key={task.title} className="flex-row items-center gap-3">
-                  <View className={`h-2.5 w-2.5 rounded-full ${task.dotClassName}`} />
+                  <View className={`h-2.5 w-2.5 rounded-full ${PLANNED_TASK_DOTS[index]}`} />
                   <Text className="flex-1 font-grotesk-bold text-base text-ink-cream">
                     {task.title}
                   </Text>
@@ -153,7 +147,7 @@ export default function SignUp() {
                   className="gap-3"
                 >
                   <AuthTextField
-                    label="EMAIL"
+                    label={t.auth.email}
                     value={email}
                     onChangeText={setEmail}
                     keyboardType="email-address"
@@ -165,7 +159,7 @@ export default function SignUp() {
                     </Text>
                   ) : null}
                   <AuthTextField
-                    label="PASSWORD"
+                    label={t.auth.password}
                     value={password}
                     onChangeText={setPassword}
                     secureEntry
@@ -182,33 +176,31 @@ export default function SignUp() {
                       {sendCodeError}
                     </Text>
                   ) : null}
-                  <Pressable
+                  <AnimatedPressable
                     onPress={handleSignUp}
                     disabled={fetchStatus === "fetching"}
+                    scaleTo={0.98}
                     className="btn btn--primary mt-1"
-                    style={({ pressed }) => [
-                      pressed ? { transform: [{ scale: 0.99 }] } : undefined,
-                      fetchStatus === "fetching" ? { opacity: 0.6 } : undefined,
-                    ]}
+                    style={fetchStatus === "fetching" ? { opacity: 0.6 } : undefined}
                   >
                     <Text className="font-grotesk-bold text-lg text-cream-50">
-                      Sign Up
+                      {t.auth.signUpButton}
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               ) : (
                 <Animated.View
                   entering={FadeIn.duration(220)}
                   exiting={FadeOut.duration(150)}
                 >
-                  <Pressable
+                  <AnimatedPressable
                     onPress={() => setShowEmailForm(true)}
                     className="items-center"
                   >
                     <Text className="font-grotesk-semibold text-sm text-ink-cream-muted underline">
-                      or continue with email
+                      {t.auth.continueWithEmail}
                     </Text>
-                  </Pressable>
+                  </AnimatedPressable>
                 </Animated.View>
               )}
             </Animated.View>
@@ -218,20 +210,19 @@ export default function SignUp() {
               className="mt-5 flex-row justify-center gap-1"
             >
               <Text className="font-grotesk-regular text-sm text-ink-cream-muted">
-                I have an account already?
+                {t.auth.haveAccount}
               </Text>
-              <Pressable onPress={() => router.push("/(auth)/sign-in")}>
+              <AnimatedPressable onPress={() => router.push("/(auth)/sign-in")}>
                 <Text className="font-grotesk-bold text-sm text-orange-500">
-                  Log in
+                  {t.auth.logIn}
                 </Text>
-              </Pressable>
+              </AnimatedPressable>
             </Animated.View>
           </Animated.View>
 
           <Animated.View layout={REVEAL_LAYOUT} className="mt-10">
             <Text className="px-4 text-center font-grotesk-regular text-xs text-ink-cream-muted">
-              By continuing you agree to Nexdo&apos;s Terms and Privacy
-              Policy.
+              {t.auth.terms}
             </Text>
           </Animated.View>
         </ScrollView>

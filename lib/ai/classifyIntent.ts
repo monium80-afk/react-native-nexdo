@@ -1,12 +1,16 @@
-import type { InboxAction, InboxResponseBody } from "@/app/api/inbox+api";
+import type { InboxAction, InboxRequestBody, InboxResponseBody } from "@/app/api/inbox+api";
+import { resolveCategoryId } from "@/constants/categories";
 import { taskToContext } from "@/lib/ai/context";
 import { extractTasks } from "@/lib/ai/extractTasks";
 import { parseDatePhrase } from "@/lib/ai/parseDate";
 import { resolveTaskReference } from "@/lib/ai/resolveTaskReference";
 import type { StructuredAction } from "@/lib/ai/types";
 import { apiPost } from "@/lib/api";
+import { getLanguage, translate } from "@/lib/i18n";
 import { rankTasksForNext } from "@/lib/scoring";
-import type { Task, TaskCategory } from "@/types/task";
+import type { TaskScope } from "@/lib/taskMeta";
+import type { Category } from "@/types/category";
+import type { Task, TaskPriorityLevel } from "@/types/task";
 
 export type ClassifyIntentInput = {
   text: string;
@@ -14,6 +18,7 @@ export type ClassifyIntentInput = {
   currentTaskId?: string;
   recentTaskIds: string[];
   tasks: Task[];
+  categories: Category[];
   history?: { role: "user" | "ai"; text: string }[];
 };
 
@@ -23,7 +28,8 @@ export type ClassifyIntentInput = {
 // caller falls back to each action's own executed-result message instead.
 export type ClassifiedTurn = { actions: StructuredAction[]; reply: string | null };
 
-const VALID_CATEGORIES: TaskCategory[] = ["work", "school", "personal", "other"];
+const VALID_PRIORITIES: TaskPriorityLevel[] = ["high", "medium", "low"];
+const VALID_SCOPES: TaskScope[] = ["all", "completed", "pending"];
 
 // A pending-task-list cap for pathological cases — a normal user's pending
 // list is small enough to send in full, which is what makes duplicate
@@ -41,11 +47,15 @@ function tasksForPrompt(tasks: Task[]): Task[] {
 // case — the destructive/safe ones are fixed here regardless of what the
 // model returns, so a wrong model output can never skip a confirmation it
 // shouldn't.
-function mapSingleAction(action: InboxAction, fallbackNote: string): StructuredAction | null {
+function mapSingleAction(action: InboxAction, fallbackNote: string, categories: Category[]): StructuredAction | null {
+  const isKnownCategory = (id: string | undefined): id is string =>
+    id !== undefined && categories.some((category) => category.id === id);
+
   if (action.type === "CREATE_TASK" && action.fields.title) {
-    const category = VALID_CATEGORIES.includes(action.fields.category as TaskCategory)
-      ? (action.fields.category as TaskCategory)
-      : "other";
+    const category = resolveCategoryId(categories, action.fields.category);
+    const priorityLevel = VALID_PRIORITIES.includes(action.fields.priority as TaskPriorityLevel)
+      ? (action.fields.priority as TaskPriorityLevel)
+      : "medium";
     return {
       type: "CREATE_TASK",
       drafts: [
@@ -54,6 +64,9 @@ function mapSingleAction(action: InboxAction, fallbackNote: string): StructuredA
           category,
           estimatedMinutes: action.fields.estimatedMinutes ?? 30,
           dueDate: action.fields.dueDate,
+          dueHasTime: action.fields.dueHasTime,
+          priorityLevel,
+          steps: action.fields.steps,
         },
       ],
       confirmationTier: "confirm-required",
@@ -65,7 +78,7 @@ function mapSingleAction(action: InboxAction, fallbackNote: string): StructuredA
     if (action.fields.title) changes.title = action.fields.title;
     if (action.fields.dueDate) changes.dueDate = action.fields.dueDate;
     if (typeof action.fields.estimatedMinutes === "number") changes.estimatedMinutes = action.fields.estimatedMinutes;
-    if (VALID_CATEGORIES.includes(action.fields.category as TaskCategory)) changes.category = action.fields.category as TaskCategory;
+    if (isKnownCategory(action.fields.category)) changes.category = action.fields.category;
     return {
       type: "UPDATE_TASK",
       taskId: action.taskId,
@@ -78,10 +91,20 @@ function mapSingleAction(action: InboxAction, fallbackNote: string): StructuredA
     return { type: "COMPLETE_TASK", taskId: action.taskId, confirmationTier: "immediate" };
   }
 
+  if (action.type === "COMPLETE_TASKS") {
+    return { type: "COMPLETE_TASKS", confirmationTier: "immediate" };
+  }
+
   // Deletion is direct/unambiguous per the taxonomy — no confirmation tier,
   // regardless of what the model set confirmationRequired to.
   if (action.type === "DELETE_TASK" && action.taskId) {
     return { type: "DELETE_TASK", taskId: action.taskId, confirmationTier: "immediate" };
+  }
+
+  // Bulk removal always asks first, whatever the model set.
+  if (action.type === "DELETE_TASKS") {
+    const scope = VALID_SCOPES.find((value) => value === action.fields.scope) ?? "all";
+    return { type: "DELETE_TASKS", scope, confirmationTier: "confirm-required" };
   }
 
   if (action.type === "ADD_CONTEXT" && action.taskId) {
@@ -110,12 +133,18 @@ function mapSingleAction(action: InboxAction, fallbackNote: string): StructuredA
   return null;
 }
 
-function mapInboxResponse(response: InboxResponseBody, fallbackNote: string): StructuredAction[] {
-  const mapped = response.actions.map((action) => mapSingleAction(action, fallbackNote)).filter((a): a is StructuredAction => a !== null);
+function mapInboxResponse(response: InboxResponseBody, fallbackNote: string, categories: Category[]): StructuredAction[] {
+  const mapped = response.actions
+    .map((action) => mapSingleAction(action, fallbackNote, categories))
+    .filter((a): a is StructuredAction => a !== null);
   return mapped.length > 0 ? mapped : [{ type: "UNKNOWN", reply: response.reply, confirmationTier: "safe" }];
 }
 
 const DELETE_PATTERN = /\b(delete|remove|cancel)\b/i;
+const BULK_PATTERN = /\b(all|every|everything)\b/i;
+// Checked before COMPLETED_SCOPE_PATTERN — "uncompleted"/"incomplete" contain "complete".
+const PENDING_SCOPE_PATTERN = /\b(pending|uncompleted|incomplete|unfinished|not done|open|active|remaining)\b/i;
+const COMPLETED_SCOPE_PATTERN = /\b(completed?|done|finished)\b/i;
 const ALREADY_DID_PATTERN = /\balready (did|finished|completed|done|started)\b/i;
 const DONE_PATTERN = /\b(finished|done|complete[d]?)\b/i;
 const RESCHEDULE_PATTERN = /\b(move|reschedule|push|delay|change.*(deadline|due))\b/i;
@@ -123,14 +152,13 @@ const SKIP_PATTERN = /\b(skip|not now|something else|show another|can'?t do this
 const TIME_BUDGET_PATTERN = /\b(?:only have|i have|i'?ve got|got)\s+(\d+)\s*(minutes?|mins?|hours?|hrs?)\b/i;
 const CONSTRAINT_PATTERN = /\b(only have|can'?t finish|don'?t have|no time|not enough time)\b/i;
 const WHAT_NEXT_PATTERN = /\bwhat (should i do|next|now)\b|\bwhat'?s next\b/i;
-const NEW_TASK_HINT_PATTERN = /\b(need to|have to|remind me|gotta|must)\b/i;
 const OVERDUE_WORKFLOW_PATTERN = /\b(reschedule everything overdue|break down my top task|catch me up on overdue)\b/i;
 
 function askWhich(candidates: Task[]): StructuredAction {
   const titles = candidates.map((task) => task.title).join(", ");
   return {
     type: "CLARIFY",
-    question: `Which one do you mean: ${titles}?`,
+    question: translate().assistant.whichOne(titles),
     candidates,
     confirmationTier: "safe",
   };
@@ -144,16 +172,31 @@ function askWhich(candidates: Task[]): StructuredAction {
 function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
   const { text, now, currentTaskId, recentTaskIds, tasks } = input;
   const referenceCtx = { currentTaskId, recentTaskIds, tasks };
+  const t = translate();
+
+  if (DELETE_PATTERN.test(text) && BULK_PATTERN.test(text)) {
+    const scope: TaskScope = PENDING_SCOPE_PATTERN.test(text)
+      ? "pending"
+      : COMPLETED_SCOPE_PATTERN.test(text)
+        ? "completed"
+        : "all";
+    return { type: "DELETE_TASKS", scope, confirmationTier: "confirm-required" };
+  }
 
   if (DELETE_PATTERN.test(text)) {
     const ref = resolveTaskReference(text, referenceCtx);
     if (ref.status === "resolved") return { type: "DELETE_TASK", taskId: ref.taskId, confirmationTier: "immediate" };
     if (ref.status === "ambiguous") return askWhich(ref.candidates);
-    return { type: "UNKNOWN", reply: "Which task should I delete?", confirmationTier: "safe" };
+    return { type: "UNKNOWN", reply: t.assistant.whichDelete, confirmationTier: "safe" };
   }
 
   if (ALREADY_DID_PATTERN.test(text) && currentTaskId) {
     return { type: "ADD_TASK_CONTEXT", taskId: currentTaskId, note: text, confirmationTier: "safe" };
+  }
+
+  // "mark all my tasks as done" / "I finished everything".
+  if (DONE_PATTERN.test(text) && BULK_PATTERN.test(text)) {
+    return { type: "COMPLETE_TASKS", confirmationTier: "immediate" };
   }
 
   if (DONE_PATTERN.test(text)) {
@@ -180,7 +223,7 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
   }
 
   if (OVERDUE_WORKFLOW_PATTERN.test(text)) {
-    return { type: "QUERY", answer: `I'll help with "${text.trim()}" without changing a task yet.`, confirmationTier: "safe" };
+    return { type: "QUERY", answer: t.assistant.overdueWorkflow(text.trim()), confirmationTier: "safe" };
   }
 
   // A bare time-budget statement with no task already in view redirects to
@@ -203,22 +246,33 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
 
   if (WHAT_NEXT_PATTERN.test(text)) {
     const top = rankTasksForNext(tasks, now)[0];
-    const answer = top
-      ? `Your best next move is "${top.title}" — priority score ${top.priorityScore}.`
-      : "You're all caught up — nothing pending right now.";
+    const answer = top ? t.assistant.bestNext(top.title, top.priorityScore) : t.assistant.allCaughtUp;
     return { type: "QUERY", answer, confirmationTier: "safe" };
   }
 
+  // Capture is the default. Every rule above this point matched an explicit
+  // command (delete/done/reschedule/skip/what's-next), so whatever is left
+  // that names something doable is someone jotting down a task — including
+  // bare fragments like "dentist tomorrow" that carry no command verb at
+  // all. Extract it rather than asking what they meant: nothing is written
+  // until they accept the preview, so a wrong draft costs one tap while
+  // refusing to extract loses the thought entirely. Note this deliberately
+  // runs BEFORE resolveTaskReference — a bare statement that merely shares
+  // a word with an existing task ("clean the house" vs. "Clean the
+  // kitchen") is a new task, not an edit to that one.
+  // The keyword guesser only knows the built-in ids, and those can be deleted.
+  const drafts = extractTasks(text, now).map((draft) => ({
+    ...draft,
+    category: resolveCategoryId(input.categories, draft.category),
+  }));
+  if (drafts.length > 0) return { type: "CREATE_TASK", drafts, confirmationTier: "confirm-required" };
+
   const ref = resolveTaskReference(text, referenceCtx);
-  if (ref.status === "none" && (NEW_TASK_HINT_PATTERN.test(text) || text.trim().split(/\s+/).length >= 3)) {
-    const drafts = extractTasks(text);
-    if (drafts.length > 0) return { type: "CREATE_TASK", drafts, confirmationTier: "confirm-required" };
-  }
   if (ref.status === "ambiguous") return askWhich(ref.candidates);
 
   return {
     type: "UNKNOWN",
-    reply: "I'm not sure what you'd like me to do with that — try mentioning a task by name.",
+    reply: t.assistant.noTaskFound,
     confirmationTier: "safe",
   };
 }
@@ -227,19 +281,26 @@ function classifyIntentHeuristic(input: ClassifyIntentInput): StructuredAction {
 // Falls back to the heuristic classifier above on any network/parse failure.
 export async function classifyIntent(input: ClassifyIntentInput): Promise<ClassifiedTurn> {
   try {
-    const response = await apiPost<InboxResponseBody>("/api/inbox", {
+    const request: InboxRequestBody = {
       message: input.text,
       now: input.now.toISOString(),
       currentTaskId: input.currentTaskId,
       recentTaskIds: input.recentTaskIds,
-      tasks: tasksForPrompt(input.tasks).map(taskToContext),
+      tasks: tasksForPrompt(input.tasks).map((task) => taskToContext(task, input.categories)),
+      categories: input.categories.map(({ id, label }) => ({ id, label })),
       history: input.history ?? [],
-    });
+      language: getLanguage(),
+    };
+    const response = await apiPost<InboxResponseBody>("/api/inbox", request);
+    const actions = mapInboxResponse(response, input.text, input.categories);
     // An empty/whitespace reply (this model occasionally emits one on a
     // compound turn) falls back to the per-action executed message instead
-    // of showing a blank chat bubble — see handleClassifiedActions.
-    const reply = response.reply && response.reply.trim().length > 0 ? response.reply : null;
-    return { actions: mapInboxResponse(response, input.text), reply };
+    // of showing a blank chat bubble — see handleClassifiedActions. A bulk
+    // delete does too: only the app can count exactly how many tasks the
+    // confirmation question is about.
+    const hasReply = response.reply && response.reply.trim().length > 0;
+    const reply = hasReply && !actions.some((action) => action.type === "DELETE_TASKS") ? response.reply : null;
+    return { actions, reply };
   } catch (error) {
     console.warn("[classifyIntent] falling back to heuristic", error);
     return { actions: [classifyIntentHeuristic(input)], reply: null };

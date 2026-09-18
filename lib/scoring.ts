@@ -1,18 +1,24 @@
 import type { Task, TaskPriorityLevel } from "@/types/task";
 
 // Maps the Add form's 3-card priority picker to the "importance" input the
-// scoring engine actually runs on.
+// scoring engine actually runs on (Step 2 of the prioritization logic).
 export const PRIORITY_LEVEL_IMPORTANCE: Record<TaskPriorityLevel, number> = {
-  high: 85,
-  medium: 60,
+  high: 75,
+  medium: 50,
   low: 25,
 };
 
-// Weights are hand-picked starting points, not tuned/learned — easy to adjust here.
-const URGENCY_WEIGHT = 0.35;
-const OVERDUE_WEIGHT = 0.15;
-const DURATION_PRESSURE_WEIGHT = 0.15;
-const IMPORTANCE_WEIGHT = 0.35;
+const URGENCY_WEIGHT = 0.4;
+const IMPORTANCE_WEIGHT = 0.3;
+const OVERDUE_POINTS_PER_DAY = 20;
+const OVERDUE_MAX_POINTS = 30;
+const DEPENDENT_POINTS_EACH = 15;
+const DEPENDENT_MAX_POINTS = 100;
+const AGE_MAX_POINTS = 15;
+const QUICK_TASK_MINUTES = 10;
+const QUICK_TASK_MULTIPLIER = 1.08;
+const LONG_TASK_MINUTES = 120;
+const LONG_TASK_MULTIPLIER = 0.96;
 
 const NEXT_PRIORITY_WEIGHT = 0.7;
 const NEXT_SUITABILITY_WEIGHT = 0.3;
@@ -37,51 +43,64 @@ function clamp(value: number, min = 0, max = 100): number {
   return Math.min(max, Math.max(min, value));
 }
 
-export function computeUrgencyFactor(dueDate: string | undefined, now: Date): number {
+// Step 1 — urgency from the deadline alone.
+export function computeUrgencyScore(dueDate: string | undefined, now: Date): number {
   const days = daysUntil(dueDate, now);
-  if (days === null) return 20; // no deadline: low-medium baseline, not zero
+  if (days === null) return 15; // no deadline
   if (days < 0) return 100; // overdue
-  if (days === 0) return 90; // due today
-  if (days === 1) return 80; // due tomorrow
+  if (days === 0) return 95; // due today
+  if (days === 1) return 85; // due tomorrow
   if (days <= 3) return 65;
-  if (days <= 6) return 50;
-  if (days <= 13) return 35;
+  if (days <= 7) return 40;
   return 15;
 }
 
-export function computeOverdueFactor(dueDate: string | undefined, now: Date): number {
+// Step 4 — +20 per day overdue, capped.
+function computeOverdueBoost(dueDate: string | undefined, now: Date): number {
   const days = daysUntil(dueDate, now);
   if (days === null || days >= 0) return 0;
-  return clamp(40 + Math.abs(days) * 15);
+  return Math.min(OVERDUE_MAX_POINTS, Math.abs(days) * OVERDUE_POINTS_PER_DAY);
 }
 
-export function computeDurationPressureFactor(
-  estimatedMinutes: number,
-  dueDate: string | undefined,
-  now: Date,
-): number {
-  const days = daysUntil(dueDate, now);
-  if (days === null) return 30;
-  if (days < 0) return 100;
-  const hoursUntilDue = Math.max(1, days * 24);
-  return clamp((estimatedMinutes / (hoursUntilDue * 60)) * 100);
+// Step 5 — +15 per task that depends on this one, capped.
+function computeDependentBoost(dependentCount: number): number {
+  return Math.min(DEPENDENT_MAX_POINTS, dependentCount * DEPENDENT_POINTS_EACH);
 }
 
+// Step 6 — +1 per day since it was created, capped.
+function computeAgeBoost(createdAt: string | undefined, now: Date): number {
+  if (!createdAt) return 0;
+  const days = Math.floor((now.getTime() - new Date(createdAt).getTime()) / DAY_MS);
+  return clamp(days, 0, AGE_MAX_POINTS);
+}
+
+// Step 8 — a small nudge for very quick or very long tasks.
+function durationMultiplier(estimatedMinutes: number): number {
+  if (estimatedMinutes <= QUICK_TASK_MINUTES) return QUICK_TASK_MULTIPLIER;
+  if (estimatedMinutes > LONG_TASK_MINUTES) return LONG_TASK_MULTIPLIER;
+  return 1;
+}
+
+// createdAt is optional so a draft that hasn't been saved yet (see
+// TaskConfirmationCard) can be previewed with the same formula.
 export function computePriorityScore(
-  task: Pick<Task, "dueDate" | "estimatedMinutes" | "importance">,
+  task: Pick<Task, "dueDate" | "estimatedMinutes" | "importance"> & Partial<Pick<Task, "createdAt">>,
   now: Date = new Date(),
 ): number {
-  const urgency = computeUrgencyFactor(task.dueDate, now);
-  const overdue = computeOverdueFactor(task.dueDate, now);
-  const duration = computeDurationPressureFactor(task.estimatedMinutes, task.dueDate, now);
+  // Tasks have no links to other tasks yet, so nothing depends on anything.
+  // Subtasks are deliberately not counted: every medium/complex task gets an
+  // auto-generated 3-step plan, which would add +45 to almost every task.
+  const dependentCount = 0;
 
-  const score =
-    URGENCY_WEIGHT * urgency +
-    OVERDUE_WEIGHT * overdue +
-    DURATION_PRESSURE_WEIGHT * duration +
-    IMPORTANCE_WEIGHT * task.importance;
+  // Steps 3 + 7 — weighted urgency and importance, plus the boosts.
+  const rawScore =
+    URGENCY_WEIGHT * computeUrgencyScore(task.dueDate, now) +
+    IMPORTANCE_WEIGHT * task.importance +
+    computeOverdueBoost(task.dueDate, now) +
+    computeDependentBoost(dependentCount) +
+    computeAgeBoost(task.createdAt, now);
 
-  return Math.round(clamp(score));
+  return Math.round(clamp(rawScore * durationMultiplier(task.estimatedMinutes)));
 }
 
 // Complexity affects suitability, not priority — a hard task isn't less

@@ -1,0 +1,272 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="utf-8">
+<meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" name="viewport">
+<title>Settings - Nexdo</title>
+<!-- Tailwind CSS CDN with plugins -->
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brandDark: '#1E1B18',
+            brandCream: '#F6F2E9',
+            brandCard: '#FAF7F1',
+            brandOrange: '#E46738',
+            brandSubtext: '#827E77',
+            brandText: '#231F1D',
+            brandBorder: '#E9E4DA',
+          },
+          fontFamily: {
+            sans: ['-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Helvetica', 'Arial', 'sans-serif'],
+          }
+        }
+      }
+    }
+  </script>
+<style data-purpose="custom-scroll-and-reset">
+    /* Prevent rubber banding on iOS and customize layout feel */
+    body {
+      -webkit-tap-highlight-color: transparent;
+      user-select: none;
+    }
+    /* Hide scrollbar for smooth visual appearance */
+    ::-webkit-scrollbar {
+      display: none;
+    }
+  </style>
+</head>
+<body class="bg-[#1E1B18] font-sans antialiased text-brandText flex justify-center min-h-screen">
+<!-- BEGIN: MobileDeviceFrame -->
+<div class="w-full max-w-[480px] bg-brandCream min-h-screen flex flex-col relative pb-28 shadow-2xl overflow-x-hidden">
+<!-- BEGIN: HeaderSection -->
+<header class="bg-[#1E1B18] text-white px-5 pt-7 pb-6 select-none" data-purpose="header-container">
+<!-- Nexdo Brand Logo & Title Row -->
+<div class="flex items-start gap-3">
+<!-- Logo Icon (Two-tone rounded diamond shape) -->
+<div aria-hidden="true" class="mt-1 flex-shrink-0 w-6 h-6 flex items-center justify-center relative">
+<div class="w-5 h-5 rotate-45 rounded-[3px] overflow-hidden flex shadow-sm">
+<div class="w-1/2 h-full bg-[#E46738]"></div>
+<div class="w-1/2 h-full bg-white"></div>
+</div>
+</div>
+<!-- Screen Title & Tagline -->
+<div>
+<h1 class="text-2xl font-bold tracking-tight text-white leading-tight">Settings</h1>
+<p class="text-[13px] text-[#A69F96] mt-0.5 font-normal leading-snug tracking-normal">
+            Configure your personal preferences and working style.
+          </p>
+</div>
+</div>
+</header>
+<!-- END: HeaderSection -->
+<!-- BEGIN: MainContentList -->
+<main class="flex-1 px-4 pt-5 pb-8 space-y-6">
+<!-- BEGIN: SectionAccount -->
+<section data-purpose="account-settings">
+<!-- Section Header -->
+<div class="flex items-center gap-1.5 px-1 mb-2 text-[#7C756B] text-[11px] font-bold tracking-wider uppercase">
+<svg class="w-3.5 h-3.5 text-[#7C756B]" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" fill-rule="evenodd"></path>
+</svg>
+<span>Account</span>
+</div>
+<!-- Account Profile Card -->
+<div class="bg-brandCard rounded-2xl border border-brandBorder px-4 py-3.5 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] active:bg-[#F2ECE0] transition-colors cursor-pointer">
+<!-- Profile Avatar & Details -->
+<div class="flex items-center gap-3.5">
+<div class="w-12 h-12 rounded-full overflow-hidden flex-shrink-0 bg-[#6D7BB0] ring-1 ring-black/5">
+<img alt="Mohammed's avatar" class="w-full h-full object-cover" src="assets/AB6AXuDY3iR_zumvKlnJ7hcXbRopDK6K8pcU_C8jcF1MtLg4sO4IcdoVudTH81uXyvDMTdYqpL3CsxUU8jwef3iN3FHDduiqx0r6-dd28d2e0fa7721fd0b9bddc4d5f43ec8">
+</div>
+<div class="flex flex-col">
+<span class="text-[15px] font-bold text-[#1E1B18] leading-tight">Mohammed</span>
+<span class="text-[13px] text-brandSubtext mt-0.5">mohammed@email.com</span>
+</div>
+</div>
+<!-- Right Chevron Icon -->
+<div class="text-[#BCB6AC] pr-0.5">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+</section>
+<!-- END: SectionAccount -->
+<!-- BEGIN: SectionNexdoPreferences -->
+<section data-purpose="nexdo-preferences">
+<!-- Section Header -->
+<div class="flex items-center gap-1.5 px-1 mb-2 text-[#7C756B] text-[11px] font-bold tracking-wider uppercase">
+<svg class="w-3.5 h-3.5 text-[#7C756B]" fill="currentColor" viewBox="0 0 20 20">
+<path clip-rule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 01-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 01.947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 012.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 012.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 01.947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 01-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 01-2.287-.947zM10 13a3 3 0 100-6 3 3 0 000 6z" fill-rule="evenodd"></path>
+</svg>
+<span>Nexdo Preferences</span>
+</div>
+<!-- Preferences Card Stack -->
+<div class="bg-brandCard rounded-2xl border border-brandBorder divide-y divide-brandBorder/80 shadow-[0_1px_2px_rgba(0,0,0,0.02)] overflow-hidden">
+<!-- Preference Item 1: Task Categories -->
+<div class="p-4 flex items-center justify-between active:bg-[#F2ECE0] transition-colors cursor-pointer" data-purpose="preference-item">
+<div class="flex flex-col">
+<div class="flex items-center gap-2">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Task categories</span>
+<span class="inline-flex items-center justify-center bg-[#E5DFD4] text-[#4A453E] text-[11px] font-bold px-1.5 py-0.5 rounded-full min-w-[18px] h-[18px]">
+                  3
+                </span>
+</div>
+<!-- Categories Dot List -->
+<div class="flex items-center gap-3 mt-1.5 text-[12px] text-brandSubtext font-normal">
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#3B73A2]"></span>
+<span>Work</span>
+</span>
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#56876D]"></span>
+<span>Personal</span>
+</span>
+<span class="flex items-center gap-1.5">
+<span class="w-2 h-2 rounded-full bg-[#786D5F]"></span>
+<span>Other</span>
+</span>
+</div>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+<!-- Preference Item 2: Working hours -->
+<div class="p-4 flex items-center justify-between active:bg-[#F2ECE0] transition-colors cursor-pointer" data-purpose="preference-item">
+<div class="flex flex-col">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Working hours</span>
+<span class="text-[12.5px] text-brandSubtext mt-1 font-normal">Weekdays: 5 PM – 10 PM</span>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+<!-- Preference Item 3: Preferred task duration -->
+<div class="p-4 flex items-center justify-between active:bg-[#F2ECE0] transition-colors cursor-pointer" data-purpose="preference-item">
+<div class="flex flex-col">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Preferred task duration</span>
+<span class="text-[12.5px] text-brandSubtext mt-1 font-normal">Medium tasks</span>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+<!-- Preference Item 4: Planning style -->
+<div class="p-4 flex items-center justify-between active:bg-[#F2ECE0] transition-colors cursor-pointer" data-purpose="preference-item">
+<div class="flex flex-col">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Planning style</span>
+<span class="text-[12.5px] text-brandSubtext mt-1 font-normal">Balanced — Suggest a small plan</span>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+<!-- Preference Item 5: Task difficulty preference -->
+<div class="p-4 flex items-center justify-between active:bg-[#F2ECE0] transition-colors cursor-pointer" data-purpose="preference-item">
+<div class="flex flex-col">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Task difficulty preference</span>
+<span class="text-[12.5px] text-brandSubtext mt-1 font-normal">Let Nexdo decide</span>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+</div>
+</section>
+<!-- END: SectionNexdoPreferences -->
+<!-- BEGIN: SectionNotifications -->
+<section data-purpose="notifications-settings">
+<!-- Section Header -->
+<div class="flex items-center gap-1.5 px-1 mb-2 text-[#7C756B] text-[11px] font-bold tracking-wider uppercase">
+<svg class="w-3.5 h-3.5 text-[#C48443]" fill="currentColor" viewBox="0 0 20 20">
+<path d="M10 2a6 6 0 00-6 6v3.586l-.707.707A1 1 0 004 14h12a1 1 0 00.707-1.707L16 11.586V8a6 6 0 00-6-6zM10 18a3 3 0 01-3-3h6a3 3 0 01-3 3z"></path>
+</svg>
+<span>Notifications</span>
+</div>
+<!-- Notifications Card -->
+<div class="bg-brandCard rounded-2xl border border-brandBorder p-4 flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.02)] active:bg-[#F2ECE0] transition-colors cursor-pointer">
+<div class="flex flex-col">
+<span class="text-[14.5px] font-semibold text-[#1E1B18]">Notifications</span>
+<span class="text-[12.5px] text-brandSubtext mt-1 font-normal">Enabled (Deadlines, Daily reminder, Overdue)</span>
+</div>
+<div class="text-[#BCB6AC]">
+<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24">
+<polyline points="9 18 15 12 9 6"></polyline>
+</svg>
+</div>
+</div>
+</section>
+<!-- END: SectionNotifications -->
+<!-- BEGIN: SectionAppearancePreview (Partial Bottom) -->
+<section aria-hidden="true" class="opacity-60 pointer-events-none">
+<div class="flex items-center gap-1.5 px-1 mb-2 text-[#7C756B] text-[11px] font-bold tracking-wider uppercase">
+<span>🎨 APPEARANCE</span>
+</div>
+</section>
+<!-- END: SectionAppearancePreview -->
+</main>
+<!-- END: MainContentList -->
+<!-- BEGIN: BottomNavigationDock -->
+<nav class="fixed bottom-0 left-0 right-0 max-w-[480px] mx-auto bg-[#1E1B18] text-[#8C867E] px-4 pt-2.5 pb-6 border-t border-stone-800/40 z-50 flex items-center justify-between select-none" data-purpose="bottom-navigation">
+<!-- Nav Item: Now -->
+<button class="flex flex-col items-center flex-1 focus:outline-none group">
+<svg class="w-5 h-5 text-[#8C867E] group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon>
+</svg>
+<span class="text-[11px] mt-1 font-medium group-hover:text-white transition-colors">Now</span>
+</button>
+<!-- Nav Item: Tasks -->
+<button class="flex flex-col items-center flex-1 focus:outline-none relative group">
+<div class="relative">
+<svg class="w-5 h-5 text-[#8C867E] group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"></path>
+</svg>
+<!-- Tasks Count Badge -->
+<span class="absolute -top-1.5 -right-3 bg-brandOrange text-white text-[9px] font-bold px-1 rounded-full border-[1.5px] border-[#1E1B18] leading-tight">
+            13
+          </span>
+</div>
+<span class="text-[11px] mt-1 font-medium group-hover:text-white transition-colors">Tasks</span>
+</button>
+<!-- Center Action Button: Add (+) -->
+<div class="flex flex-col items-center flex-1 -mt-4">
+<button aria-label="Add task" class="w-12 h-12 rounded-full bg-[#E46738] text-white flex items-center justify-center shadow-lg shadow-[#E46738]/30 active:scale-95 transition-transform">
+<svg class="w-6 h-6 stroke-[2.5]" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+<line x1="12" x2="12" y1="5" y2="19"></line>
+<line x1="5" x2="19" y1="12" y2="12"></line>
+</svg>
+</button>
+<span class="text-[11px] mt-1 text-[#8C867E] font-medium">Add</span>
+</div>
+<!-- Nav Item: Inbox -->
+<button class="flex flex-col items-center flex-1 focus:outline-none group">
+<svg class="w-5 h-5 text-[#8C867E] group-hover:text-white transition-colors" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<path d="M22 12h-6l-2 3h-4l-2-3H2v7a2 2 0 002 2h16a2 2 0 002-2v-7z"></path>
+<path d="M5.45 5.11L2 12v7a2 2 0 002 2h16a2 2 0 002-2v-7l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"></path>
+</svg>
+<span class="text-[11px] mt-1 font-medium group-hover:text-white transition-colors">Inbox</span>
+</button>
+<!-- Nav Item: Settings (Active) -->
+<button class="flex flex-col items-center flex-1 focus:outline-none">
+<svg class="w-5 h-5 text-brandOrange" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" viewBox="0 0 24 24">
+<circle cx="12" cy="12" r="3"></circle>
+<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+</svg>
+<span class="text-[11px] mt-1 text-brandOrange font-medium">Settings</span>
+</button>
+</nav>
+<!-- END: BottomNavigationDock -->
+</div>
+<!-- END: MobileDeviceFrame -->
+</body></html>

@@ -1,7 +1,13 @@
+import { DEFAULT_CATEGORIES } from "@/constants/categories";
 import { TASK_MANAGER_INTEGRATION_NOTES, TASK_MANAGER_SYSTEM_PROMPT } from "@/data/aiPrompts";
 import type { TaskContext } from "@/lib/ai/context";
+import { guessCategory, guessDuration, guessPriorityLevel, parseDurationMinutes } from "@/lib/ai/extractTasks";
 import { generateStructuredJson, type GeminiJsonSchema } from "@/lib/ai/gemini";
-import { parseDatePhrase } from "@/lib/ai/parseDate";
+import { aiUnavailableMessage, datePhraseInstruction, languageInstruction } from "@/lib/ai/language";
+import { hasExplicitTime, parseDatePhrase } from "@/lib/ai/parseDate";
+import type { AppLanguage } from "@/types/settings";
+
+export type InboxCategory = { id: string; label: string };
 
 export type InboxRequestBody = {
   message: string;
@@ -9,14 +15,20 @@ export type InboxRequestBody = {
   currentTaskId?: string;
   recentTaskIds: string[];
   tasks: TaskContext[];
+  /** The user's categories, built-in and custom — the only ids CREATE/UPDATE may use. */
+  categories: InboxCategory[];
   history: { role: "user" | "ai"; text: string }[];
+  /** The app language — "reply" and task titles come back in it. */
+  language?: AppLanguage;
 };
 
 export type InboxActionType =
   | "CREATE_TASK"
   | "UPDATE_TASK"
   | "COMPLETE_TASK"
+  | "COMPLETE_TASKS"
   | "DELETE_TASK"
+  | "DELETE_TASKS"
   | "ADD_CONTEXT"
   | "BREAKDOWN_TASK"
   | "REDIRECT_NEXT"
@@ -30,9 +42,14 @@ export type InboxAction = {
     category?: string;
     estimatedMinutes?: number;
     dueDate?: string;
+    /** CREATE_TASK only: whether the user gave a clock time for dueDate. */
+    dueHasTime?: boolean;
+    priority?: string;
     note?: string;
     steps?: { title: string; estimatedMinutes: number }[];
     availableMinutes?: number;
+    /** DELETE_TASKS only: "all" | "completed" | "pending". */
+    scope?: string;
   };
   confirmationRequired: boolean;
 };
@@ -60,9 +77,22 @@ type SingleTurnResult = {
   reply: string;
 };
 
-const ACTION_TYPE_ENUM = ["CREATE_TASK", "UPDATE_TASK", "COMPLETE_TASK", "DELETE_TASK", "ADD_CONTEXT", "BREAKDOWN_TASK", "REDIRECT_NEXT", "NONE"];
+const ACTION_TYPE_ENUM = [
+  "CREATE_TASK",
+  "UPDATE_TASK",
+  "COMPLETE_TASK",
+  "COMPLETE_TASKS",
+  "DELETE_TASK",
+  "DELETE_TASKS",
+  "ADD_CONTEXT",
+  "BREAKDOWN_TASK",
+  "REDIRECT_NEXT",
+  "NONE",
+];
 
-const ACTION_SCHEMA: GeminiJsonSchema = {
+// Built per request: the category enum is the user's own category list,
+// which changes whenever they add one in Settings.
+const buildActionSchema = (categoryIds: string[]): GeminiJsonSchema => ({
   type: "OBJECT",
   properties: {
     type: { type: "STRING", enum: ACTION_TYPE_ENUM },
@@ -71,13 +101,14 @@ const ACTION_SCHEMA: GeminiJsonSchema = {
       type: "OBJECT",
       properties: {
         title: { type: "STRING", nullable: true },
-        category: { type: "STRING", enum: ["work", "school", "personal", "other"], nullable: true },
+        category: { type: "STRING", enum: categoryIds, nullable: true },
         estimatedMinutes: { type: "NUMBER", nullable: true },
         // Deliberately a free-text phrase, not a date type — see
         // APP INTEGRATION NOTES: the model must never compute the actual
         // calendar date itself (that's what broke it), just copy the
         // deadline phrase verbatim; normalizeAction() resolves it.
         dueDatePhrase: { type: "STRING", nullable: true },
+        priority: { type: "STRING", enum: ["high", "medium", "low"], nullable: true },
         note: { type: "STRING", nullable: true },
         steps: {
           type: "ARRAY",
@@ -92,29 +123,54 @@ const ACTION_SCHEMA: GeminiJsonSchema = {
           },
         },
         availableMinutes: { type: "NUMBER", nullable: true },
+        scope: { type: "STRING", enum: ["all", "completed", "pending"], nullable: true },
       },
+      // Optional keys were routinely skipped: "study chemistry in six days
+      // for two hours, it's for school" came back with only a title, even
+      // though "reply" narrated School/2h. Required-but-nullable forces the
+      // model to decide each task field (null is still allowed for actions
+      // that don't use it), and the ordering has it fill them in before
+      // anything else.
+      required: ["title", "category", "estimatedMinutes", "priority", "dueDatePhrase"],
+      propertyOrdering: [
+        "title",
+        "category",
+        "estimatedMinutes",
+        "priority",
+        "dueDatePhrase",
+        "note",
+        "steps",
+        "availableMinutes",
+        "scope",
+      ],
     },
     confirmationRequired: { type: "BOOLEAN" },
   },
   required: ["type", "fields", "confirmationRequired"],
-};
+  propertyOrdering: ["type", "taskId", "fields", "confirmationRequired"],
+});
 
-const SINGLE_TURN_SCHEMA: GeminiJsonSchema = {
+const buildSingleTurnSchema = (categoryIds: string[]): GeminiJsonSchema => ({
   type: "OBJECT",
   properties: {
     intent: { type: "STRING" },
-    action: ACTION_SCHEMA,
+    action: buildActionSchema(categoryIds),
     remainingMessage: { type: "STRING", nullable: true },
     reply: { type: "STRING" },
   },
   required: ["intent", "action", "reply"],
-};
+  // "reply" last, so it narrates the fields already chosen rather than the
+  // fields being filled in to match (or not match) a reply written first.
+  propertyOrdering: ["intent", "action", "remainingMessage", "reply"],
+});
 
-const FALLBACK_RESPONSE: InboxResponseBody = {
-  intent: "UNRELATED",
-  actions: [{ type: "NONE", taskId: null, fields: {}, confirmationRequired: false }],
-  reply: "Sorry, I'm having trouble reaching the AI right now — try again in a moment.",
-};
+function fallbackResponse(language: AppLanguage | undefined): InboxResponseBody {
+  return {
+    intent: "UNRELATED",
+    actions: [{ type: "NONE", taskId: null, fields: {}, confirmationRequired: false }],
+    reply: aiUnavailableMessage(language),
+  };
+}
 
 // A compound message resolves over at most this many single-instruction
 // turns — comfortably more than any realistic message describes, while
@@ -164,13 +220,68 @@ function normalizeAction(raw: unknown, now: Date): InboxAction | null {
       estimatedMinutes:
         typeof rawFields.estimatedMinutes === "number" && Number.isFinite(rawFields.estimatedMinutes) ? rawFields.estimatedMinutes : undefined,
       dueDate: dueDatePhrase ? parseDatePhrase(dueDatePhrase, now) : undefined,
+      dueHasTime: dueDatePhrase ? hasExplicitTime(dueDatePhrase) : undefined,
+      priority: typeof rawFields.priority === "string" ? rawFields.priority : undefined,
       note: typeof rawFields.note === "string" ? rawFields.note : undefined,
       steps: steps && steps.length > 0 ? steps : undefined,
       availableMinutes:
         typeof rawFields.availableMinutes === "number" && Number.isFinite(rawFields.availableMinutes) ? rawFields.availableMinutes : undefined,
+      scope: typeof rawFields.scope === "string" ? rawFields.scope : undefined,
     },
     confirmationRequired: action.confirmationRequired === true,
   };
+}
+
+// The part of the message this turn's action is about — the remainder the
+// model handed back belongs to a later turn (and its deadline, if any).
+function instructionText(message: string, remainingMessage: string | null): string {
+  if (!remainingMessage) return message;
+  const index = message.lastIndexOf(remainingMessage);
+  return index > 0 ? message.slice(0, index) : message;
+}
+
+// The model often omits optional schema fields even when told to set them
+// ("take my daughter to the doctor tomorrow" came back with no
+// dueDatePhrase), which saved every task with no deadline, medium priority
+// and 30 minutes — and therefore the same score. Read whatever it left out
+// straight off the user's own words instead.
+function fillMissingTaskFields(action: InboxAction, text: string, now: Date, categories: InboxCategory[]) {
+  // The model sometimes copies only the date part ("25th September") and
+  // drops the time the user said ("at 7 p.m.") — re-read both off the text.
+  if (hasExplicitTime(text) && !action.fields.dueHasTime) {
+    const withTime = parseDatePhrase(text, now);
+    if (withTime) {
+      action.fields.dueDate = withTime;
+      action.fields.dueHasTime = true;
+    }
+  }
+  if (!action.fields.dueDate) {
+    action.fields.dueDate = parseDatePhrase(text, now);
+    action.fields.dueHasTime = action.fields.dueDate ? hasExplicitTime(text) : undefined;
+  }
+  // Importance the user stated outright ("it's really important", "no
+  // rush") beats the model's own judgement.
+  const statedPriority = guessPriorityLevel(text);
+  if (statedPriority !== "medium" || !["high", "medium", "low"].includes(action.fields.priority ?? "")) {
+    action.fields.priority = statedPriority;
+  }
+  // A length the user actually said ("for two hours") beats any estimate.
+  action.fields.estimatedMinutes = parseDurationMinutes(text) ?? action.fields.estimatedMinutes ?? guessDuration(text);
+  if (!categories.some((category) => category.id === action.fields.category)) {
+    action.fields.category = guessCategoryFromText(text, categories);
+  }
+}
+
+// A category the user named outright ("it's for school", "gym") wins, then
+// the built-in keyword guesser — but only if that id still exists for them.
+function guessCategoryFromText(text: string, categories: InboxCategory[]): string | undefined {
+  const lower = text.toLowerCase();
+  const named = categories.find((category) =>
+    new RegExp(`\\b${category.label.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`).test(lower),
+  );
+  if (named) return named.id;
+  const guessed = guessCategory(text);
+  return categories.some((category) => category.id === guessed) ? guessed : undefined;
 }
 
 async function classifyOneInstruction(params: {
@@ -179,17 +290,24 @@ async function classifyOneInstruction(params: {
   currentTaskId?: string;
   recentTaskIds: string[];
   tasks: TaskContext[];
+  categories: InboxCategory[];
   history: { role: "user" | "ai"; text: string }[];
+  language?: AppLanguage;
 }): Promise<SingleTurnResult> {
+  const { language, ...userContent } = params;
   const result = await generateStructuredJson({
-    systemPrompt: `${TASK_MANAGER_SYSTEM_PROMPT}\n\n${TASK_MANAGER_INTEGRATION_NOTES}`,
-    userContent: JSON.stringify(params),
-    responseSchema: SINGLE_TURN_SCHEMA,
+    systemPrompt: `${TASK_MANAGER_SYSTEM_PROMPT}\n\n${TASK_MANAGER_INTEGRATION_NOTES}${languageInstruction(language)}${datePhraseInstruction(language)}`,
+    userContent: JSON.stringify(userContent),
+    responseSchema: buildSingleTurnSchema(params.categories.map((category) => category.id)),
   });
   const raw = result as Partial<SingleTurnResult>;
   const action = normalizeAction(raw.action, new Date(params.now)) ?? { type: "NONE", taskId: null, fields: {}, confirmationRequired: false };
   const remainingMessage =
     typeof raw.remainingMessage === "string" && raw.remainingMessage.trim().length > 0 ? raw.remainingMessage.trim() : null;
+
+  if (action.type === "CREATE_TASK") {
+    fillMissingTaskFields(action, instructionText(params.message, remainingMessage), new Date(params.now), params.categories);
+  }
 
   return {
     intent: typeof raw.intent === "string" ? raw.intent : "UNKNOWN",
@@ -225,7 +343,9 @@ async function classifyFragmentsIndependently(
         currentTaskId: context.currentTaskId,
         recentTaskIds: context.recentTaskIds,
         tasks: context.tasks,
+        categories: context.categories,
         history: context.history,
+        language: context.language,
       }),
     ),
   );
@@ -243,7 +363,12 @@ async function classifyFragmentsIndependently(
 }
 
 export async function POST(request: Request) {
-  const body = (await request.json()) as InboxRequestBody;
+  const parsed = (await request.json()) as InboxRequestBody;
+  // An app build from before custom categories doesn't send the list.
+  const body: InboxRequestBody = {
+    ...parsed,
+    categories: parsed.categories?.length ? parsed.categories : DEFAULT_CATEGORIES.map(({ id, label }) => ({ id, label })),
+  };
 
   const actions: InboxAction[] = [];
   const replies: string[] = [];
@@ -260,7 +385,9 @@ export async function POST(request: Request) {
         currentTaskId: body.currentTaskId,
         recentTaskIds: body.recentTaskIds,
         tasks: body.tasks,
+        categories: body.categories,
         history: body.history,
+        language: body.language,
       });
     } catch (error) {
       console.error("[api/inbox]", error);
@@ -289,12 +416,12 @@ export async function POST(request: Request) {
   }
 
   if (actions.length === 0) {
-    return Response.json(FALLBACK_RESPONSE);
+    return Response.json(fallbackResponse(body.language));
   }
 
   return Response.json({
     intent,
     actions,
-    reply: replies.join(" ").trim() || FALLBACK_RESPONSE.reply,
+    reply: replies.join(" ").trim() || aiUnavailableMessage(body.language),
   } satisfies InboxResponseBody);
 }
