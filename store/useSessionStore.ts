@@ -37,6 +37,8 @@ type SessionStore = {
   pause: () => void;
   resume: () => void;
   resetTimer: () => void;
+  /** "+5 min" on the session card — more time on the clock, same task. */
+  extendMinutes: (minutes: number) => void;
   focusTask: (index: number) => void;
   /** Pulls a task out of the run ("I'm stuck") and keeps the focus in range. */
   dropTask: (taskId: string) => void;
@@ -82,6 +84,13 @@ export const useSessionStore = create<SessionStore>()(
         set((state) =>
           state.session
             ? { session: { ...state.session, elapsedMs: 0, runningSince: Date.now() } }
+            : {},
+        ),
+
+      extendMinutes: (minutes) =>
+        set((state) =>
+          state.session
+            ? { session: { ...state.session, plannedMinutes: state.session.plannedMinutes + minutes } }
             : {},
         ),
 

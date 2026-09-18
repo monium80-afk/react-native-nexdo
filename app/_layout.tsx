@@ -6,6 +6,7 @@ import * as SystemUI from "expo-system-ui";
 import { PostHogProvider } from "posthog-react-native";
 import { useEffect, useRef } from "react";
 import { Platform, View } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 
 import { colors } from "@/constants/theme";
 import { publishableKey, tokenCache } from "@/lib/clerk";
@@ -57,6 +58,8 @@ export default function RootLayout() {
   }
 
   return (
+    // Needed for drag gestures, e.g. the swipeable task cards on the Next tab.
+    <GestureHandlerRootView style={{ flex: 1 }}>
     <ClerkProvider publishableKey={publishableKey!} tokenCache={tokenCache}>
       <PostHogProvider
         client={posthog}
@@ -107,5 +110,6 @@ export default function RootLayout() {
         </View>
       </PostHogProvider>
     </ClerkProvider>
+    </GestureHandlerRootView>
   );
 }

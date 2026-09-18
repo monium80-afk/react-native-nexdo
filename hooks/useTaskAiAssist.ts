@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { generateAdvice, type TaskAdvice } from "@/lib/ai/generateAdvice";
 import { suggestBreakdown } from "@/lib/ai/suggestBreakdown";
@@ -29,6 +29,15 @@ export function useTaskAiAssist(task: Task, availableMinutes?: number) {
   // request the user has already replaced or closed is simply dropped.
   const adviceRequestId = useRef(0);
   const breakdownRequestId = useRef(0);
+
+  // A card can be handed a different task (the Next page's stack reuses its
+  // cards as you swipe) — the previous task's advice must not carry over.
+  useEffect(() => {
+    adviceRequestId.current += 1;
+    breakdownRequestId.current += 1;
+    setAdvice({ status: "idle" });
+    setBreakdownStatus("idle");
+  }, [task.id]);
 
   const requestAdvice = async () => {
     const requestId = ++adviceRequestId.current;

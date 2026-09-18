@@ -201,56 +201,59 @@ export default function TasksListScreen() {
         contentContainerStyle={{ paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={{ marginHorizontal: 16, marginTop: 20, paddingHorizontal: 8, paddingVertical: 4, gap: 4, alignItems: "center", backgroundColor: colors.cream[200], borderRadius: 20 }}
-        >
-          <Animated.View
-            pointerEvents="none"
-            className="absolute bottom-1 left-0 top-1 rounded-2xl bg-cream-50"
-            style={categoryHighlightStyle}
-          />
-          {categoryTabs.map((tab) => {
-            const active = tab.value === category;
-            return (
-              <AnimatedPressable
-                key={tab.value}
-                onPress={() => setCategory(tab.value)}
-                onLayout={(event) => {
-                  const { x, width } = event.nativeEvent.layout;
-                  setCategoryTabLayouts((current) => ({ ...current, [tab.value]: { x, width } }));
-                }}
-                className="flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
-              >
-                <Text
-                  className={
-                    active
-                      ? "font-grotesk-semibold text-sm text-orange-500"
-                      : "font-grotesk-medium text-sm text-ink-cream-muted"
-                  }
+        {/* The pill stays inset from both screen edges; only its contents scroll. */}
+        <View className="mx-6 mt-5 overflow-hidden rounded-[20px] bg-cream-200">
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={{ paddingHorizontal: 8, paddingVertical: 4, gap: 4, alignItems: "center" }}
+          >
+            <Animated.View
+              pointerEvents="none"
+              className="absolute bottom-1 left-0 top-1 rounded-2xl bg-cream-50"
+              style={categoryHighlightStyle}
+            />
+            {categoryTabs.map((tab) => {
+              const active = tab.value === category;
+              return (
+                <AnimatedPressable
+                  key={tab.value}
+                  onPress={() => setCategory(tab.value)}
+                  onLayout={(event) => {
+                    const { x, width } = event.nativeEvent.layout;
+                    setCategoryTabLayouts((current) => ({ ...current, [tab.value]: { x, width } }));
+                  }}
+                  className="flex-row items-center gap-1.5 rounded-2xl px-4 py-2.5"
                 >
-                  {tab.label}
-                </Text>
-                <View
-                  className={
-                    active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
-                  }
-                >
-                  <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value] ?? 0}</Text>
-                </View>
-              </AnimatedPressable>
-            );
-          })}
-        </ScrollView>
+                  <Text
+                    className={
+                      active
+                        ? "font-grotesk-semibold text-sm text-orange-500"
+                        : "font-grotesk-medium text-sm text-ink-cream-muted"
+                    }
+                  >
+                    {tab.label}
+                  </Text>
+                  <View
+                    className={
+                      active ? "rounded-xl bg-orange-100 px-2 py-0.5" : "rounded-xl bg-cream-200 px-2 py-0.5"
+                    }
+                  >
+                    <Text className="font-grotesk-bold text-xs text-ink-cream">{categoryCounts[tab.value] ?? 0}</Text>
+                  </View>
+                </AnimatedPressable>
+              );
+            })}
+          </ScrollView>
+        </View>
 
         <View className="flex-row gap-3 px-6 pt-4">
           <AnimatedPressable
             onPress={() => setStatusSheetOpen(true)}
             className={
               status !== "all"
-                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
-                : "chip chip--idle flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
             }
           >
             <Feather name="filter" size={14} color={status !== "all" ? colors.orange[600] : colors.ink.cream} />
@@ -270,8 +273,8 @@ export default function TasksListScreen() {
             onPress={() => setSortSheetOpen(true)}
             className={
               sort !== "recent"
-                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
-                : "chip chip--idle flex-1 flex-row items-center justify-center gap-2 px-4 py-3"
+                ? "chip chip--selected flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
+                : "chip chip--idle flex-1 flex-row items-center justify-center gap-1.5 px-3 py-2"
             }
           >
             <Ionicons name="swap-vertical" size={14} color={sort !== "recent" ? colors.orange[600] : colors.ink.cream} />
